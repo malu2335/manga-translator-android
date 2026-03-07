@@ -25,6 +25,12 @@ data class OcrApiSettings(
     }
 }
 
+data class FloatingTranslateApiSettings(
+    val apiUrl: String,
+    val apiKey: String,
+    val modelName: String
+)
+
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -40,6 +46,32 @@ class SettingsStore(context: Context) {
                 putString(KEY_API_URL, settings.apiUrl)
                 .putString(KEY_API_KEY, settings.apiKey)
                 .putString(KEY_MODEL_NAME, settings.modelName)
+            }
+    }
+
+    fun loadFloatingTranslateApiSettings(): FloatingTranslateApiSettings {
+        return FloatingTranslateApiSettings(
+            apiUrl = prefs.getString(KEY_FLOATING_API_URL, "") ?: "",
+            apiKey = prefs.getString(KEY_FLOATING_API_KEY, "") ?: "",
+            modelName = prefs.getString(KEY_FLOATING_MODEL_NAME, "") ?: ""
+        )
+    }
+
+    fun loadResolvedFloatingTranslateApiSettings(): ApiSettings {
+        val floating = loadFloatingTranslateApiSettings()
+        val main = load()
+        return ApiSettings(
+            apiUrl = floating.apiUrl.ifBlank { main.apiUrl },
+            apiKey = floating.apiKey.ifBlank { main.apiKey },
+            modelName = floating.modelName.ifBlank { main.modelName }
+        )
+    }
+
+    fun saveFloatingTranslateApiSettings(settings: FloatingTranslateApiSettings) {
+        prefs.edit() {
+                putString(KEY_FLOATING_API_URL, settings.apiUrl)
+                .putString(KEY_FLOATING_API_KEY, settings.apiKey)
+                .putString(KEY_FLOATING_MODEL_NAME, settings.modelName)
             }
     }
 
@@ -223,6 +255,9 @@ class SettingsStore(context: Context) {
         private const val KEY_OCR_API_URL = "ocr_api_url"
         private const val KEY_OCR_API_KEY = "ocr_api_key"
         private const val KEY_OCR_MODEL_NAME = "ocr_model_name"
+        private const val KEY_FLOATING_API_URL = "floating_api_url"
+        private const val KEY_FLOATING_API_KEY = "floating_api_key"
+        private const val KEY_FLOATING_MODEL_NAME = "floating_model_name"
         private const val KEY_OCR_API_TIMEOUT_SECONDS = "ocr_api_timeout_seconds"
         private const val KEY_HORIZONTAL_TEXT = "horizontal_text_layout"
         private const val KEY_MODEL_IO_LOGGING = "model_io_logging"

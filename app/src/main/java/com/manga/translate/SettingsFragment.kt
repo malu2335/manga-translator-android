@@ -19,6 +19,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.manga.translate.databinding.DialogLlmParamsBinding
 import com.manga.translate.databinding.DialogOcrSettingsBinding
+import com.manga.translate.databinding.DialogFloatingTranslateSettingsBinding
 import com.manga.translate.databinding.FragmentSettingsBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -104,6 +105,10 @@ class SettingsFragment : Fragment() {
 
         binding.ocrSettingsButton.setOnClickListener {
             showOcrSettingsDialog()
+        }
+
+        binding.floatingTranslateSettingsButton.setOnClickListener {
+            showFloatingTranslateSettingsDialog()
         }
 
         binding.viewLogsButton.setOnClickListener {
@@ -461,6 +466,29 @@ class SettingsFragment : Fragment() {
                     "Settings",
                     "OCR mode set to ${if (settings.useLocalOcr) "local" else "openai-compatible api"}"
                 )
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showFloatingTranslateSettingsDialog() {
+        val currentSettings = settingsStore.loadFloatingTranslateApiSettings()
+        val dialogBinding = DialogFloatingTranslateSettingsBinding.inflate(layoutInflater)
+        dialogBinding.floatingApiUrlInput.setText(currentSettings.apiUrl)
+        dialogBinding.floatingApiKeyInput.setText(currentSettings.apiKey)
+        dialogBinding.floatingModelNameInput.setText(currentSettings.modelName)
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.floating_translate_settings_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                settingsStore.saveFloatingTranslateApiSettings(
+                    FloatingTranslateApiSettings(
+                        apiUrl = dialogBinding.floatingApiUrlInput.text?.toString()?.trim().orEmpty(),
+                        apiKey = dialogBinding.floatingApiKeyInput.text?.toString()?.trim().orEmpty(),
+                        modelName = dialogBinding.floatingModelNameInput.text?.toString()?.trim().orEmpty()
+                    )
+                )
+                AppLogger.log("Settings", "Floating translate API settings updated")
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

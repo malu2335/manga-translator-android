@@ -18,6 +18,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
+import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -39,6 +40,7 @@ import kotlin.math.abs
 class FloatingBallOverlayService : Service() {
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private val settingsStore by lazy { SettingsStore(applicationContext) }
+    private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var windowManager: WindowManager
     private var controllerRoot: LinearLayout? = null
     private var controllerLayoutParams: WindowManager.LayoutParams? = null
@@ -56,6 +58,19 @@ class FloatingBallOverlayService : Service() {
     private var densityDpi = 0
     private var bubbleDragEnabled = false
     private var bubbleDragToggleButton: AppCompatButton? = null
+    private var progressStatusView: TextView? = null
+    private val hideProgressStatusRunnable = Runnable {
+        progressStatusView?.visibility = View.GONE
+    }
+    private val bubbleDragAutoDisableRunnable = Runnable {
+        if (!bubbleDragEnabled) return@Runnable
+        applyBubbleDragEnabled(false)
+        Toast.makeText(
+            this,
+            R.string.overlay_drag_bubble_auto_disabled,
+            Toast.LENGTH_SHORT
+        ).show()
+    }
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
             scope.launch(Dispatchers.Main) {
@@ -108,6 +123,7 @@ class FloatingBallOverlayService : Service() {
 
     override fun onDestroy() {
         detectJob?.cancel()
+        cancelBubbleDragAutoDisable()
         releaseProjection()
         removeOverlay()
         scope.cancel()
@@ -160,35 +176,21 @@ class FloatingBallOverlayService : Service() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
         }
-        val clearButton = AppCompatButton(this).apply {
-            text = getString(R.string.overlay_clear_button)
+        val progressView = TextView(this).apply {
             textSize = 12f
             setTextColor(0xFFFFFFFF.toInt())
-            background = createOverlayActionButtonBackground(density)
-            minimumWidth = 0
-            minWidth = 0
-            setPadding((10f * density).toInt(), 0, (10f * density).toInt(), 0)
-            setOnClickListener { detectionOverlayView?.clearDetections() }
-        }
-        val translateButton = AppCompatButton(this).apply {
-            text = getString(R.string.overlay_translate_button)
-            textSize = 12f
-            setTextColor(0xFFFFFFFF.toInt())
-            background = createOverlayActionButtonBackground(density)
-            minimumWidth = 0
-            minWidth = 0
-            setPadding((10f * density).toInt(), 0, (10f * density).toInt(), 0)
-            setOnClickListener { runTextDetection() }
-        }
-        val exitButton = AppCompatButton(this).apply {
-            text = getString(R.string.overlay_exit_button)
-            textSize = 12f
-            setTextColor(0xFFFFFFFF.toInt())
-            background = createOverlayActionButtonBackground(density)
-            minimumWidth = 0
-            minWidth = 0
-            setPadding((10f * density).toInt(), 0, (10f * density).toInt(), 0)
-            setOnClickListener { stopSelf() }
+            setPadding(
+                (10f * density).toInt(),
+                (6f * density).toInt(),
+                (10f * density).toInt(),
+                (6f * density).toInt()
+            )
+            background = GradientDrawable().apply {
+                cornerRadius = 8f * density
+                setColor(0xCC1B1B1B.toInt())
+                setStroke((1f * density).toInt(), 0x44FFFFFF)
+            }
+            visibility = View.GONE
         }
         val floatingBall = TextView(this).apply {
             text = "译"
@@ -202,31 +204,15 @@ class FloatingBallOverlayService : Service() {
         }
 
         root.addView(
-            clearButton,
+            progressView,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-                (28f * density).toInt()
-            )
-        )
-        root.addView(
-            translateButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                (28f * density).toInt()
+                LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                topMargin = (4f * density).toInt()
+                bottomMargin = (4f * density).toInt()
             }
         )
-        root.addView(
-            exitButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                (28f * density).toInt()
-            ).apply {
-                topMargin = (4f * density).toInt()
-            }
-        )
-        val settingsPanel = LinearLayout(this).apply {
+        val menuPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(
                 (8f * density).toInt(),
@@ -261,47 +247,52 @@ class FloatingBallOverlayService : Service() {
                 applyBubbleDragEnabled(!bubbleDragEnabled)
             }
         }
+        val exitButton = AppCompatButton(this).apply {
+            text = getString(R.string.overlay_exit_button)
+            textSize = 13f
+            setTextColor(0xFF1F1F1F.toInt())
+            background = GradientDrawable().apply {
+                cornerRadius = 8f * density
+                setColor(0xFFFFFFFF.toInt())
+                setStroke((1f * density).toInt(), 0x33222222)
+            }
+            minimumWidth = 0
+            minWidth = 0
+            setPadding(
+                (10f * density).toInt(),
+                (8f * density).toInt(),
+                (10f * density).toInt(),
+                (8f * density).toInt()
+            )
+            setOnClickListener { stopSelf() }
+        }
         bubbleDragToggleButton = bubbleDragButton
         updateBubbleDragToggleButton()
-        settingsPanel.addView(
+        menuPanel.addView(
             bubbleDragButton,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
-        val settingsButton = AppCompatButton(this).apply {
-            text = getString(R.string.overlay_settings_button)
-            textSize = 12f
-            setTextColor(0xFFFFFFFF.toInt())
-            background = createOverlayActionButtonBackground(density)
-            minimumWidth = 0
-            minWidth = 0
-            setPadding((10f * density).toInt(), 0, (10f * density).toInt(), 0)
-            setOnClickListener {
-                settingsPanel.visibility = if (settingsPanel.visibility == View.VISIBLE) {
-                    View.GONE
-                } else {
-                    View.VISIBLE
-                }
+        menuPanel.addView(
+            exitButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = (6f * density).toInt()
             }
-        }
+        )
 
         root.addView(
-            settingsPanel,
+            menuPanel,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 bottomMargin = (4f * density).toInt()
             }
-        )
-        root.addView(
-            settingsButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                (28f * density).toInt()
-            )
         )
         root.addView(
             floatingBall,
@@ -328,11 +319,12 @@ class FloatingBallOverlayService : Service() {
             y = (180f * density).toInt()
         }
 
-        attachDragGesture(floatingBall, params)
+        attachBallGesture(floatingBall, menuPanel, params)
         windowManager.addView(root, params)
         AppLogger.log("FloatingOCR", "Controller overlay added")
         controllerRoot = root
         controllerLayoutParams = params
+        progressStatusView = progressView
     }
 
     private fun showDetectionOverlay() {
@@ -377,19 +369,20 @@ class FloatingBallOverlayService : Service() {
         return flags
     }
 
-    private fun createOverlayActionButtonBackground(density: Float): GradientDrawable {
-        return GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = 8f * density
-            setColor(0xCC1B1B1B.toInt())
-            setStroke((1f * density).toInt(), 0x66FFFFFF)
-        }
-    }
-
     private fun applyBubbleDragEnabled(enabled: Boolean) {
         bubbleDragEnabled = enabled
         settingsStore.saveFloatingBubbleDragEnabled(enabled)
         AppLogger.log("FloatingOCR", "Bubble drag toggled enabled=$enabled")
+        if (enabled) {
+            scheduleBubbleDragAutoDisable()
+            Toast.makeText(
+                this,
+                R.string.overlay_drag_bubble_auto_disable_notice,
+                Toast.LENGTH_SHORT
+            ).show()
+        } else {
+            cancelBubbleDragAutoDisable()
+        }
         updateBubbleDragToggleButton()
         detectionOverlayView?.setBubbleDragEnabled(enabled)
         val params = detectionLayoutParams ?: return
@@ -402,6 +395,29 @@ class FloatingBallOverlayService : Service() {
             }
         }
         ensureControllerOnTop()
+    }
+
+    private fun scheduleBubbleDragAutoDisable() {
+        cancelBubbleDragAutoDisable()
+        mainHandler.postDelayed(bubbleDragAutoDisableRunnable, BUBBLE_DRAG_AUTO_DISABLE_MS)
+    }
+
+    private fun showProgressStatus(messageResId: Int, autoHide: Boolean = false) {
+        showProgressStatus(getString(messageResId), autoHide)
+    }
+
+    private fun showProgressStatus(message: String, autoHide: Boolean = false) {
+        val statusView = progressStatusView ?: return
+        mainHandler.removeCallbacks(hideProgressStatusRunnable)
+        statusView.text = message
+        statusView.visibility = View.VISIBLE
+        if (autoHide) {
+            mainHandler.postDelayed(hideProgressStatusRunnable, FLOATING_PROGRESS_HIDE_DELAY_MS)
+        }
+    }
+
+    private fun cancelBubbleDragAutoDisable() {
+        mainHandler.removeCallbacks(bubbleDragAutoDisableRunnable)
     }
 
     private fun ensureControllerOnTop() {
@@ -454,11 +470,12 @@ class FloatingBallOverlayService : Service() {
         val projection = mediaProjection
         if (projection == null || imageReader == null) {
             AppLogger.log("FloatingOCR", "Run detection blocked: projection not ready")
+            showProgressStatus(R.string.floating_capture_not_ready, autoHide = true)
             Toast.makeText(this, R.string.floating_capture_not_ready, Toast.LENGTH_SHORT).show()
             return
         }
         AppLogger.log("FloatingOCR", "Run detection started")
-        Toast.makeText(this, R.string.floating_detecting, Toast.LENGTH_SHORT).show()
+        showProgressStatus(R.string.floating_progress_capturing)
         detectJob = scope.launch(Dispatchers.Default) {
             var bitmap: Bitmap? = null
             try {
@@ -466,6 +483,7 @@ class FloatingBallOverlayService : Service() {
                 if (bitmap == null) {
                     AppLogger.log("FloatingOCR", "Capture screen returned null")
                     withContext(Dispatchers.Main) {
+                        showProgressStatus(R.string.floating_capture_not_ready, autoHide = true)
                         Toast.makeText(
                             this@FloatingBallOverlayService,
                             R.string.floating_capture_not_ready,
@@ -473,6 +491,9 @@ class FloatingBallOverlayService : Service() {
                         ).show()
                     }
                     return@launch
+                }
+                withContext(Dispatchers.Main) {
+                    showProgressStatus(R.string.floating_progress_detecting)
                 }
                 val detector = textDetector ?: TextDetector(applicationContext).also { textDetector = it }
                 val ocr = mangaOcr ?: runCatching {
@@ -494,6 +515,11 @@ class FloatingBallOverlayService : Service() {
                     )
                 }
                 AppLogger.log("FloatingOCR", "Deduplicated detections count=${deduplicatedRects.size}")
+                withContext(Dispatchers.Main) {
+                    showProgressStatus(
+                        getString(R.string.floating_progress_recognizing, deduplicatedRects.size)
+                    )
+                }
                 val bubbles = ArrayList<BubbleTranslation>(deduplicatedRects.size)
                 for ((index, rect) in deduplicatedRects.withIndex()) {
                     val crop = cropBitmap(bitmap, rect)
@@ -525,6 +551,9 @@ class FloatingBallOverlayService : Service() {
                         )
                     )
                 }
+                withContext(Dispatchers.Main) {
+                    showProgressStatus(R.string.floating_progress_translating)
+                }
                 val translatedBubbles = translateBubblesIfConfigured(
                     bubbles = bubbles,
                     timeoutMs = FLOATING_TRANSLATE_TIMEOUT_MS.toInt(),
@@ -533,6 +562,7 @@ class FloatingBallOverlayService : Service() {
                 if (translatedBubbles == null) {
                     AppLogger.log("FloatingOCR", "Translate timeout")
                     withContext(Dispatchers.Main) {
+                        showProgressStatus(R.string.floating_translate_timeout, autoHide = true)
                         Toast.makeText(
                             this@FloatingBallOverlayService,
                             R.string.floating_translate_timeout,
@@ -543,6 +573,10 @@ class FloatingBallOverlayService : Service() {
                 }
                 withContext(Dispatchers.Main) {
                     detectionOverlayView?.setDetections(bitmap.width, bitmap.height, translatedBubbles)
+                    showProgressStatus(
+                        getString(R.string.floating_progress_done, translatedBubbles.size),
+                        autoHide = true
+                    )
                     Toast.makeText(
                         this@FloatingBallOverlayService,
                         getString(R.string.floating_detected_count, translatedBubbles.size),
@@ -553,6 +587,7 @@ class FloatingBallOverlayService : Service() {
             } catch (e: Exception) {
                 AppLogger.log("FloatingOCR", "Floating detection failed", e)
                 withContext(Dispatchers.Main) {
+                    showProgressStatus(R.string.floating_detect_failed, autoHide = true)
                     Toast.makeText(
                         this@FloatingBallOverlayService,
                         R.string.floating_detect_failed,
@@ -577,7 +612,8 @@ class FloatingBallOverlayService : Service() {
             return bubbles
         }
         val client = llmClient ?: LlmClient(applicationContext).also { llmClient = it }
-        if (!client.isConfigured()) {
+        val floatingApiSettings = settingsStore.loadResolvedFloatingTranslateApiSettings()
+        if (!client.isConfigured(floatingApiSettings)) {
             AppLogger.log("FloatingOCR", "Skip translate: LLM client not configured")
             return bubbles
         }
@@ -589,7 +625,8 @@ class FloatingBallOverlayService : Service() {
                 glossary = emptyMap(),
                 promptAsset = FLOAT_PROMPT_ASSET,
                 requestTimeoutMs = timeoutMs,
-                retryCount = retryCount
+                retryCount = retryCount,
+                apiSettings = floatingApiSettings
             ) ?: return bubbles
             val segments = extractTaggedSegments(
                 translated.translation,
@@ -653,8 +690,9 @@ class FloatingBallOverlayService : Service() {
         }
     }
 
-    private fun attachDragGesture(
+    private fun attachBallGesture(
         target: TextView,
+        menuPanel: View,
         params: WindowManager.LayoutParams
     ) {
         val touchSlop = (3f * resources.displayMetrics.density)
@@ -662,19 +700,55 @@ class FloatingBallOverlayService : Service() {
         var downRawY = 0f
         var downX = 0
         var downY = 0
+        var dragging = false
+        val gestureDetector = GestureDetector(
+            this,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent): Boolean = true
+
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    menuPanel.visibility = View.GONE
+                    runTextDetection()
+                    return true
+                }
+
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    menuPanel.visibility = View.GONE
+                    detectionOverlayView?.clearDetections()
+                    return true
+                }
+
+                override fun onLongPress(e: MotionEvent) {
+                    menuPanel.visibility = if (menuPanel.visibility == View.VISIBLE) {
+                        View.GONE
+                    } else {
+                        View.VISIBLE
+                    }
+                }
+            }
+        )
         target.setOnTouchListener { _, event ->
+            gestureDetector.onTouchEvent(event)
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downRawX = event.rawX
                     downRawY = event.rawY
                     downX = params.x
                     downY = params.y
+                    dragging = false
                     true
                 }
 
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - downRawX
                     val dy = event.rawY - downRawY
+                    if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
+                        dragging = true
+                        menuPanel.visibility = View.GONE
+                    }
+                    if (!dragging) {
+                        return@setOnTouchListener true
+                    }
                     params.x = (downX + dx).toInt().coerceAtLeast(0)
                     params.y = (downY + dy).toInt().coerceAtLeast(0)
                     windowManager.updateViewLayout(controllerRoot, params)
@@ -682,12 +756,15 @@ class FloatingBallOverlayService : Service() {
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    val moved = abs(event.rawX - downRawX) > touchSlop ||
-                        abs(event.rawY - downRawY) > touchSlop
-                    moved
+                    dragging
                 }
 
-                else -> false
+                MotionEvent.ACTION_CANCEL -> {
+                    dragging = false
+                    false
+                }
+
+                else -> true
             }
         }
     }
@@ -712,6 +789,7 @@ class FloatingBallOverlayService : Service() {
         detectionOverlayView = null
         detectionLayoutParams = null
         bubbleDragToggleButton = null
+        progressStatusView = null
     }
 
     private fun releaseProjection() {
@@ -748,6 +826,8 @@ class FloatingBallOverlayService : Service() {
         const val ACTION_STOP = "com.manga.translate.action.FLOATING_STOP"
         const val EXTRA_RESULT_CODE = "extra_result_code"
         const val EXTRA_RESULT_DATA = "extra_result_data"
+        private const val BUBBLE_DRAG_AUTO_DISABLE_MS = 10_000L
+        private const val FLOATING_PROGRESS_HIDE_DELAY_MS = 2_000L
         private const val CHANNEL_ID = "floating_detect_channel"
         private const val NOTIFICATION_ID = 2002
         private const val FLOAT_PROMPT_ASSET = "float_llm_prompts.json"

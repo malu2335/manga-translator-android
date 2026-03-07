@@ -21,8 +21,8 @@ class LlmClient(context: Context) {
     private val settingsStore = SettingsStore(appContext)
     private val promptCache = mutableMapOf<String, LlmPromptConfig>()
 
-    fun isConfigured(): Boolean {
-        return settingsStore.load().isValid()
+    fun isConfigured(apiSettings: ApiSettings? = null): Boolean {
+        return (apiSettings ?: settingsStore.load()).isValid()
     }
 
     fun isOcrConfigured(): Boolean {
@@ -34,7 +34,8 @@ class LlmClient(context: Context) {
         glossary: Map<String, String>,
         promptAsset: String = PROMPT_CONFIG_ASSET,
         requestTimeoutMs: Int? = null,
-        retryCount: Int = RETRY_COUNT
+        retryCount: Int = RETRY_COUNT,
+        apiSettings: ApiSettings? = null
     ): LlmTranslationResult? =
         withContext(Dispatchers.IO) {
             val content = requestContent(
@@ -43,7 +44,8 @@ class LlmClient(context: Context) {
                 promptAsset = promptAsset,
                 useJsonPayload = true,
                 requestTimeoutMs = requestTimeoutMs,
-                retryCount = retryCount
+                retryCount = retryCount,
+                apiSettings = apiSettings
             )
                 ?: return@withContext null
             parseTranslationContent(content)
@@ -129,9 +131,10 @@ class LlmClient(context: Context) {
         promptAsset: String,
         useJsonPayload: Boolean,
         requestTimeoutMs: Int? = null,
-        retryCount: Int = RETRY_COUNT
+        retryCount: Int = RETRY_COUNT,
+        apiSettings: ApiSettings? = null
     ): String? {
-        val settings = settingsStore.load()
+        val settings = apiSettings ?: settingsStore.load()
         if (!settings.isValid()) return null
         val endpoint = buildEndpoint(settings.apiUrl)
         val selectedModel = selectModelForRequest(settings.modelName)
