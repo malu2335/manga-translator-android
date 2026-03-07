@@ -715,6 +715,9 @@ class FloatingBallOverlayService : Service() {
                 override fun onDoubleTap(e: MotionEvent): Boolean {
                     menuPanel.visibility = View.GONE
                     detectionOverlayView?.clearDetections()
+                    if (bubbleDragEnabled) {
+                        applyBubbleDragEnabled(false)
+                    }
                     return true
                 }
 
