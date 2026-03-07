@@ -1,10 +1,16 @@
 {
-  "versionCode": 24,
-  "versionName": "2.3.0",
-  "releasedAt": "2026-02-25",
-  "apkUrl": "https://github.com/jedzqer/manga-translator/releases/download/v2.3.0/app-release.apk",
-  "changelog": "新增悬浮窗翻译功能，优化了一些细节",
+  "versionCode": 25,
+  "versionName": "2.3.1",
+  "releasedAt": "2026-03-07",
+  "apkUrl": "https://github.com/jedzqer/manga-translator/releases/download/v2.3.1/app-release.apk",
+  "changelog": "大幅优化悬浮窗翻译交互",
   "history": [
+    {
+      "versionName": "2.3.0",
+      "releasedAt": "2026-02-25",
+      "apkUrl": "https://github.com/jedzqer/manga-translator/releases/download/v2.3.0/app-release.apk",
+      "changelog": "新增悬浮窗翻译功能，优化了一些细节",
+    },
     {
       "versionName": "2.2.4",
       "releasedAt": "2026-02-25",
