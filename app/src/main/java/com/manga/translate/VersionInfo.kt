@@ -1,6 +1,6 @@
 package com.manga.translate
 
 object VersionInfo {
-    const val VERSION_CODE = 26
-    const val VERSION_NAME = "2.3.2"
+    const val VERSION_CODE = 27
+    const val VERSION_NAME = "2.3.3"
 }

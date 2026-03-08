@@ -484,9 +484,17 @@ class LibraryFragment : Fragment() {
     }
 
     private fun openTutorial() {
-        val source = settingsStore.loadLinkSource()
-        val url = if (source == LinkSource.GITHUB) tutorialUrlGithub else tutorialUrlGitee
-        openUrlOrToast(url)
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.tutorial_open_title)
+            .setMessage(R.string.tutorial_open_message)
+            .setPositiveButton(R.string.tutorial_open_mirror) { _, _ ->
+                openUrlOrToast(tutorialUrlGitee)
+            }
+            .setNegativeButton(R.string.tutorial_open_github) { _, _ ->
+                openUrlOrToast(tutorialUrlGithub)
+            }
+            .setNeutralButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun openUrlOrToast(url: String) {
