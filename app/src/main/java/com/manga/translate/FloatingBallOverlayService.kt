@@ -32,9 +32,14 @@ import androidx.core.content.getSystemService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlin.math.abs
 
 class FloatingBallOverlayService : Service() {
@@ -502,11 +507,6 @@ class FloatingBallOverlayService : Service() {
                     showProgressStatus(R.string.floating_progress_detecting)
                 }
                 val detector = textDetector ?: TextDetector(applicationContext).also { textDetector = it }
-                val ocr = mangaOcr ?: runCatching {
-                    MangaOcr(applicationContext)
-                }.getOrNull()?.also {
-                    mangaOcr = it
-                }
                 val detections = detector.detect(bitmap)
                 AppLogger.log("FloatingOCR", "Raw detections count=${detections.size}")
                 val deduplicatedRects = RectGeometryDeduplicator.mergeSupplementRects(
@@ -521,50 +521,98 @@ class FloatingBallOverlayService : Service() {
                     )
                 }
                 AppLogger.log("FloatingOCR", "Deduplicated detections count=${deduplicatedRects.size}")
-                withContext(Dispatchers.Main) {
-                    showProgressStatus(
-                        getString(R.string.floating_progress_recognizing, deduplicatedRects.size)
+                val client = llmClient ?: LlmClient(applicationContext).also { llmClient = it }
+                val floatingSettings = settingsStore.loadFloatingTranslateApiSettings()
+                val floatingApiSettings = settingsStore.loadResolvedFloatingTranslateApiSettings()
+                val useVlDirectTranslate =
+                    floatingSettings.useVlDirectTranslate &&
+                        client.isConfigured(floatingApiSettings)
+                val vlOutcome = if (useVlDirectTranslate) {
+                    withContext(Dispatchers.Main) {
+                        showProgressStatus(
+                            getString(R.string.floating_progress_vl_translating, deduplicatedRects.size)
+                        )
+                    }
+                    translateBubbleImagesIfConfigured(
+                        bitmap = bitmap,
+                        rects = deduplicatedRects,
+                        timeoutMs = FLOATING_TRANSLATE_TIMEOUT_MS.toInt(),
+                        retryCount = FLOATING_TRANSLATE_RETRY_COUNT,
+                        client = client,
+                        apiSettings = floatingApiSettings,
+                        concurrency = floatingSettings.vlTranslateConcurrency
                     )
+                } else {
+                    null
                 }
-                val bubbles = ArrayList<BubbleTranslation>(deduplicatedRects.size)
-                for ((index, rect) in deduplicatedRects.withIndex()) {
-                    val crop = cropBitmap(bitmap, rect)
-                    if (crop == null) {
+                if (vlOutcome?.requiresVlModel == true) {
+                    withContext(Dispatchers.Main) {
+                        showProgressStatus(R.string.floating_vl_model_required, autoHide = true)
+                        Toast.makeText(
+                            this@FloatingBallOverlayService,
+                            R.string.floating_vl_model_required,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    return@launch
+                }
+                val translatedBubbles = if (useVlDirectTranslate) {
+                    if (vlOutcome?.timedOut == true) {
+                        null
+                    } else {
+                        vlOutcome?.bubbles ?: emptyList()
+                    }
+                } else {
+                    val ocr = mangaOcr ?: runCatching {
+                        MangaOcr(applicationContext)
+                    }.getOrNull()?.also {
+                        mangaOcr = it
+                    }
+                    withContext(Dispatchers.Main) {
+                        showProgressStatus(
+                            getString(R.string.floating_progress_recognizing, deduplicatedRects.size)
+                        )
+                    }
+                    val bubbles = ArrayList<BubbleTranslation>(deduplicatedRects.size)
+                    for ((index, rect) in deduplicatedRects.withIndex()) {
+                        val crop = cropBitmap(bitmap, rect)
+                        if (crop == null) {
+                            bubbles.add(
+                                BubbleTranslation(
+                                    id = index,
+                                    rect = rect,
+                                    text = "",
+                                    source = BubbleSource.TEXT_DETECTOR
+                                )
+                            )
+                            continue
+                        }
+                        val text = try {
+                            ocr?.recognize(crop)?.trim().orEmpty()
+                        } catch (e: Exception) {
+                            AppLogger.log("FloatingOCR", "MangaOCR recognize failed", e)
+                            ""
+                        } finally {
+                            crop.recycle()
+                        }
                         bubbles.add(
                             BubbleTranslation(
                                 id = index,
                                 rect = rect,
-                                text = "",
+                                text = text,
                                 source = BubbleSource.TEXT_DETECTOR
                             )
                         )
-                        continue
                     }
-                    val text = try {
-                        ocr?.recognize(crop)?.trim().orEmpty()
-                    } catch (e: Exception) {
-                        AppLogger.log("FloatingOCR", "MangaOCR recognize failed", e)
-                        ""
-                    } finally {
-                        crop.recycle()
+                    withContext(Dispatchers.Main) {
+                        showProgressStatus(R.string.floating_progress_translating)
                     }
-                    bubbles.add(
-                        BubbleTranslation(
-                            id = index,
-                            rect = rect,
-                            text = text,
-                            source = BubbleSource.TEXT_DETECTOR
-                        )
+                    translateBubblesIfConfigured(
+                        bubbles = bubbles,
+                        timeoutMs = FLOATING_TRANSLATE_TIMEOUT_MS.toInt(),
+                        retryCount = FLOATING_TRANSLATE_RETRY_COUNT
                     )
                 }
-                withContext(Dispatchers.Main) {
-                    showProgressStatus(R.string.floating_progress_translating)
-                }
-                val translatedBubbles = translateBubblesIfConfigured(
-                    bubbles = bubbles,
-                    timeoutMs = FLOATING_TRANSLATE_TIMEOUT_MS.toInt(),
-                    retryCount = FLOATING_TRANSLATE_RETRY_COUNT
-                )
                 if (translatedBubbles == null) {
                     AppLogger.log("FloatingOCR", "Translate timeout")
                     withContext(Dispatchers.Main) {
@@ -604,6 +652,96 @@ class FloatingBallOverlayService : Service() {
                 bitmap?.recycle()
             }
         }
+    }
+
+    private suspend fun translateBubbleImagesIfConfigured(
+        bitmap: Bitmap,
+        rects: List<android.graphics.RectF>,
+        timeoutMs: Int,
+        retryCount: Int,
+        client: LlmClient,
+        apiSettings: ApiSettings,
+        concurrency: Int
+    ): VlBubbleTranslateOutcome = coroutineScope {
+        if (rects.isEmpty()) {
+            return@coroutineScope VlBubbleTranslateOutcome(bubbles = emptyList())
+        }
+        val semaphore = Semaphore(concurrency.coerceIn(1, MAX_FLOATING_VL_TRANSLATE_CONCURRENCY))
+        val tasks = rects.mapIndexed { index, rect ->
+            async(Dispatchers.IO) {
+                semaphore.withPermit {
+                    val crop = cropBitmap(bitmap, rect)
+                    if (crop == null) {
+                        return@withPermit VlBubbleTranslateTaskResult(
+                            bubble = BubbleTranslation(
+                                id = index,
+                                rect = rect,
+                                text = "",
+                                source = BubbleSource.TEXT_DETECTOR
+                            )
+                        )
+                    }
+                    val translatedText = try {
+                        client.translateImageBubble(
+                            image = crop,
+                            promptAsset = FLOAT_VL_PROMPT_ASSET,
+                            requestTimeoutMs = timeoutMs,
+                            retryCount = retryCount,
+                            apiSettings = apiSettings
+                        ).orEmpty()
+                    } catch (e: LlmRequestException) {
+                        if (e.errorCode == "TIMEOUT") {
+                            AppLogger.log("FloatingOCR", "VL direct translate timeout")
+                            return@withPermit VlBubbleTranslateTaskResult(timedOut = true)
+                        }
+                        AppLogger.log("FloatingOCR", "VL direct translate request failed", e)
+                        if (looksLikeVisionModelError(e)) {
+                            return@withPermit VlBubbleTranslateTaskResult(requiresVlModel = true)
+                        }
+                        ""
+                    } catch (e: Exception) {
+                        AppLogger.log("FloatingOCR", "VL direct translate failed", e)
+                        ""
+                    } finally {
+                        crop.recycle()
+                    }
+                    VlBubbleTranslateTaskResult(
+                        bubble = BubbleTranslation(
+                            id = index,
+                            rect = rect,
+                            text = translatedText,
+                            source = BubbleSource.TEXT_DETECTOR
+                        )
+                    )
+                }
+            }
+        }
+        val results = tasks.awaitAll()
+        if (results.any { it.requiresVlModel }) {
+            return@coroutineScope VlBubbleTranslateOutcome(requiresVlModel = true)
+        }
+        if (results.any { it.timedOut }) {
+            return@coroutineScope VlBubbleTranslateOutcome(timedOut = true)
+        }
+        val bubbles = results.mapNotNull { it.bubble }
+        AppLogger.log("FloatingOCR", "VL direct translate success segments=${bubbles.size}")
+        return@coroutineScope VlBubbleTranslateOutcome(bubbles = bubbles)
+    }
+
+    private fun looksLikeVisionModelError(error: LlmRequestException): Boolean {
+        val body = error.responseBody.orEmpty().lowercase()
+        val code = error.errorCode.lowercase()
+        val hints = listOf(
+            "image",
+            "vision",
+            "multimodal",
+            "multi-modal",
+            "image_url",
+            "input_image",
+            "does not support image",
+            "unsupported content type"
+        )
+        return code.startsWith("http") && hints.any { it in body }
     }
 
     private suspend fun translateBubblesIfConfigured(
@@ -840,10 +978,24 @@ class FloatingBallOverlayService : Service() {
         private const val CHANNEL_ID = "floating_detect_channel"
         private const val NOTIFICATION_ID = 2002
         private const val FLOAT_PROMPT_ASSET = "float_llm_prompts.json"
+        private const val FLOAT_VL_PROMPT_ASSET = "float_vl_bubble_prompts.json"
         private const val FLOATING_TRANSLATE_TIMEOUT_MS = 30_000L
         private const val FLOATING_TRANSLATE_RETRY_COUNT = 1
+        private const val MAX_FLOATING_VL_TRANSLATE_CONCURRENCY = 16
     }
 }
+
+private data class VlBubbleTranslateOutcome(
+    val bubbles: List<BubbleTranslation>? = null,
+    val timedOut: Boolean = false,
+    val requiresVlModel: Boolean = false
+)
+
+private data class VlBubbleTranslateTaskResult(
+    val bubble: BubbleTranslation? = null,
+    val timedOut: Boolean = false,
+    val requiresVlModel: Boolean = false
+)
 
 private fun Intent.getParcelableIntentExtraCompat(key: String): Intent? {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

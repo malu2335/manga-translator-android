@@ -28,7 +28,9 @@ data class OcrApiSettings(
 data class FloatingTranslateApiSettings(
     val apiUrl: String,
     val apiKey: String,
-    val modelName: String
+    val modelName: String,
+    val useVlDirectTranslate: Boolean,
+    val vlTranslateConcurrency: Int
 )
 
 class SettingsStore(context: Context) {
@@ -53,7 +55,15 @@ class SettingsStore(context: Context) {
         return FloatingTranslateApiSettings(
             apiUrl = prefs.getString(KEY_FLOATING_API_URL, "") ?: "",
             apiKey = prefs.getString(KEY_FLOATING_API_KEY, "") ?: "",
-            modelName = prefs.getString(KEY_FLOATING_MODEL_NAME, "") ?: ""
+            modelName = prefs.getString(KEY_FLOATING_MODEL_NAME, "") ?: "",
+            useVlDirectTranslate = prefs.getBoolean(KEY_FLOATING_USE_VL_DIRECT_TRANSLATE, false),
+            vlTranslateConcurrency = prefs.getInt(
+                KEY_FLOATING_VL_TRANSLATE_CONCURRENCY,
+                DEFAULT_FLOATING_VL_TRANSLATE_CONCURRENCY
+            ).coerceIn(
+                MIN_FLOATING_VL_TRANSLATE_CONCURRENCY,
+                MAX_FLOATING_VL_TRANSLATE_CONCURRENCY
+            )
         )
     }
 
@@ -68,10 +78,16 @@ class SettingsStore(context: Context) {
     }
 
     fun saveFloatingTranslateApiSettings(settings: FloatingTranslateApiSettings) {
+        val normalizedConcurrency = settings.vlTranslateConcurrency.coerceIn(
+            MIN_FLOATING_VL_TRANSLATE_CONCURRENCY,
+            MAX_FLOATING_VL_TRANSLATE_CONCURRENCY
+        )
         prefs.edit() {
                 putString(KEY_FLOATING_API_URL, settings.apiUrl)
                 .putString(KEY_FLOATING_API_KEY, settings.apiKey)
                 .putString(KEY_FLOATING_MODEL_NAME, settings.modelName)
+                .putBoolean(KEY_FLOATING_USE_VL_DIRECT_TRANSLATE, settings.useVlDirectTranslate)
+                .putInt(KEY_FLOATING_VL_TRANSLATE_CONCURRENCY, normalizedConcurrency)
             }
     }
 
@@ -283,6 +299,8 @@ class SettingsStore(context: Context) {
         private const val KEY_FLOATING_API_URL = "floating_api_url"
         private const val KEY_FLOATING_API_KEY = "floating_api_key"
         private const val KEY_FLOATING_MODEL_NAME = "floating_model_name"
+        private const val KEY_FLOATING_USE_VL_DIRECT_TRANSLATE = "floating_use_vl_direct_translate"
+        private const val KEY_FLOATING_VL_TRANSLATE_CONCURRENCY = "floating_vl_translate_concurrency"
         private const val KEY_OCR_API_TIMEOUT_SECONDS = "ocr_api_timeout_seconds"
         private const val KEY_HORIZONTAL_TEXT = "horizontal_text_layout"
         private const val KEY_MODEL_IO_LOGGING = "model_io_logging"
@@ -311,6 +329,9 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_OCR_API_TIMEOUT_SECONDS = 300
         private const val MIN_OCR_API_TIMEOUT_SECONDS = 30
         private const val MAX_OCR_API_TIMEOUT_SECONDS = 1200
+        private const val DEFAULT_FLOATING_VL_TRANSLATE_CONCURRENCY = 1
+        private const val MIN_FLOATING_VL_TRANSLATE_CONCURRENCY = 1
+        private const val MAX_FLOATING_VL_TRANSLATE_CONCURRENCY = 16
         private const val DEFAULT_MAX_CONCURRENCY = 3
         private const val MIN_MAX_CONCURRENCY = 1
         private const val MAX_MAX_CONCURRENCY = 50

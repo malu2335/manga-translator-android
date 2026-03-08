@@ -489,15 +489,37 @@ class SettingsFragment : Fragment() {
         dialogBinding.floatingApiUrlInput.setText(currentSettings.apiUrl)
         dialogBinding.floatingApiKeyInput.setText(currentSettings.apiKey)
         dialogBinding.floatingModelNameInput.setText(currentSettings.modelName)
+        dialogBinding.floatingUseVlDirectTranslateSwitch.isChecked =
+            currentSettings.useVlDirectTranslate
+        dialogBinding.floatingVlTranslateConcurrencyInput.setText(
+            formatNumber(currentSettings.vlTranslateConcurrency)
+        )
+        dialogBinding.floatingUseVlDirectTranslateSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                Toast.makeText(
+                    requireContext(),
+                    R.string.floating_use_vl_direct_translate_warning,
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.floating_translate_settings_title)
             .setView(dialogBinding.root)
             .setPositiveButton(android.R.string.ok) { _, _ ->
+                val concurrencyInput =
+                    dialogBinding.floatingVlTranslateConcurrencyInput.text?.toString()?.trim()
+                val vlTranslateConcurrency = parseIntInput(concurrencyInput)
+                    ?.coerceIn(1, 16)
+                    ?: currentSettings.vlTranslateConcurrency
                 settingsStore.saveFloatingTranslateApiSettings(
                     FloatingTranslateApiSettings(
                         apiUrl = dialogBinding.floatingApiUrlInput.text?.toString()?.trim().orEmpty(),
                         apiKey = dialogBinding.floatingApiKeyInput.text?.toString()?.trim().orEmpty(),
-                        modelName = dialogBinding.floatingModelNameInput.text?.toString()?.trim().orEmpty()
+                        modelName = dialogBinding.floatingModelNameInput.text?.toString()?.trim().orEmpty(),
+                        useVlDirectTranslate =
+                            dialogBinding.floatingUseVlDirectTranslateSwitch.isChecked,
+                        vlTranslateConcurrency = vlTranslateConcurrency
                     )
                 )
                 AppLogger.log("Settings", "Floating translate API settings updated")

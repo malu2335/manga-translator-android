@@ -55,7 +55,11 @@
     <string name="floating_api_url_hint">悬浮窗翻译 API 地址</string>
     <string name="floating_api_key_hint">悬浮窗翻译 API Key</string>
     <string name="floating_model_name_hint">悬浮窗翻译模型名称</string>
-    <string name="floating_translate_settings_note">留空某一项则使用主设置中的对应配置。</string>
+    <string name="floating_use_vl_direct_translate">使用 VL 模型直接翻译整个气泡</string>
+    <string name="floating_use_vl_direct_translate_note">开启后会把检测到的气泡裁图直接发给视觉模型翻译，跳过 OCR 识别步骤。请确保所填模型支持图像输入。</string>
+    <string name="floating_use_vl_direct_translate_warning">已开启 VL 直翻。请使用支持图像输入的 VL 模型，否则调用会失败。</string>
+    <string name="floating_vl_translate_concurrency_hint">VL 翻译线程数 (1–16)</string>
+    <string name="floating_translate_settings_note">留空某一项则使用主设置中的对应配置。模型名称支持用英文逗号分隔多个模型，软件会按填写顺序均匀轮询；重复填写可提高某个模型的分配权重。</string>
     <string name="ocr_use_local">使用本地 OCR</string>
     <string name="ocr_api_url_hint">OCR API 地址</string>
     <string name="ocr_api_key_hint">OCR API Key</string>
@@ -105,12 +109,14 @@
     <string name="floating_progress_capturing">悬浮翻译中：正在截取屏幕…</string>
     <string name="floating_progress_detecting">悬浮翻译中：正在检测文本区域…</string>
     <string name="floating_progress_recognizing">悬浮翻译中：正在识别文字（%1$d 个区域）…</string>
+    <string name="floating_progress_vl_translating">悬浮翻译中：正在用 VL 模型翻译气泡（%1$d 个区域）…</string>
     <string name="floating_progress_translating">悬浮翻译中：正在翻译文本…</string>
     <string name="floating_progress_done">悬浮翻译完成：共 %1$d 个文本区域</string>
     <string name="floating_detected_count">已识别 %1$d 个文本区域</string>
     <string name="floating_capture_not_ready">屏幕捕获未就绪，请重新启动悬浮窗翻译。</string>
     <string name="floating_detect_failed">识别失败，请重试。</string>
     <string name="floating_translate_timeout">翻译超时，请重试。</string>
+    <string name="floating_vl_model_required">当前悬浮窗直翻需要 VL 模型。请在悬浮窗翻译设置中改用支持图像输入的模型，或关闭该开关。</string>
     <string name="floating_service_channel">悬浮窗识别</string>
     <string name="floating_service_title">悬浮窗识别运行中</string>
     <string name="floating_service_message">点击悬浮球可识别当前屏幕文本区域</string>

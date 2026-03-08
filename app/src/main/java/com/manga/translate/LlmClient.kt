@@ -125,6 +125,22 @@ class LlmClient(context: Context) {
         null
     }
 
+    suspend fun translateImageBubble(
+        image: Bitmap,
+        promptAsset: String,
+        requestTimeoutMs: Int? = null,
+        retryCount: Int = RETRY_COUNT,
+        apiSettings: ApiSettings? = null
+    ): String? = withContext(Dispatchers.IO) {
+        requestImageContent(
+            image = image,
+            promptAsset = promptAsset,
+            requestTimeoutMs = requestTimeoutMs,
+            retryCount = retryCount,
+            apiSettings = apiSettings
+        )?.trim()?.ifBlank { null }
+    }
+
     private suspend fun requestContent(
         text: String,
         glossary: Map<String, String>,
@@ -183,6 +199,93 @@ class LlmClient(context: Context) {
                         AppLogger.log(
                             "LlmClient",
                             "Empty or invalid response content from $endpoint"
+                        )
+                        lastErrorCode = "INVALID_RESPONSE"
+                        lastErrorBody = body
+                    } else if (logModelIo) {
+                        AppLogger.log("LlmClient", "Model output: $content")
+                    }
+                    content
+                }
+            } catch (e: SocketTimeoutException) {
+                AppLogger.log("LlmClient", "Request timeout on $endpoint (attempt $attempt)", e)
+                lastErrorCode = "TIMEOUT"
+                null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLogger.log("LlmClient", "Request failed on $endpoint (attempt $attempt)", e)
+                lastErrorCode = "NETWORK_ERROR"
+                null
+            } finally {
+                connection.disconnect()
+            }
+            if (result != null || attempt == retries) {
+                if (result != null) {
+                    return result
+                }
+                if (lastErrorCode != null) {
+                    AppLogger.log(
+                        "LlmClient",
+                        "Request failed on $endpoint: $lastErrorCode, body=${summarizeBody(lastErrorBody)}"
+                    )
+                    throw LlmRequestException(lastErrorCode, lastErrorBody)
+                }
+                return null
+            }
+        }
+        return null
+    }
+
+    private suspend fun requestImageContent(
+        image: Bitmap,
+        promptAsset: String,
+        requestTimeoutMs: Int? = null,
+        retryCount: Int = RETRY_COUNT,
+        apiSettings: ApiSettings? = null
+    ): String? {
+        val settings = apiSettings ?: settingsStore.load()
+        if (!settings.isValid()) return null
+        val endpoint = buildEndpoint(settings.apiUrl)
+        val selectedModel = selectModelForRequest(settings.modelName)
+        val payload = buildImageTranslationPayload(selectedModel, image, promptAsset)
+        val logModelIo = settingsStore.loadModelIoLogging()
+        if (logModelIo) {
+            AppLogger.log("LlmClient", "Model input ($promptAsset): $payload")
+            AppLogger.log("LlmClient", "Selected model: $selectedModel")
+        }
+        val timeoutMs = requestTimeoutMs?.coerceAtLeast(1_000) ?: settingsStore.loadApiTimeoutMs()
+        val retries = retryCount.coerceAtLeast(1)
+        var lastErrorCode: String? = null
+        var lastErrorBody: String? = null
+        for (attempt in 1..retries) {
+            currentCoroutineContext().ensureActive()
+            val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Authorization", "Bearer ${settings.apiKey}")
+                connectTimeout = timeoutMs
+                readTimeout = timeoutMs
+                doOutput = true
+            }
+            val result = try {
+                connection.outputStream.use { output ->
+                    output.write(payload.toString().toByteArray(Charsets.UTF_8))
+                }
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                if (code !in 200..299) {
+                    AppLogger.log("LlmClient", "HTTP $code on $endpoint: ${summarizeBody(body)}")
+                    lastErrorCode = "HTTP $code"
+                    lastErrorBody = body
+                    null
+                } else {
+                    val content = parseResponseContent(body)
+                    if (content == null) {
+                        AppLogger.log(
+                            "LlmClient",
+                            "Empty or invalid image response content from $endpoint"
                         )
                         lastErrorCode = "INVALID_RESPONSE"
                         lastErrorBody = body
@@ -369,6 +472,64 @@ class LlmClient(context: Context) {
         return JSONObject()
             .put("model", modelName)
             .put("messages", messages)
+    }
+
+    private fun buildImageTranslationPayload(
+        modelName: String,
+        image: Bitmap,
+        promptAsset: String
+    ): JSONObject {
+        val llmParams = settingsStore.loadLlmParameters()
+        val config = getPromptConfig(promptAsset)
+        val imageBase64 = encodeBitmapToBase64(image)
+        val messages = JSONArray()
+        if (config.systemPrompt.isNotBlank()) {
+            messages.put(
+                JSONObject()
+                    .put("role", "system")
+                    .put("content", config.systemPrompt)
+            )
+        }
+        for (message in config.exampleMessages) {
+            messages.put(
+                JSONObject()
+                    .put("role", message.role)
+                    .put("content", message.content)
+            )
+        }
+        messages.put(
+            JSONObject()
+                .put("role", "user")
+                .put(
+                    "content",
+                    JSONArray()
+                        .put(
+                            JSONObject()
+                                .put("type", "text")
+                                .put("text", config.userPromptPrefix.ifBlank {
+                                    DEFAULT_IMAGE_TRANSLATION_USER_PROMPT
+                                })
+                        )
+                        .put(
+                            JSONObject()
+                                .put("type", "image_url")
+                                .put(
+                                    "image_url",
+                                    JSONObject().put("url", "data:image/jpeg;base64,$imageBase64")
+                                )
+                        )
+                )
+        )
+        val payload = JSONObject()
+            .put("model", modelName)
+            .put("messages", messages)
+        llmParams.temperature?.let { payload.put("temperature", it) }
+        llmParams.topP?.let { payload.put("top_p", it) }
+        llmParams.topK?.let { payload.put("top_k", it) }
+        llmParams.maxOutputTokens?.let { payload.put("max_output_tokens", it) }
+        llmParams.frequencyPenalty?.let { payload.put("frequency_penalty", it) }
+        llmParams.presencePenalty?.let { payload.put("presence_penalty", it) }
+        return payload
     }
 
     private fun encodeBitmapToBase64(image: Bitmap): String {
@@ -578,6 +739,8 @@ class LlmClient(context: Context) {
         private const val OCR_PROMPT_CONFIG_ASSET = "ocr_prompts.json"
         private const val DEFAULT_OCR_USER_PROMPT =
             "<image>\nExtract only visible text from this image. Do not describe objects, people, or scene. If no text is visible, return None."
+        private const val DEFAULT_IMAGE_TRANSLATION_USER_PROMPT =
+            "Translate only the text visible in this manga bubble into Simplified Chinese. Output only the translated text."
         private const val RETRY_COUNT = 3
         private val requestCounter = AtomicLong(0)
     }
