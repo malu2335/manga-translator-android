@@ -45,6 +45,9 @@ import kotlin.math.abs
 class FloatingBallOverlayService : Service() {
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private val settingsStore by lazy { SettingsStore(applicationContext) }
+    private val floatingTranslationCacheStore by lazy {
+        FloatingTranslationCacheStore(applicationContext)
+    }
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var windowManager: WindowManager
     private var controllerRoot: LinearLayout? = null
@@ -681,6 +684,22 @@ class FloatingBallOverlayService : Service() {
                             )
                         )
                     }
+                    val imageCacheKey = floatingTranslationCacheStore.createImageKey(crop)
+                    val cachedTranslation = floatingTranslationCacheStore.findImageTranslation(
+                        imageCacheKey
+                    )
+                    if (!cachedTranslation.isNullOrBlank()) {
+                        AppLogger.log("FloatingCache", "VL cache hit bubble=$index")
+                        crop.recycle()
+                        return@withPermit VlBubbleTranslateTaskResult(
+                            bubble = BubbleTranslation(
+                                id = index,
+                                rect = rect,
+                                text = cachedTranslation,
+                                source = BubbleSource.TEXT_DETECTOR
+                            )
+                        )
+                    }
                     val translatedText = try {
                         client.translateImageBubble(
                             image = crop,
@@ -704,6 +723,12 @@ class FloatingBallOverlayService : Service() {
                         ""
                     } finally {
                         crop.recycle()
+                    }
+                    if (translatedText.isNotBlank()) {
+                        floatingTranslationCacheStore.putImageTranslation(
+                            imageCacheKey,
+                            translatedText
+                        )
                     }
                     VlBubbleTranslateTaskResult(
                         bubble = BubbleTranslation(
@@ -761,9 +786,40 @@ class FloatingBallOverlayService : Service() {
             AppLogger.log("FloatingOCR", "Skip translate: LLM client not configured")
             return bubbles
         }
-        AppLogger.log("FloatingOCR", "Translate request segments=${translatable.size}")
+        val translatedMap = HashMap<Int, String>(translatable.size)
+        val cacheMisses = ArrayList<BubbleTranslation>(translatable.size)
+        var exactCacheHits = 0
+        var similarityCacheHits = 0
+        for (bubble in translatable) {
+            val cached = floatingTranslationCacheStore.findTextTranslation(bubble.text)
+            if (cached == null) {
+                cacheMisses.add(bubble)
+                continue
+            }
+            translatedMap[bubble.id] = cached.translation
+            if (cached.matchedBySimilarity) {
+                similarityCacheHits++
+            } else {
+                exactCacheHits++
+            }
+        }
+        AppLogger.log(
+            "FloatingCache",
+            "Text cache exactHits=$exactCacheHits similarityHits=$similarityCacheHits misses=${cacheMisses.size}"
+        )
+        fun mergeTranslatedBubbles(): List<BubbleTranslation> {
+            return bubbles.map { bubble ->
+                translatedMap[bubble.id]?.takeIf { it.isNotBlank() }?.let { translated ->
+                    bubble.copy(text = translated)
+                } ?: bubble
+            }
+        }
+        if (cacheMisses.isEmpty()) {
+            return mergeTranslatedBubbles()
+        }
+        AppLogger.log("FloatingOCR", "Translate request segments=${cacheMisses.size}")
         return try {
-            val text = translatable.joinToString("\n") { "<b>${it.text}</b>" }
+            val text = cacheMisses.joinToString("\n") { "<b>${it.text}</b>" }
             val translated = client.translate(
                 text = text,
                 glossary = emptyMap(),
@@ -771,23 +827,20 @@ class FloatingBallOverlayService : Service() {
                 requestTimeoutMs = timeoutMs,
                 retryCount = retryCount,
                 apiSettings = floatingApiSettings
-            ) ?: return bubbles
+            ) ?: return mergeTranslatedBubbles()
             val segments = extractTaggedSegments(
                 translated.translation,
-                translatable.map { it.text }
+                cacheMisses.map { it.text }
             )
-            val translatedMap = HashMap<Int, String>(translatable.size)
-            for (i in translatable.indices) {
-                translatedMap[translatable[i].id] = segments.getOrElse(i) { translatable[i].text }
-            }
-            val result = bubbles.map { bubble ->
-                val translatedText = translatedMap[bubble.id]
-                if (translatedText.isNullOrBlank()) {
-                    bubble
-                } else {
-                    bubble.copy(text = translatedText)
+            for (i in cacheMisses.indices) {
+                val source = cacheMisses[i]
+                val translatedText = segments.getOrElse(i) { source.text }
+                translatedMap[source.id] = translatedText
+                if (translatedText.isNotBlank()) {
+                    floatingTranslationCacheStore.putTextTranslation(source.text, translatedText)
                 }
             }
+            val result = mergeTranslatedBubbles()
             AppLogger.log("FloatingOCR", "Translate success segments=${translatedMap.size}")
             result
         } catch (e: LlmRequestException) {
@@ -795,12 +848,12 @@ class FloatingBallOverlayService : Service() {
                 AppLogger.log("FloatingOCR", "LLM translate timeout")
                 null
             } else {
-                AppLogger.log("FloatingOCR", "LLM translate request failed, fallback to OCR text", e)
-                bubbles
+                AppLogger.log("FloatingOCR", "LLM translate request failed, fallback to cached/OCR text", e)
+                mergeTranslatedBubbles()
             }
         } catch (e: Exception) {
-            AppLogger.log("FloatingOCR", "LLM translate failed, fallback to OCR text", e)
-            bubbles
+            AppLogger.log("FloatingOCR", "LLM translate failed, fallback to cached/OCR text", e)
+            mergeTranslatedBubbles()
         }
     }
 
