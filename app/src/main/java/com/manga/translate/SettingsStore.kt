@@ -35,7 +35,7 @@ class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun load(): ApiSettings {
-        val url = prefs.getString(KEY_API_URL, "") ?: ""
+        val url = prefs.getString(KEY_API_URL, DEFAULT_API_URL) ?: DEFAULT_API_URL
         val key = prefs.getString(KEY_API_KEY, "") ?: ""
         val model = prefs.getString(KEY_MODEL_NAME, DEFAULT_MODEL) ?: DEFAULT_MODEL
         return ApiSettings(url, key, model)
@@ -304,7 +304,8 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_LLM_MAX_OUTPUT_TOKENS = 8192
         private const val DEFAULT_LLM_FREQUENCY_PENALTY = 0.4
         private const val DEFAULT_LLM_PRESENCE_PENALTY = 0.2
-        private const val DEFAULT_MODEL = "gpt-3.5-turbo"
+        private const val DEFAULT_API_URL = "https://api.siliconflow.cn/v1"
+        private const val DEFAULT_MODEL = "Qwen/Qwen3.5-35B-A3B"
         private const val DEFAULT_OCR_API_URL = "https://api.siliconflow.cn/v1"
         private const val DEFAULT_OCR_MODEL_NAME = "Qwen/Qwen3-VL-8B-Instruct"
         private const val DEFAULT_OCR_API_TIMEOUT_SECONDS = 300

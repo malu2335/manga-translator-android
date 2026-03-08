@@ -85,7 +85,7 @@ class EmbeddedTextRenderer {
             }
             val dx = textRect.left
             val dy = textRect.top + ((textRect.height() - layout.height) / 2f).coerceAtLeast(0f)
-            drawHorizontalPerGlyph(canvas, text, layout, dx, dy, textRect, drawBackground)
+            drawHorizontalTextLayout(canvas, text, layout, dx, dy, textRect, drawBackground)
         }
     }
 
@@ -142,7 +142,7 @@ class EmbeddedTextRenderer {
         }
     }
 
-    private fun drawHorizontalPerGlyph(
+    private fun drawHorizontalTextLayout(
         canvas: Canvas,
         text: String,
         layout: StaticLayout,
@@ -151,32 +151,17 @@ class EmbeddedTextRenderer {
         maxRect: RectF,
         drawBackground: Boolean
     ) {
-        val fm = textPaint.fontMetrics
-        for (line in 0 until layout.lineCount) {
-            val start = layout.getLineStart(line)
-            val end = layout.getLineEnd(line).coerceAtMost(text.length)
-            val baseline = dy + layout.getLineBaseline(line)
-            val lineGaps = computeHorizontalLineGaps(text, layout, line, dx)
-            for (i in start until end) {
-                val ch = text[i]
-                if (ch == '\n') continue
-                val glyphWidth = textPaint.measureText(text, i, i + 1)
-                if (glyphWidth <= 0f) continue
-                val x = dx + layout.getPrimaryHorizontal(i)
-                if (drawBackground && !ch.isWhitespace()) {
-                    drawGlyphBackground(
-                        canvas = canvas,
-                        x = x,
-                        baseline = baseline,
-                        charWidth = glyphWidth,
-                        fontMetrics = fm,
-                        maxRect = maxRect,
-                        maxNeighborGap = lineGaps[i] ?: 0f
-                    )
-                }
-                canvas.drawText(text, i, i + 1, x, baseline, textPaint)
+        if (drawBackground) {
+            val fm = textPaint.fontMetrics
+            for (line in 0 until layout.lineCount) {
+                val lineBounds = computeHorizontalLineBounds(text, layout, line, dx, dy, fm) ?: continue
+                drawLineBackground(canvas, lineBounds, maxRect)
             }
         }
+        canvas.save()
+        canvas.translate(dx, dy)
+        layout.draw(canvas)
+        canvas.restore()
     }
 
     private fun buildVerticalLayout(
@@ -251,41 +236,52 @@ class EmbeddedTextRenderer {
         canvas.drawRoundRect(bg, radius, radius, textBackgroundPaint)
     }
 
-    private fun computeMinPadding(maxRect: RectF): Float {
-        val scaled = (min(maxRect.width(), maxRect.height()) / 600f) * 1.8f
-        return scaled.coerceIn(0.8f, 2f)
-    }
-
-    private fun computeHorizontalLineGaps(
+    private fun computeHorizontalLineBounds(
         text: String,
         layout: StaticLayout,
         line: Int,
-        dx: Float
-    ): Map<Int, Float> {
+        dx: Float,
+        dy: Float,
+        fontMetrics: Paint.FontMetrics
+    ): RectF? {
         val start = layout.getLineStart(line)
         val end = layout.getLineEnd(line).coerceAtMost(text.length)
-        val glyphs = mutableListOf<LineGlyph>()
+        var left = Float.POSITIVE_INFINITY
+        var right = Float.NEGATIVE_INFINITY
         for (i in start until end) {
             val ch = text[i]
             if (ch == '\n' || ch.isWhitespace()) continue
-            val width = textPaint.measureText(text, i, i + 1)
-            if (width <= 0f) continue
-            val left = dx + layout.getPrimaryHorizontal(i)
-            glyphs.add(LineGlyph(index = i, left = left, right = left + width))
+            val glyphWidth = textPaint.measureText(text, i, i + 1)
+            if (glyphWidth <= 0f) continue
+            val glyphLeft = dx + layout.getPrimaryHorizontal(i)
+            left = min(left, glyphLeft)
+            right = max(right, glyphLeft + glyphWidth)
         }
-        if (glyphs.isEmpty()) return emptyMap()
-        val gaps = mutableMapOf<Int, Float>()
-        for (i in glyphs.indices) {
-            var maxGap = 0f
-            if (i > 0) {
-                maxGap = max(maxGap, glyphs[i].left - glyphs[i - 1].right)
-            }
-            if (i < glyphs.lastIndex) {
-                maxGap = max(maxGap, glyphs[i + 1].left - glyphs[i].right)
-            }
-            gaps[glyphs[i].index] = maxGap.coerceAtLeast(0f)
-        }
-        return gaps
+        if (!left.isFinite() || !right.isFinite() || right <= left) return null
+        val baseline = dy + layout.getLineBaseline(line)
+        val top = baseline + fontMetrics.ascent
+        val bottom = baseline + fontMetrics.descent
+        if (bottom <= top) return null
+        return RectF(left, top, right, bottom)
+    }
+
+    private fun drawLineBackground(canvas: Canvas, lineBounds: RectF, maxRect: RectF) {
+        val horizontalPad = (lineBounds.height() * 0.04f).coerceIn(0.4f, 1.2f)
+        val verticalPad = (lineBounds.height() * 0.06f).coerceIn(0.5f, 1.5f)
+        val bg = RectF(
+            (lineBounds.left - horizontalPad).coerceAtLeast(maxRect.left),
+            (lineBounds.top - verticalPad).coerceAtLeast(maxRect.top),
+            (lineBounds.right + horizontalPad).coerceAtMost(maxRect.right),
+            (lineBounds.bottom + verticalPad).coerceAtMost(maxRect.bottom)
+        )
+        if (bg.width() <= 0f || bg.height() <= 0f) return
+        val radius = (min(bg.width(), bg.height()) * 0.1f).coerceAtLeast(0.8f)
+        canvas.drawRoundRect(bg, radius, radius, textBackgroundPaint)
+    }
+
+    private fun computeMinPadding(maxRect: RectF): Float {
+        val scaled = (min(maxRect.width(), maxRect.height()) / 600f) * 1.8f
+        return scaled.coerceIn(0.8f, 2f)
     }
 
     private fun computeVerticalNeighborGap(layout: VerticalLayout, charWidth: Float): Float {
@@ -304,11 +300,5 @@ class EmbeddedTextRenderer {
         val totalHeight: Float,
         val fontMetrics: Paint.FontMetrics,
         val fits: Boolean
-    )
-
-    private data class LineGlyph(
-        val index: Int,
-        val left: Float,
-        val right: Float
     )
 }
