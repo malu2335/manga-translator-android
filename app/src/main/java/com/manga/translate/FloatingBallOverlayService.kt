@@ -107,6 +107,7 @@ class FloatingBallOverlayService : Service() {
         }
         if (controllerRoot == null) {
             showControllerOverlay()
+            showUsageTip()
         }
         if (intent?.action == ACTION_START) {
             val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Int.MIN_VALUE)
@@ -348,6 +349,7 @@ class FloatingBallOverlayService : Service() {
             y = 0
         }
         overlay.setBubbleDragEnabled(bubbleDragEnabled)
+        overlay.setBubbleOpacity(settingsStore.loadTranslationBubbleOpacity())
         windowManager.addView(overlay, params)
         AppLogger.log("FloatingOCR", "Detection overlay added dragEnabled=$bubbleDragEnabled")
         detectionOverlayView = overlay
@@ -433,6 +435,10 @@ class FloatingBallOverlayService : Service() {
     private fun updateBubbleDragToggleButton() {
         val suffix = if (bubbleDragEnabled) "开" else "关"
         bubbleDragToggleButton?.text = "${getString(R.string.overlay_drag_bubble_option)}：$suffix"
+    }
+
+    private fun showUsageTip() {
+        Toast.makeText(this, R.string.floating_usage_tip, Toast.LENGTH_LONG).show()
     }
 
     private fun prepareProjection(resultCode: Int, data: Intent) {

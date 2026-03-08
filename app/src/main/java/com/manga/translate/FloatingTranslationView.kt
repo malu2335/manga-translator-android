@@ -2,6 +2,7 @@ package com.manga.translate
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.text.Layout
@@ -70,6 +71,7 @@ class FloatingTranslationView @JvmOverloads constructor(
     private var swipeTriggered = false
     private var longPressTriggered = false
     private var editMode = false
+    private var bubbleOpacity = SettingsStore(context).loadTranslationBubbleOpacity()
     private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
     private val longPressRunnable = Runnable {
         val id = activeId ?: return@Runnable
@@ -91,6 +93,7 @@ class FloatingTranslationView @JvmOverloads constructor(
     init {
         isClickable = true
         isFocusable = true
+        applyBubbleOpacity()
     }
 
     fun setTranslations(result: TranslationResult?) {
@@ -125,6 +128,14 @@ class FloatingTranslationView @JvmOverloads constructor(
         activeId = null
         longPressTriggered = false
         removeCallbacks(longPressRunnable)
+        invalidate()
+    }
+
+    fun setBubbleOpacity(opacity: Float) {
+        val normalized = opacity.coerceIn(0f, 1f)
+        if (bubbleOpacity == normalized) return
+        bubbleOpacity = normalized
+        applyBubbleOpacity()
         invalidate()
     }
 
@@ -345,6 +356,10 @@ class FloatingTranslationView @JvmOverloads constructor(
         canvas.drawRoundRect(rect, 6f, 6f, fillPaint)
         canvas.drawRoundRect(rect, 6f, 6f, strokePaint)
         drawTextInRect(canvas, text, textRect)
+    }
+
+    private fun applyBubbleOpacity() {
+        fillPaint.color = Color.argb((bubbleOpacity * 255f).toInt().coerceIn(0, 255), 255, 255, 255)
     }
 
     private fun drawDeleteIcon(canvas: Canvas, rect: RectF) {

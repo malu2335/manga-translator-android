@@ -66,6 +66,9 @@ class SettingsFragment : Fragment() {
         binding.modelNameInput.setText(settings.modelName)
         binding.apiTimeoutInput.setText(formatNumber(settingsStore.loadApiTimeoutSeconds()))
         binding.maxConcurrencyInput.setText(formatNumber(settingsStore.loadMaxConcurrency()))
+        binding.translationBubbleOpacityInput.setText(
+            formatNumber(settingsStore.loadTranslationBubbleOpacityPercent())
+        )
         binding.textLayoutSwitch.isChecked = settingsStore.loadUseHorizontalText()
         binding.modelIoLoggingSwitch.isChecked = settingsStore.loadModelIoLogging()
         val themeMode = settingsStore.loadThemeMode()
@@ -158,6 +161,15 @@ class SettingsFragment : Fragment() {
         val normalizedConcurrencyText = formatNumber(normalized)
         if (normalizedConcurrencyText != concurrencyInput) {
             binding.maxConcurrencyInput.setText(normalizedConcurrencyText)
+        }
+        val bubbleOpacityInput = binding.translationBubbleOpacityInput.text?.toString()?.trim()
+        val bubbleOpacity = parseIntInput(bubbleOpacityInput)
+            ?: settingsStore.loadTranslationBubbleOpacityPercent()
+        val normalizedBubbleOpacity = bubbleOpacity.coerceIn(0, 100)
+        settingsStore.saveTranslationBubbleOpacityPercent(normalizedBubbleOpacity)
+        val normalizedBubbleOpacityText = formatNumber(normalizedBubbleOpacity)
+        if (normalizedBubbleOpacityText != bubbleOpacityInput) {
+            binding.translationBubbleOpacityInput.setText(normalizedBubbleOpacityText)
         }
         AppLogger.log("Settings", "API settings saved")
     }

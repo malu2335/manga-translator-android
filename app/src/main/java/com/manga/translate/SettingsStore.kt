@@ -183,6 +183,31 @@ class SettingsStore(context: Context) {
             }
     }
 
+    fun loadTranslationBubbleOpacityPercent(): Int {
+        val saved = prefs.getInt(
+            KEY_TRANSLATION_BUBBLE_OPACITY_PERCENT,
+            DEFAULT_TRANSLATION_BUBBLE_OPACITY_PERCENT
+        )
+        return saved.coerceIn(
+            MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT,
+            MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT
+        )
+    }
+
+    fun loadTranslationBubbleOpacity(): Float {
+        return loadTranslationBubbleOpacityPercent() / 100f
+    }
+
+    fun saveTranslationBubbleOpacityPercent(value: Int) {
+        val normalized = value.coerceIn(
+            MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT,
+            MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT
+        )
+        prefs.edit() {
+                putInt(KEY_TRANSLATION_BUBBLE_OPACITY_PERCENT, normalized)
+            }
+    }
+
     fun loadLinkSource(): LinkSource {
         val saved = prefs.getString(KEY_LINK_SOURCE, LinkSource.GITHUB.prefValue)
         return LinkSource.fromPref(saved)
@@ -266,6 +291,7 @@ class SettingsStore(context: Context) {
         private const val KEY_API_TIMEOUT_SECONDS = "api_timeout_seconds"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_READING_DISPLAY_MODE = "reading_display_mode"
+        private const val KEY_TRANSLATION_BUBBLE_OPACITY_PERCENT = "translation_bubble_opacity_percent"
         private const val KEY_LINK_SOURCE = "link_source"
         private const val KEY_LLM_TEMPERATURE = "llm_temperature"
         private const val KEY_LLM_TOP_P = "llm_top_p"
@@ -290,6 +316,9 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_API_TIMEOUT_SECONDS = 300
         private const val MIN_API_TIMEOUT_SECONDS = 30
         private const val MAX_API_TIMEOUT_SECONDS = 1200
+        private const val DEFAULT_TRANSLATION_BUBBLE_OPACITY_PERCENT = 80
+        private const val MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT = 0
+        private const val MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT = 100
     }
 }
 

@@ -15,6 +15,7 @@
     <string name="model_name_hint">模型名称</string>
     <string name="api_timeout_hint">API 超时 (秒, 30–1200)</string>
     <string name="max_concurrency_hint">最大并发数 (1–50)</string>
+    <string name="translation_bubble_opacity_hint">翻译气泡透明度 (0–100，100 为完全不透明)</string>
     <string name="api_settings_note">示例URL：https://api.openai.com/v1</string>
     <string name="api_url_required">请先填写 API 地址</string>
     <string name="missing_api_settings">请先在设置中填写 API 地址与 Key</string>
@@ -113,6 +114,9 @@
     <string name="floating_service_channel">悬浮窗识别</string>
     <string name="floating_service_title">悬浮窗识别运行中</string>
     <string name="floating_service_message">点击悬浮球可识别当前屏幕文本区域</string>
+    <string name="floating_usage_tip">单击悬浮球：识别并翻译当前屏幕文本区域
+双击悬浮球：清除当前识别/翻译气泡
+长按悬浮球：弹出菜单</string>
     <string name="floating_bubble_placeholder">文本区域</string>
     <string name="tutorial_option_gitee_recommended">镜像站</string>
     <string name="tutorial_option_github">GitHub</string>

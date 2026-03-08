@@ -3,6 +3,7 @@ package com.manga.translate
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.text.Layout
@@ -12,11 +13,12 @@ import androidx.core.graphics.withTranslation
 import kotlin.math.min
 
 class BubbleRenderer(context: Context) {
+    private val bubbleOpacity = SettingsStore(context).loadTranslationBubbleOpacity()
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFF1B1B1B.toInt()
     }
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xCCFFFFFF.toInt()
+        color = Color.argb((bubbleOpacity * 255f).toInt().coerceIn(0, 255), 255, 255, 255)
         style = Paint.Style.FILL
     }
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

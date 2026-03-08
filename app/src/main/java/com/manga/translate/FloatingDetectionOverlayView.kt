@@ -2,6 +2,7 @@ package com.manga.translate
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.text.Layout
@@ -46,6 +47,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     private var sourceWidth = 1
     private var sourceHeight = 1
     private var bubbles: List<BubbleTranslation> = emptyList()
+    private var bubbleOpacity = SettingsStore(context).loadTranslationBubbleOpacity()
     private var bubbleDragEnabled = false
     private val touchSlop = 3f * resources.displayMetrics.density
     private var draggingBubbleId: Int? = null
@@ -54,6 +56,10 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     private var downX = 0f
     private var downY = 0f
     private var isDragging = false
+
+    init {
+        applyBubbleOpacity()
+    }
 
     fun setDetections(sourceWidth: Int, sourceHeight: Int, bubbles: List<BubbleTranslation>) {
         this.sourceWidth = sourceWidth.coerceAtLeast(1)
@@ -74,6 +80,14 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             draggingBubbleId = null
             isDragging = false
         }
+    }
+
+    fun setBubbleOpacity(opacity: Float) {
+        val normalized = opacity.coerceIn(0f, 1f)
+        if (bubbleOpacity == normalized) return
+        bubbleOpacity = normalized
+        applyBubbleOpacity()
+        invalidate()
     }
 
     override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
@@ -203,5 +217,9 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
             .setIncludePad(false)
             .build()
+    }
+
+    private fun applyBubbleOpacity() {
+        boxPaint.color = Color.argb((bubbleOpacity * 255f).toInt().coerceIn(0, 255), 255, 255, 255)
     }
 }

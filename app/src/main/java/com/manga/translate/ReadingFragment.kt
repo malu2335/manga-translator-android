@@ -234,6 +234,7 @@ class ReadingFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         applyTextLayoutSetting()
+        applyBubbleOpacitySetting()
         applyReadingDisplayMode()
         (activity as? MainActivity)?.setPagerSwipeEnabled(false)
     }
@@ -402,6 +403,10 @@ class ReadingFragment : Fragment() {
     private fun applyTextLayoutSetting() {
         val useHorizontal = settingsStore.loadUseHorizontalText()
         binding.translationOverlay.setVerticalLayoutEnabled(!useHorizontal)
+    }
+
+    private fun applyBubbleOpacitySetting() {
+        binding.translationOverlay.setBubbleOpacity(settingsStore.loadTranslationBubbleOpacity())
     }
 
     private fun toggleEditMode() {
