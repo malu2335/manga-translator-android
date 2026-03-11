@@ -1,6 +1,7 @@
 package com.manga.translate
 
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -27,6 +28,21 @@ class LibraryFolderAdapter(
         actionPosition = null
         if (previous != null) {
             notifyItemChanged(previous)
+        }
+    }
+
+    fun clearActionSelectionIfTouchedOutside(recyclerView: RecyclerView, event: MotionEvent) {
+        if (event.actionMasked != MotionEvent.ACTION_DOWN) return
+        val current = actionPosition ?: return
+        val holder = recyclerView.findViewHolderForAdapterPosition(current) ?: return
+        val itemView = holder.itemView
+        val tappedInsideExpandedItem =
+            event.x >= itemView.left &&
+                event.x <= itemView.right &&
+                event.y >= itemView.top &&
+                event.y <= itemView.bottom
+        if (!tappedInsideExpandedItem) {
+            clearActionSelection()
         }
     }
 

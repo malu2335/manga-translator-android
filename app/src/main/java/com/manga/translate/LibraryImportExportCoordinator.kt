@@ -345,6 +345,10 @@ internal class LibraryImportExportCoordinator(
                 if (!exportDirReady) {
                     failed = true
                     ui.setFolderStatus(appContext.getString(R.string.export_failed))
+                    GlobalTaskProgressStore.fail(
+                        appContext.getString(R.string.export_keepalive_title),
+                        appContext.getString(R.string.export_failed)
+                    )
                     return@launch
                 }
                 ui.setFolderStatus(appContext.getString(R.string.exporting_progress, 0, exportImages.size))
@@ -421,6 +425,17 @@ internal class LibraryImportExportCoordinator(
                 ui.setFolderStatus(
                     if (failed) appContext.getString(R.string.export_failed) else appContext.getString(R.string.export_done)
                 )
+                if (failed) {
+                    GlobalTaskProgressStore.fail(
+                        appContext.getString(R.string.export_keepalive_title),
+                        appContext.getString(R.string.export_failed)
+                    )
+                } else {
+                    GlobalTaskProgressStore.complete(
+                        appContext.getString(R.string.export_keepalive_title),
+                        appContext.getString(R.string.export_done)
+                    )
+                }
                 if (!failed && ui.isFragmentActive()) {
                     val path = successPathHint ?: if (exportTreeUri != null) {
                         buildExportPathHint(exportTreeUri, folder.name)

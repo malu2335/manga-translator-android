@@ -271,11 +271,12 @@ class LibraryFragment : Fragment() {
         binding.root.setOnClickListener { folderAdapter.clearActionSelection() }
         binding.folderList.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
             override fun onInterceptTouchEvent(rv: RecyclerView, e: android.view.MotionEvent): Boolean {
-                folderAdapter.clearActionSelection()
+                folderAdapter.clearActionSelectionIfTouchedOutside(rv, e)
                 return false
             }
         })
         binding.folderImageList.layoutManager = LinearLayoutManager(requireContext())
+        binding.folderImageList.isNestedScrollingEnabled = false
         binding.folderImageList.adapter = imageAdapter
 
         binding.addFolderFab.setOnClickListener { showCreateFolderDialog() }

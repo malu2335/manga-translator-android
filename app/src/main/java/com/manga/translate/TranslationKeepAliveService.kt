@@ -76,6 +76,10 @@ class TranslationKeepAliveService : Service() {
         private const val EXTRA_CONTENT = "extra_content"
 
         fun start(context: Context) {
+            GlobalTaskProgressStore.show(
+                title = context.getString(R.string.translation_keepalive_title),
+                detail = context.getString(R.string.translation_preparing)
+            )
             val intent = Intent(context, TranslationKeepAliveService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -85,6 +89,10 @@ class TranslationKeepAliveService : Service() {
         }
 
         fun start(context: Context, title: String, message: String, content: String) {
+            GlobalTaskProgressStore.show(
+                title = title,
+                detail = content
+            )
             val intent = Intent(context, TranslationKeepAliveService::class.java).apply {
                 putExtra(EXTRA_TITLE, title)
                 putExtra(EXTRA_MESSAGE, message)
@@ -103,6 +111,10 @@ class TranslationKeepAliveService : Service() {
         }
 
         fun updateStatus(context: Context, status: String) {
+            GlobalTaskProgressStore.show(
+                title = context.getString(R.string.translation_keepalive_title),
+                detail = status
+            )
             notifyProgress(
                 context,
                 context.getString(R.string.translation_keepalive_title),
@@ -114,10 +126,17 @@ class TranslationKeepAliveService : Service() {
         }
 
         fun updateStatus(context: Context, status: String, title: String, message: String) {
+            GlobalTaskProgressStore.show(title = title, detail = status)
             notifyProgress(context, title, message, status, null, null)
         }
 
         fun updateProgress(context: Context, progress: Int, total: Int) {
+            GlobalTaskProgressStore.show(
+                title = context.getString(R.string.translation_keepalive_title),
+                detail = "$progress/$total",
+                progress = progress,
+                total = total
+            )
             notifyProgress(
                 context,
                 context.getString(R.string.translation_keepalive_title),
@@ -136,6 +155,12 @@ class TranslationKeepAliveService : Service() {
             title: String,
             message: String
         ) {
+            GlobalTaskProgressStore.show(
+                title = title,
+                detail = content,
+                progress = progress,
+                total = total
+            )
             notifyProgress(context, title, message, content, progress, total)
         }
 

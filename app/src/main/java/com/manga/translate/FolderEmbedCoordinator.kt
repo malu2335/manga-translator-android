@@ -117,11 +117,19 @@ internal class FolderEmbedCoordinator(
                 when (result) {
                     is EmbedResult.Success -> {
                         ui.setFolderStatus(appContext.getString(R.string.folder_embed_done))
+                        GlobalTaskProgressStore.complete(
+                            appContext.getString(R.string.embed_keepalive_title),
+                            appContext.getString(R.string.folder_embed_done)
+                        )
                         ui.showToast(R.string.folder_embed_done)
                     }
                     is EmbedResult.Failure -> {
                         val message = result.message.ifBlank { appContext.getString(R.string.folder_embed_failed) }
                         ui.setFolderStatus(appContext.getString(R.string.folder_embed_failed))
+                        GlobalTaskProgressStore.fail(
+                            appContext.getString(R.string.embed_keepalive_title),
+                            message
+                        )
                         ui.showToastMessage(message)
                     }
                 }
@@ -587,7 +595,7 @@ internal class FolderEmbedCoordinator(
         private const val DEFAULT_EMBED_THREADS = 2
         private const val DEFAULT_EMBED_WHITE_BUBBLE_COVER = true
         private const val DEFAULT_EMBED_BUBBLE_ELLIPSE_LIMIT = true
-        private const val DEFAULT_EMBED_IMAGE_REPAIR = true
+        private const val DEFAULT_EMBED_IMAGE_REPAIR = false
         private const val ELLIPSE_SHRINK_FACTOR = 0.99f
         private const val MIN_EMBED_THREADS = 1
         private const val MAX_EMBED_THREADS = 16

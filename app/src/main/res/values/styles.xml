@@ -55,7 +55,7 @@
         <item name="hintTextColor">?attr/mutedTextColor</item>
     </style>
 
-    <style name="Widget.MangaTranslator.DialogEditText" parent="Widget.MaterialComponents.TextInputEditText.OutlinedBox">
+    <style name="Widget.MangaTranslator.DialogEditText" parent="">
         <item name="android:textColor">@color/light_button_text</item>
         <item name="android:textColorHint">@color/light_muted_text</item>
     </style>
@@ -76,9 +76,12 @@
 
     <style name="ThemeOverlay.MangaTranslator.AlertDialog" parent="Theme.AppCompat.Dialog.Alert">
         <item name="android:windowBackground">@drawable/bg_dialog_surface</item>
+        <item name="android:textColor">@color/light_button_text</item>
         <item name="android:textColorPrimary">@color/light_button_text</item>
         <item name="android:textColorSecondary">@color/light_muted_text</item>
         <item name="android:textColorHint">@color/light_muted_text</item>
+        <item name="textColorAlertDialogListItem">@color/light_button_text</item>
+        <item name="android:textColorAlertDialogListItem">@color/light_button_text</item>
         <item name="editTextColor">@color/light_button_text</item>
         <item name="colorControlNormal">@color/light_button_text</item>
         <item name="buttonBarButtonStyle">@style/Widget.MangaTranslator.Button</item>

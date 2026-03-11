@@ -197,11 +197,15 @@ class MiganInpainter(
             minBytes = MIN_EXTERNAL_DATA_FILE_BYTES
         )
         val legacy = File(context.cacheDir, legacyExternalDataName)
-        if (!legacy.exists() && primary.exists()) {
+        if (primary.exists() && !isUsableCacheFile(legacy, MIN_EXTERNAL_DATA_FILE_BYTES)) {
+            if (legacy.exists()) {
+                legacy.delete()
+            }
             runCatching {
                 primary.inputStream().use { input ->
                     FileOutputStream(legacy).use { output ->
                         input.copyTo(output)
+                        output.fd.sync()
                     }
                 }
             }.onFailure { e ->

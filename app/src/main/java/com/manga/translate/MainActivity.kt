@@ -6,6 +6,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,15 +17,29 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Job
 import com.google.android.material.tabs.TabLayoutMediator
 import com.manga.translate.databinding.ActivityMainBinding
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var pagerAdapter: MainPagerAdapter
     private lateinit var crashStateStore: CrashStateStore
     private lateinit var updateIgnoreStore: UpdateIgnoreStore
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var progressHideJob: Job? = null
+    private val hideGlobalProgressRunnable = Runnable {
+        if (!::binding.isInitialized) return@Runnable
+        binding.globalProgressCard.animate()
+            .alpha(0f)
+            .setDuration(180L)
+            .withEndAction {
+                binding.globalProgressCard.visibility = android.view.View.GONE
+            }
+            .start()
+    }
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (!granted) {
@@ -58,6 +74,7 @@ class MainActivity : AppCompatActivity() {
                 binding.mainPager.isUserInputEnabled = position != MainPagerAdapter.READING_INDEX
             }
         })
+        observeGlobalProgress()
         requestNotificationPermissionIfNeeded()
         maybeShowCrashDialog()
         checkForUpdate()
@@ -190,6 +207,12 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        mainHandler.removeCallbacks(hideGlobalProgressRunnable)
+        progressHideJob?.cancel()
+    }
+
     private fun shareLatestLog() {
         val latest = AppLogger.listLogFiles().firstOrNull()
         if (latest == null || !latest.exists()) {
@@ -301,6 +324,100 @@ class MainActivity : AppCompatActivity() {
                 .show()
         } else {
             notificationPermissionLauncher.launch(permission)
+        }
+    }
+
+    private fun observeGlobalProgress() {
+        progressHideJob?.cancel()
+        progressHideJob = lifecycleScope.launch {
+            GlobalTaskProgressStore.state.collect { state ->
+                renderGlobalProgress(state)
+            }
+        }
+    }
+
+    private fun renderGlobalProgress(state: GlobalTaskProgressState) {
+        mainHandler.removeCallbacks(hideGlobalProgressRunnable)
+        if (!state.visible) {
+            hideGlobalProgressRunnable.run()
+            return
+        }
+
+        binding.globalProgressText.text = buildCompactProgressText(state)
+        val textColor = if (state.error) {
+            ContextCompat.getColor(this, android.R.color.holo_red_dark)
+        } else {
+            resolveColorAttr(R.attr.buttonTextColor)
+        }
+        binding.globalProgressText.setTextColor(textColor)
+
+        if (binding.globalProgressCard.visibility != android.view.View.VISIBLE) {
+            binding.globalProgressCard.alpha = 0f
+            binding.globalProgressCard.visibility = android.view.View.VISIBLE
+            binding.globalProgressCard.animate().alpha(1f).setDuration(180L).start()
+        } else {
+            binding.globalProgressCard.alpha = 1f
+        }
+
+        if (state.terminal) {
+            mainHandler.postDelayed(hideGlobalProgressRunnable, 2200L)
+        }
+    }
+
+    private fun buildCompactProgressText(state: GlobalTaskProgressState): String {
+        val label = when {
+            state.title.contains("嵌字") -> "嵌字"
+            state.title.contains("导出") -> "导出"
+            else -> "翻译"
+        }
+        if (state.terminal) {
+            return if (state.error) "$label 失败" else "$label 完成"
+        }
+        val stage = extractStage(state.detail)
+        if (stage != null) {
+            return stage
+        }
+        val progress = extractProgress(state)
+        if (progress != null) {
+            return String.format(Locale.getDefault(), "%s %d/%d", label, progress.first, progress.second)
+        }
+        return "$label 中"
+    }
+
+    private fun extractProgress(state: GlobalTaskProgressState): Pair<Int, Int>? {
+        val progress = state.progress
+        val total = state.total
+        if (progress != null && total != null && total > 0) {
+            return progress.coerceIn(0, total) to total
+        }
+        val match = Regex("(\\d+)\\s*/\\s*(\\d+)").find(state.detail) ?: return null
+        val parsedProgress = match.groupValues[1].toIntOrNull() ?: return null
+        val parsedTotal = match.groupValues[2].toIntOrNull() ?: return null
+        if (parsedTotal <= 0) return null
+        return parsedProgress.coerceIn(0, parsedTotal) to parsedTotal
+    }
+
+    private fun extractStage(detail: String): String? {
+        return when {
+            detail.contains("预处理") && detail.contains("OCR", ignoreCase = true) -> "预处理 OCR"
+            detail.contains("预处理") && detail.contains("译名") -> "预处理 译名"
+            detail.contains("预处理") -> "预处理中"
+            detail.contains("OCR", ignoreCase = true) -> "OCR中"
+            detail.contains("译名") -> "译名中"
+            detail.contains("导出") -> "导出中"
+            detail.contains("嵌字") -> "嵌字中"
+            detail.contains("翻译") -> "翻译中"
+            else -> null
+        }
+    }
+
+    private fun resolveColorAttr(attrRes: Int): Int {
+        val typedValue = android.util.TypedValue()
+        theme.resolveAttribute(attrRes, typedValue, true)
+        return if (typedValue.resourceId != 0) {
+            ContextCompat.getColor(this, typedValue.resourceId)
+        } else {
+            typedValue.data
         }
     }
 }

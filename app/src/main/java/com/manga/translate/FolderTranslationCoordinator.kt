@@ -132,6 +132,17 @@ internal class FolderTranslationCoordinator(
                             R.string.translation_done
                         )
                     )
+                    if (failed) {
+                        GlobalTaskProgressStore.fail(
+                            appContext.getString(R.string.translation_keepalive_title),
+                            appContext.getString(R.string.translation_failed)
+                        )
+                    } else {
+                        GlobalTaskProgressStore.complete(
+                            appContext.getString(R.string.translation_keepalive_title),
+                            appContext.getString(R.string.translation_done)
+                        )
+                    }
                     AppLogger.log(
                         "Library",
                         "Folder translation ${if (failed) "completed with failures" else "completed"}: ${folder.name}"
@@ -149,6 +160,10 @@ internal class FolderTranslationCoordinator(
             translationRunning.set(false)
             AppLogger.log("Library", "Failed to start folder translation ${folder.name}", e)
             ui.setFolderStatus(appContext.getString(R.string.translation_failed))
+            GlobalTaskProgressStore.fail(
+                appContext.getString(R.string.translation_keepalive_title),
+                appContext.getString(R.string.translation_failed)
+            )
         }
     }
 
@@ -349,6 +364,17 @@ internal class FolderTranslationCoordinator(
                             R.string.translation_done
                         )
                     )
+                    if (failed) {
+                        GlobalTaskProgressStore.fail(
+                            appContext.getString(R.string.translation_keepalive_title),
+                            appContext.getString(R.string.translation_failed)
+                        )
+                    } else {
+                        GlobalTaskProgressStore.complete(
+                            appContext.getString(R.string.translation_keepalive_title),
+                            appContext.getString(R.string.translation_done)
+                        )
+                    }
                     AppLogger.log(
                         "Library",
                         "Full-page translation ${if (failed) "completed with failures" else "completed"}: ${folder.name}"
@@ -358,6 +384,10 @@ internal class FolderTranslationCoordinator(
                     AppLogger.log("Library", "Full-page translation aborted", e)
                     ui.showApiError(e.errorCode)
                     ui.setFolderStatus(appContext.getString(R.string.translation_failed))
+                    GlobalTaskProgressStore.fail(
+                        appContext.getString(R.string.translation_keepalive_title),
+                        appContext.getString(R.string.translation_failed)
+                    )
                 } finally {
                     onTranslateEnabled(true)
                     TranslationKeepAliveService.stop(appContext)
@@ -371,6 +401,10 @@ internal class FolderTranslationCoordinator(
             translationRunning.set(false)
             AppLogger.log("Library", "Failed to start full-page translation ${folder.name}", e)
             ui.setFolderStatus(appContext.getString(R.string.translation_failed))
+            GlobalTaskProgressStore.fail(
+                appContext.getString(R.string.translation_keepalive_title),
+                appContext.getString(R.string.translation_failed)
+            )
         }
     }
 
