@@ -7,6 +7,7 @@ import android.graphics.RectF
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import androidx.core.graphics.withTranslation
 import kotlin.math.max
 import kotlin.math.min
 
@@ -158,10 +159,9 @@ class EmbeddedTextRenderer {
                 drawLineBackground(canvas, lineBounds, maxRect)
             }
         }
-        canvas.save()
-        canvas.translate(dx, dy)
-        layout.draw(canvas)
-        canvas.restore()
+        canvas.withTranslation(dx, dy) {
+            layout.draw(this)
+        }
     }
 
     private fun buildVerticalLayout(

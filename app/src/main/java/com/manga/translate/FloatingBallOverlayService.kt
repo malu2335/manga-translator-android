@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
@@ -141,9 +142,6 @@ class FloatingBallOverlayService : Service() {
     }
 
     private fun canDrawOverlays(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            return true
-        }
         return Settings.canDrawOverlays(this)
     }
 
@@ -167,7 +165,7 @@ class FloatingBallOverlayService : Service() {
             startForeground(
                 NOTIFICATION_ID,
                 notification,
-                ServiceInfoForegroundTypes.MEDIA_PROJECTION
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
             )
         } else {
             startForeground(NOTIFICATION_ID, notification)
@@ -441,8 +439,10 @@ class FloatingBallOverlayService : Service() {
     }
 
     private fun updateBubbleDragToggleButton() {
-        val suffix = if (bubbleDragEnabled) "开" else "关"
-        bubbleDragToggleButton?.text = "${getString(R.string.overlay_drag_bubble_option)}：$suffix"
+        bubbleDragToggleButton?.text = getString(
+            R.string.overlay_drag_bubble_option_format,
+            if (bubbleDragEnabled) getString(R.string.common_on) else getString(R.string.common_off)
+        )
     }
 
     private fun showUsageTip() {
@@ -956,6 +956,9 @@ class FloatingBallOverlayService : Service() {
                 }
 
                 MotionEvent.ACTION_UP -> {
+                    if (!dragging) {
+                        target.performClick()
+                    }
                     dragging
                 }
 

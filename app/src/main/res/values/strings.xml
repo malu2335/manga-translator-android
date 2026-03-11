@@ -5,17 +5,11 @@
     <string name="translating_bubbles">翻译中…</string>
 
     <!-- Main Tabs -->
-    <string name="app_header_eyebrow">Manga Translator</string>
-    <string name="app_header_title">读图、翻译、嵌字，一站完成</string>
-    <string name="app_header_subtitle">围绕漫画翻译工作流重新整理的阅读与处理界面。</string>
     <string name="tab_library">漫画库</string>
     <string name="tab_reading">阅读</string>
     <string name="tab_settings">设置</string>
 
     <!-- Settings / API -->
-    <string name="settings_hero_eyebrow">Control Center</string>
-    <string name="settings_hero_title">集中管理模型、阅读与诊断设置</string>
-    <string name="settings_hero_subtitle">把频繁修改的配置整理成分组卡片，减少长表单的压迫感。</string>
     <string name="settings_group_api">API</string>
     <string name="settings_group_api_title">主模型与接口配置</string>
     <string name="settings_group_translation">Translation</string>
@@ -105,14 +99,10 @@
     <string name="logs_empty">暂无日志</string>
 
     <!-- Library / Entry -->
-    <string name="library_title">漫画库</string>
-    <string name="library_hero_eyebrow">Workspace</string>
-    <string name="library_hero_subtitle">导入漫画、批量翻译、嵌字导出，都从这里开始。</string>
     <string name="library_quick_actions">快捷入口</string>
     <string name="library_quick_actions_title">导入与工具</string>
     <string name="library_collection_label">Collection</string>
     <string name="library_collection_title">你的漫画项目</string>
-    <string name="library_detail_subtitle">在这里管理当前漫画的页面、翻译流程和导出结果。</string>
     <string name="library_action_panel_label">操作面板</string>
     <string name="library_translation_settings_hint">为当前文件夹单独配置翻译语言与全文速译策略。</string>
     <string name="library_pages_label">页面列表</string>
@@ -127,13 +117,14 @@
     <string name="overlay_permission_failed_title">未获取到悬浮窗权限</string>
     <string name="overlay_permission_failed_message">未检测到悬浮窗权限，功能无法启动。</string>
     <string name="overlay_exit_button">退出</string>
-    <string name="overlay_drag_bubble_option">气泡可拖动</string>
     <string name="overlay_drag_bubble_auto_disable_notice">拖动气泡已开启，10 秒后将自动关闭。</string>
     <string name="overlay_drag_bubble_auto_disabled">拖动气泡已自动关闭。</string>
     <string name="screen_capture_permission_required_title">需要屏幕捕获权限</string>
     <string name="screen_capture_permission_required_message">请授权屏幕捕获，用于识别当前屏幕文本区域。</string>
     <string name="screen_capture_permission_failed">未获取屏幕捕获权限，无法进行悬浮识别。</string>
-    <string name="floating_detecting">正在识别文本区域…</string>
+    <string name="common_on">开</string>
+    <string name="common_off">关</string>
+    <string name="overlay_drag_bubble_option_format">气泡可拖动：%1$s</string>
     <string name="floating_progress_capturing">悬浮翻译中：正在截取屏幕…</string>
     <string name="floating_progress_detecting">悬浮翻译中：正在检测文本区域…</string>
     <string name="floating_progress_recognizing">悬浮翻译中：正在识别文字（%1$d 个区域）…</string>

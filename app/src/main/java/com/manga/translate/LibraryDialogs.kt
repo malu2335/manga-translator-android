@@ -16,19 +16,84 @@ import java.util.Locale
 
 internal class LibraryDialogs {
     private fun formatInt(value: Int): String = String.format(Locale.getDefault(), "%d", value)
+    private fun dp(context: Context, value: Float): Int = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP,
+        value,
+        context.resources.displayMetrics
+    ).toInt()
 
-    fun showCreateFolderDialog(context: Context, onConfirm: (String) -> Unit) {
+    private fun showMessageDialog(
+        context: Context,
+        titleRes: Int,
+        message: CharSequence,
+        positiveRes: Int = android.R.string.ok,
+        onPositive: (() -> Unit)? = null
+    ) {
+        AlertDialog.Builder(context)
+            .setTitle(titleRes)
+            .setMessage(message)
+            .setPositiveButton(positiveRes) { _, _ -> onPositive?.invoke() }
+            .show()
+    }
+
+    private fun showTextInputDialog(
+        context: Context,
+        titleRes: Int,
+        initialText: String = "",
+        trimResult: Boolean = false,
+        onConfirm: (String) -> Unit
+    ) {
         val input = EditText(context).apply {
             hint = context.getString(R.string.folder_name_hint)
+            if (initialText.isNotEmpty()) {
+                setText(initialText)
+                setSelection(text.length)
+            }
         }
         AlertDialog.Builder(context)
-            .setTitle(R.string.create_folder)
+            .setTitle(titleRes)
             .setView(input)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                onConfirm(input.text?.toString().orEmpty())
+                val value = input.text?.toString().orEmpty()
+                onConfirm(if (trimResult) value.trim() else value)
             }
             .show()
+    }
+
+    private fun showSingleChoiceDialog(
+        context: Context,
+        titleRes: Int,
+        items: Array<String>,
+        checkedIndex: Int,
+        onSelected: (Int) -> Unit
+    ) {
+        AlertDialog.Builder(context)
+            .setTitle(titleRes)
+            .setSingleChoiceItems(items, checkedIndex) { dialog, which ->
+                onSelected(which)
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun buildDialogContainer(context: Context): LinearLayout {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(context, 20f), dp(context, 12f), dp(context, 20f), dp(context, 12f))
+        }
+    }
+
+    private fun matchWrapLayoutParams(): LinearLayout.LayoutParams {
+        return LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+    }
+
+    fun showCreateFolderDialog(context: Context, onConfirm: (String) -> Unit) {
+        showTextInputDialog(context, R.string.create_folder, onConfirm = onConfirm)
     }
 
     fun confirmDeleteFolder(context: Context, folderName: String, onConfirm: () -> Unit) {
@@ -45,27 +110,15 @@ internal class LibraryDialogs {
         oldName: String,
         onConfirm: (String) -> Unit
     ) {
-        val input = EditText(context).apply {
-            hint = context.getString(R.string.folder_name_hint)
-            setText(oldName)
-            setSelection(text.length)
-        }
-        AlertDialog.Builder(context)
-            .setTitle(R.string.folder_rename)
-            .setView(input)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                onConfirm(input.text?.toString().orEmpty())
-            }
-            .show()
+        showTextInputDialog(context, R.string.folder_rename, initialText = oldName, onConfirm = onConfirm)
     }
 
     fun showFullTranslateInfo(context: Context) {
-        AlertDialog.Builder(context)
-            .setTitle(R.string.folder_full_translate_info_title)
-            .setMessage(context.getString(R.string.folder_full_translate_info))
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
+        showMessageDialog(
+            context,
+            R.string.folder_full_translate_info_title,
+            context.getString(R.string.folder_full_translate_info)
+        )
     }
 
     fun showLanguageSettingDialog(
@@ -76,44 +129,34 @@ internal class LibraryDialogs {
         val languages = TranslationLanguage.values()
         val languageNames = languages.map { context.getString(it.displayNameResId) }.toTypedArray()
         val currentIndex = languages.indexOf(currentLanguage)
-
-        AlertDialog.Builder(context)
-            .setTitle(R.string.folder_language_setting_title)
-            .setSingleChoiceItems(languageNames, currentIndex) { dialog, which ->
-                onSelected(languages[which])
-                dialog.dismiss()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        showSingleChoiceDialog(context, R.string.folder_language_setting_title, languageNames, currentIndex) {
+            onSelected(languages[it])
+        }
     }
 
     fun showFixedLanguageDialog(context: Context) {
-        AlertDialog.Builder(context)
-            .setTitle(R.string.folder_language_setting_title)
-            .setSingleChoiceItems(
-                arrayOf(context.getString(R.string.folder_language_to_zh)),
-                0
-            ) { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        showSingleChoiceDialog(
+            context,
+            R.string.folder_language_setting_title,
+            arrayOf(context.getString(R.string.folder_language_to_zh)),
+            0
+        ) { }
     }
 
     fun showApiErrorDialog(context: Context, errorCode: String) {
-        AlertDialog.Builder(context)
-            .setTitle(R.string.api_request_failed_title)
-            .setMessage(context.getString(R.string.api_request_failed_message, errorCode))
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
+        showMessageDialog(
+            context,
+            R.string.api_request_failed_title,
+            context.getString(R.string.api_request_failed_message, errorCode)
+        )
     }
 
     fun showModelErrorDialog(context: Context, responseContent: String) {
-        AlertDialog.Builder(context)
-            .setTitle(R.string.model_response_failed_title)
-            .setMessage(context.getString(R.string.model_response_failed_message, responseContent))
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
+        showMessageDialog(
+            context,
+            R.string.model_response_failed_title,
+            context.getString(R.string.model_response_failed_message, responseContent)
+        )
     }
 
     fun showEhViewerSubfolderPicker(
@@ -134,32 +177,26 @@ internal class LibraryDialogs {
         defaultName: String,
         onConfirm: (String) -> Unit
     ) {
-        val input = EditText(context).apply {
-            hint = context.getString(R.string.folder_name_hint)
-            setText(defaultName)
-            setSelection(text.length)
-        }
-        AlertDialog.Builder(context)
-            .setTitle(R.string.ehviewer_import_name_title)
-            .setView(input)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                val name = input.text?.toString()?.trim().orEmpty()
-                if (name.isEmpty()) {
-                    Toast.makeText(context, R.string.folder_create_failed, Toast.LENGTH_SHORT).show()
-                } else {
-                    onConfirm(name)
-                }
+        showTextInputDialog(
+            context,
+            R.string.ehviewer_import_name_title,
+            initialText = defaultName,
+            trimResult = true
+        ) { name ->
+            if (name.isEmpty()) {
+                Toast.makeText(context, R.string.folder_create_failed, Toast.LENGTH_SHORT).show()
+            } else {
+                onConfirm(name)
             }
-            .show()
+        }
     }
 
     fun showExportSuccessDialog(context: Context, path: String) {
-        AlertDialog.Builder(context)
-            .setTitle(R.string.export_success_title)
-            .setMessage(context.getString(R.string.export_success_message, path))
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
+        showMessageDialog(
+            context,
+            R.string.export_success_title,
+            context.getString(R.string.export_success_message, path)
+        )
     }
 
     fun showExportOptionsDialog(
@@ -190,55 +227,14 @@ internal class LibraryDialogs {
             }
         }
         val pathHintView = TextView(context).apply {
-            val topMargin = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                8f,
-                context.resources.displayMetrics
-            ).toInt()
-            setPadding(0, topMargin, 0, 0)
+            setPadding(0, dp(context, 8f), 0, 0)
             text = context.getString(R.string.export_path_hint_format, exportRootPathHint)
         }
-        val container = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            val side = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                20f,
-                context.resources.displayMetrics
-            ).toInt()
-            val vertical = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                12f,
-                context.resources.displayMetrics
-            ).toInt()
-            setPadding(side, vertical, side, vertical)
-            addView(
-                input,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            )
-            addView(
-                cbzCheckBox,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            )
-            addView(
-                embeddedCheckBox,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            )
-            addView(
-                pathHintView,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            )
+        val container = buildDialogContainer(context).apply {
+            addView(input, matchWrapLayoutParams())
+            addView(cbzCheckBox, matchWrapLayoutParams())
+            addView(embeddedCheckBox, matchWrapLayoutParams())
+            addView(pathHintView, matchWrapLayoutParams())
         }
         AlertDialog.Builder(context)
             .setTitle(R.string.export_options_title)
@@ -294,66 +290,22 @@ internal class LibraryDialogs {
                 ellipseLimitCheckBox.isChecked = false
             }
         }
-        val container = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            val side = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                20f,
-                context.resources.displayMetrics
-            ).toInt()
-            val vertical = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                12f,
-                context.resources.displayMetrics
-            ).toInt()
-            setPadding(side, vertical, side, vertical)
+        val container = buildDialogContainer(context).apply {
             addView(
                 note,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    bottomMargin = TypedValue.applyDimension(
-                        TypedValue.COMPLEX_UNIT_DIP,
-                        8f,
-                        context.resources.displayMetrics
-                    ).toInt()
+                matchWrapLayoutParams().apply {
+                    bottomMargin = dp(context, 8f)
                 }
             )
-            addView(
-                input,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            )
+            addView(input, matchWrapLayoutParams())
             addView(
                 whiteCoverCheckBox,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    topMargin = TypedValue.applyDimension(
-                        TypedValue.COMPLEX_UNIT_DIP,
-                        10f,
-                        context.resources.displayMetrics
-                    ).toInt()
+                matchWrapLayoutParams().apply {
+                    topMargin = dp(context, 10f)
                 }
             )
-            addView(
-                ellipseLimitCheckBox,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            )
-            addView(
-                imageRepairCheckBox,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            )
+            addView(ellipseLimitCheckBox, matchWrapLayoutParams())
+            addView(imageRepairCheckBox, matchWrapLayoutParams())
         }
         AlertDialog.Builder(context)
             .setTitle(R.string.embed_options_title)

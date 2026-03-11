@@ -11,6 +11,7 @@ import android.widget.ScrollView
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.FileProvider
@@ -261,22 +262,18 @@ class SettingsFragment : Fragment() {
     }
 
     private fun showThemeDialog() {
-        val modes = ThemeMode.entries
-        val labels = modes.map { getString(it.labelRes) }.toTypedArray()
-        val currentMode = settingsStore.loadThemeMode()
-        val checkedIndex = modes.indexOf(currentMode).coerceAtLeast(0)
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.theme_setting_title)
-            .setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
-                val selected = modes[which]
-                settingsStore.saveThemeMode(selected)
-                updateThemeButton(selected)
-                applyThemeSelection(selected)
-                AppLogger.log("Settings", "Theme set to ${selected.prefValue}")
-                dialog.dismiss()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        showSingleChoiceSettingDialog(
+            titleRes = R.string.theme_setting_title,
+            options = ThemeMode.entries,
+            current = settingsStore.loadThemeMode(),
+            labelRes = { it.labelRes }
+        ) { dialog, selected ->
+            settingsStore.saveThemeMode(selected)
+            updateThemeButton(selected)
+            applyThemeSelection(selected)
+            AppLogger.log("Settings", "Theme set to ${selected.prefValue}")
+            dialog.dismiss()
+        }
     }
 
     private fun applyThemeSelection(mode: ThemeMode) {
@@ -285,54 +282,43 @@ class SettingsFragment : Fragment() {
     }
 
     private fun updateThemeButton(mode: ThemeMode) {
-        val label = getString(mode.labelRes)
-        binding.themeButton.text = getString(R.string.theme_setting_format, label)
+        updateLabeledButton(binding.themeButton, R.string.theme_setting_format, mode.labelRes)
     }
 
     private fun showReadingDisplayDialog() {
-        val modes = ReadingDisplayMode.entries
-        val labels = modes.map { getString(it.labelRes) }.toTypedArray()
-        val currentMode = settingsStore.loadReadingDisplayMode()
-        val checkedIndex = modes.indexOf(currentMode).coerceAtLeast(0)
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.reading_display_title)
-            .setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
-                val selected = modes[which]
-                settingsStore.saveReadingDisplayMode(selected)
-                updateReadingDisplayButton(selected)
-                AppLogger.log("Settings", "Reading display mode set to ${selected.prefValue}")
-                dialog.dismiss()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        showSingleChoiceSettingDialog(
+            titleRes = R.string.reading_display_title,
+            options = ReadingDisplayMode.entries,
+            current = settingsStore.loadReadingDisplayMode(),
+            labelRes = { it.labelRes }
+        ) { dialog, selected ->
+            settingsStore.saveReadingDisplayMode(selected)
+            updateReadingDisplayButton(selected)
+            AppLogger.log("Settings", "Reading display mode set to ${selected.prefValue}")
+            dialog.dismiss()
+        }
     }
 
     private fun updateReadingDisplayButton(mode: ReadingDisplayMode) {
-        val label = getString(mode.labelRes)
-        binding.readingDisplayButton.text = getString(R.string.reading_display_format, label)
+        updateLabeledButton(binding.readingDisplayButton, R.string.reading_display_format, mode.labelRes)
     }
 
     private fun showLinkSourceDialog() {
-        val sources = LinkSource.entries
-        val labels = sources.map { getString(it.labelRes) }.toTypedArray()
-        val current = settingsStore.loadLinkSource()
-        val checkedIndex = sources.indexOf(current).coerceAtLeast(0)
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.link_source_title)
-            .setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
-                val selected = sources[which]
-                settingsStore.saveLinkSource(selected)
-                updateLinkSourceButton(selected)
-                AppLogger.log("Settings", "Link source set to ${selected.prefValue}")
-                dialog.dismiss()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        showSingleChoiceSettingDialog(
+            titleRes = R.string.link_source_title,
+            options = LinkSource.entries,
+            current = settingsStore.loadLinkSource(),
+            labelRes = { it.labelRes }
+        ) { dialog, selected ->
+            settingsStore.saveLinkSource(selected)
+            updateLinkSourceButton(selected)
+            AppLogger.log("Settings", "Link source set to ${selected.prefValue}")
+            dialog.dismiss()
+        }
     }
 
     private fun updateLinkSourceButton(source: LinkSource) {
-        val label = getString(source.labelRes)
-        binding.linkSourceButton.text = getString(R.string.link_source_format, label)
+        updateLabeledButton(binding.linkSourceButton, R.string.link_source_format, source.labelRes)
     }
 
     private fun showAboutDialog() {
@@ -623,6 +609,28 @@ class SettingsFragment : Fragment() {
         } else {
             Toast.makeText(requireContext(), url, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun updateLabeledButton(view: TextView, @StringRes formatRes: Int, @StringRes labelRes: Int) {
+        view.text = getString(formatRes, getString(labelRes))
+    }
+
+    private fun <T> showSingleChoiceSettingDialog(
+        @StringRes titleRes: Int,
+        options: List<T>,
+        current: T,
+        labelRes: (T) -> Int,
+        onSelected: (dialog: android.content.DialogInterface, selected: T) -> Unit
+    ) {
+        val labels = options.map { getString(labelRes(it)) }.toTypedArray()
+        val checkedIndex = options.indexOf(current).coerceAtLeast(0)
+        AlertDialog.Builder(requireContext())
+            .setTitle(titleRes)
+            .setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
+                onSelected(dialog, options[which])
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     companion object {

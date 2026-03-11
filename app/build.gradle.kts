@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.manga.translate"
-    compileSdk = 35
+    compileSdk = 36
     val storeFilePath = project.findProperty("STORE_FILE") as String?
     val storePasswordProp = project.findProperty("STORE_PASSWORD") as String?
     val keyAliasProp = project.findProperty("KEY_ALIAS") as String?
@@ -18,7 +18,7 @@ android {
     defaultConfig {
         applicationId = "com.manga.translate"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 27
         versionName = "2.3.3"
 

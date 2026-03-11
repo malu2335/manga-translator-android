@@ -2,6 +2,8 @@ package com.manga.translate
 
 import android.content.Context
 import android.content.Intent
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Bundle
@@ -20,6 +22,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.manga.translate.databinding.FragmentLibraryBinding
 import java.io.File
 
@@ -51,6 +54,7 @@ class LibraryFragment : Fragment() {
 
     private var currentFolder: File? = null
     private var embedActionsEnabled: Boolean = true
+    private var isFolderTransitionRunning: Boolean = false
 
     private val tutorialUrlGithub =
         "https://github.com/jedzqer/manga-translator/blob/main/Tutorial/简中教程.md"
@@ -265,10 +269,12 @@ class LibraryFragment : Fragment() {
         binding.folderList.layoutManager = LinearLayoutManager(requireContext())
         binding.folderList.adapter = folderAdapter
         binding.root.setOnClickListener { folderAdapter.clearActionSelection() }
-        binding.folderList.setOnTouchListener { _, _ ->
-            folderAdapter.clearActionSelection()
-            false
-        }
+        binding.folderList.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: android.view.MotionEvent): Boolean {
+                folderAdapter.clearActionSelection()
+                return false
+            }
+        })
         binding.folderImageList.layoutManager = LinearLayoutManager(requireContext())
         binding.folderImageList.adapter = imageAdapter
 
@@ -401,9 +407,6 @@ class LibraryFragment : Fragment() {
     }
 
     private fun canDrawOverlays(): Boolean {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) {
-            return true
-        }
         return Settings.canDrawOverlays(requireContext())
     }
 
@@ -415,17 +418,15 @@ class LibraryFragment : Fragment() {
     private fun showFolderList() {
         currentFolder = null
         embedActionsEnabled = true
-        binding.libraryListContainer.visibility = View.VISIBLE
-        binding.folderDetailContainer.visibility = View.GONE
-        binding.addFolderFab.visibility = View.VISIBLE
-        binding.tutorialButton.visibility = View.VISIBLE
-        binding.floatingTranslateButton.visibility = View.VISIBLE
-        binding.importCbzButton.visibility = View.VISIBLE
-        binding.importEhviewerButton.visibility = View.VISIBLE
         uiCallbacks.clearFolderStatus()
         selectionController.exitSelectionMode()
         folderAdapter.clearActionSelection()
         loadFolders()
+        if (!binding.folderDetailContainer.isVisible) {
+            applyFolderListVisibleState()
+            return
+        }
+        animateFolderTransition(showDetail = false)
     }
 
     private fun showFolderDetail(folder: File) {
@@ -434,16 +435,112 @@ class LibraryFragment : Fragment() {
         binding.folderFullTranslateSwitch.isChecked = preferencesGateway.isFullTranslateEnabled(folder)
         updateLanguageSettingButton(folder)
         updateEmbedButtonState(folder)
-        binding.libraryListContainer.visibility = View.GONE
-        binding.folderDetailContainer.visibility = View.VISIBLE
-        binding.addFolderFab.visibility = View.GONE
-        binding.tutorialButton.visibility = View.GONE
-        binding.floatingTranslateButton.visibility = View.GONE
-        binding.importCbzButton.visibility = View.GONE
-        binding.importEhviewerButton.visibility = View.GONE
         selectionController.exitSelectionMode()
-        AppLogger.log("Library", "Opened folder ${folder.name}")
         loadImages(folder)
+        if (binding.folderDetailContainer.isVisible && !binding.libraryListContainer.isVisible) {
+            binding.folderDetailContainer.alpha = 1f
+            binding.folderDetailContainer.translationY = 0f
+            AppLogger.log("Library", "Opened folder ${folder.name}")
+            return
+        }
+        animateFolderTransition(showDetail = true)
+        AppLogger.log("Library", "Opened folder ${folder.name}")
+    }
+
+    private fun animateFolderTransition(showDetail: Boolean) {
+        if (isFolderTransitionRunning) return
+        isFolderTransitionRunning = true
+
+        val outgoing = if (showDetail) binding.libraryListContainer else binding.folderDetailContainer
+        val incoming = if (showDetail) binding.folderDetailContainer else binding.libraryListContainer
+        val offset = (resources.displayMetrics.density * 24).toFloat()
+
+        outgoing.animate().cancel()
+        incoming.animate().cancel()
+        binding.addFolderFab.animate().cancel()
+
+        incoming.visibility = View.VISIBLE
+        incoming.alpha = 0f
+        incoming.translationY = if (showDetail) offset else -offset * 0.5f
+
+        outgoing.visibility = View.VISIBLE
+        outgoing.alpha = 1f
+        outgoing.translationY = 0f
+
+        if (showDetail) {
+            binding.addFolderFab.animate()
+                .alpha(0f)
+                .setDuration(120L)
+                .withEndAction { binding.addFolderFab.visibility = View.GONE }
+                .start()
+        } else {
+            binding.addFolderFab.visibility = View.VISIBLE
+            binding.addFolderFab.alpha = 0f
+            binding.addFolderFab.translationY = offset
+            binding.addFolderFab.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(180L)
+                .start()
+        }
+
+        outgoing.animate()
+            .alpha(0f)
+            .translationY(if (showDetail) -offset * 0.35f else offset * 0.35f)
+            .setDuration(170L)
+            .setListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    outgoing.visibility = View.GONE
+                    outgoing.alpha = 1f
+                    outgoing.translationY = 0f
+                    outgoing.animate().setListener(null)
+                }
+
+                override fun onAnimationCancel(animation: Animator) {
+                    outgoing.visibility = View.GONE
+                    outgoing.alpha = 1f
+                    outgoing.translationY = 0f
+                    outgoing.animate().setListener(null)
+                }
+            })
+            .start()
+
+        incoming.animate()
+            .alpha(1f)
+            .translationY(0f)
+            .setDuration(220L)
+            .setListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    incoming.alpha = 1f
+                    incoming.translationY = 0f
+                    incoming.animate().setListener(null)
+                    isFolderTransitionRunning = false
+                }
+
+                override fun onAnimationCancel(animation: Animator) {
+                    incoming.alpha = 1f
+                    incoming.translationY = 0f
+                    incoming.animate().setListener(null)
+                    isFolderTransitionRunning = false
+                }
+            })
+            .start()
+    }
+
+    private fun applyFolderListVisibleState() {
+        binding.libraryListContainer.animate().cancel()
+        binding.folderDetailContainer.animate().cancel()
+        binding.addFolderFab.animate().cancel()
+        binding.libraryListContainer.visibility = View.VISIBLE
+        binding.libraryListContainer.alpha = 1f
+        binding.libraryListContainer.translationY = 0f
+        binding.folderDetailContainer.visibility = View.GONE
+        binding.folderDetailContainer.alpha = 1f
+        binding.folderDetailContainer.translationY = 0f
+        binding.addFolderFab.visibility = View.VISIBLE
+        binding.addFolderFab.alpha = 1f
+        binding.addFolderFab.translationY = 0f
+        isFolderTransitionRunning = false
     }
 
     private fun loadFolders() {

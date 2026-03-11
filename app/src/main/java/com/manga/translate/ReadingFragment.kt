@@ -10,6 +10,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
@@ -111,98 +112,26 @@ class ReadingFragment : Fragment() {
         }
         binding.readingResizeWidthSlider.max = resizeMaxPercent - resizeMinPercent
         binding.readingResizeHeightSlider.max = resizeMaxPercent - resizeMinPercent
-        binding.readingResizeWidthSlider.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
-                if (resizeUpdatingWidthSlider) return
-                val percent = (progress + resizeMinPercent).coerceIn(resizeMinPercent, resizeMaxPercent)
-                resizeUpdatingWidthInput = true
-                binding.readingResizeWidthInput.setText(formatInt(percent))
-                binding.readingResizeWidthInput.setSelection(binding.readingResizeWidthInput.text?.length ?: 0)
-                resizeUpdatingWidthInput = false
-                resizeWidthPercent = percent
-                applyResizePercent(resizeWidthPercent, resizeHeightPercent)
-            }
-
-            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) = Unit
-
-            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
-                saveCurrentTranslation()
-            }
-        })
-        binding.readingResizeHeightSlider.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
-                if (resizeUpdatingHeightSlider) return
-                val percent = (progress + resizeMinPercent).coerceIn(resizeMinPercent, resizeMaxPercent)
-                resizeUpdatingHeightInput = true
-                binding.readingResizeHeightInput.setText(formatInt(percent))
-                binding.readingResizeHeightInput.setSelection(binding.readingResizeHeightInput.text?.length ?: 0)
-                resizeUpdatingHeightInput = false
-                resizeHeightPercent = percent
-                applyResizePercent(resizeWidthPercent, resizeHeightPercent)
-            }
-
-            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) = Unit
-
-            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
-                saveCurrentTranslation()
-            }
-        })
-        binding.readingResizeWidthInput.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
-            override fun afterTextChanged(s: Editable?) {
-                if (resizeUpdatingWidthInput) return
-                val raw = s?.toString().orEmpty()
-                val value = raw.toIntOrNull() ?: return
-                val clamped = value.coerceIn(resizeMinPercent, resizeMaxPercent)
-                if (clamped.toString() != raw) {
-                    resizeUpdatingWidthInput = true
-                    binding.readingResizeWidthInput.setText(formatInt(clamped))
-                    binding.readingResizeWidthInput.setSelection(binding.readingResizeWidthInput.text?.length ?: 0)
-                    resizeUpdatingWidthInput = false
-                }
-                val progress = clamped - resizeMinPercent
-                resizeUpdatingWidthSlider = true
-                binding.readingResizeWidthSlider.progress = progress
-                resizeUpdatingWidthSlider = false
-                resizeWidthPercent = clamped
-                applyResizePercent(resizeWidthPercent, resizeHeightPercent)
-                saveCurrentTranslation()
-            }
-        })
-        binding.readingResizeHeightInput.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
-            override fun afterTextChanged(s: Editable?) {
-                if (resizeUpdatingHeightInput) return
-                val raw = s?.toString().orEmpty()
-                val value = raw.toIntOrNull() ?: return
-                val clamped = value.coerceIn(resizeMinPercent, resizeMaxPercent)
-                if (clamped.toString() != raw) {
-                    resizeUpdatingHeightInput = true
-                    binding.readingResizeHeightInput.setText(formatInt(clamped))
-                    binding.readingResizeHeightInput.setSelection(binding.readingResizeHeightInput.text?.length ?: 0)
-                    resizeUpdatingHeightInput = false
-                }
-                val progress = clamped - resizeMinPercent
-                resizeUpdatingHeightSlider = true
-                binding.readingResizeHeightSlider.progress = progress
-                resizeUpdatingHeightSlider = false
-                resizeHeightPercent = clamped
-                applyResizePercent(resizeWidthPercent, resizeHeightPercent)
-                saveCurrentTranslation()
-            }
-        })
-        binding.readingResizeWidthInput.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) {
-                saveCurrentTranslation()
-            }
-        }
-        binding.readingResizeHeightInput.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) {
-                saveCurrentTranslation()
-            }
-        }
+        bindResizeControls(
+            slider = binding.readingResizeWidthSlider,
+            input = binding.readingResizeWidthInput,
+            isInputUpdating = { resizeUpdatingWidthInput },
+            setInputUpdating = { resizeUpdatingWidthInput = it },
+            isSliderUpdating = { resizeUpdatingWidthSlider },
+            setSliderUpdating = { resizeUpdatingWidthSlider = it },
+            getPercent = { resizeWidthPercent },
+            setPercent = { resizeWidthPercent = it }
+        )
+        bindResizeControls(
+            slider = binding.readingResizeHeightSlider,
+            input = binding.readingResizeHeightInput,
+            isInputUpdating = { resizeUpdatingHeightInput },
+            setInputUpdating = { resizeUpdatingHeightInput = it },
+            isSliderUpdating = { resizeUpdatingHeightSlider },
+            setSliderUpdating = { resizeUpdatingHeightSlider = it },
+            getPercent = { resizeHeightPercent },
+            setPercent = { resizeHeightPercent = it }
+        )
         binding.readingResizeConfirm.setOnClickListener {
             saveCurrentTranslation()
             hideResizePanel()
@@ -450,6 +379,70 @@ class ReadingFragment : Fragment() {
             button.contentDescription = getString(R.string.reading_edit_bubbles)
             binding.readingAddButton.visibility = View.GONE
         }
+    }
+
+    private fun bindResizeControls(
+        slider: SeekBar,
+        input: EditText,
+        isInputUpdating: () -> Boolean,
+        setInputUpdating: (Boolean) -> Unit,
+        isSliderUpdating: () -> Boolean,
+        setSliderUpdating: (Boolean) -> Unit,
+        getPercent: () -> Int,
+        setPercent: (Int) -> Unit
+    ) {
+        slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (isSliderUpdating()) return
+                val percent = (progress + resizeMinPercent).coerceIn(resizeMinPercent, resizeMaxPercent)
+                updateResizeInput(input, percent, isInputUpdating, setInputUpdating)
+                setPercent(percent)
+                applyResizePercent(resizeWidthPercent, resizeHeightPercent)
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                saveCurrentTranslation()
+            }
+        })
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) {
+                if (isInputUpdating()) return
+                val raw = s?.toString().orEmpty()
+                val value = raw.toIntOrNull() ?: return
+                val clamped = value.coerceIn(resizeMinPercent, resizeMaxPercent)
+                if (clamped.toString() != raw) {
+                    updateResizeInput(input, clamped, isInputUpdating, setInputUpdating)
+                }
+                setSliderUpdating(true)
+                slider.progress = clamped - resizeMinPercent
+                setSliderUpdating(false)
+                setPercent(clamped)
+                applyResizePercent(resizeWidthPercent, resizeHeightPercent)
+                saveCurrentTranslation()
+            }
+        })
+        input.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus && getPercent() >= resizeMinPercent) {
+                saveCurrentTranslation()
+            }
+        }
+    }
+
+    private fun updateResizeInput(
+        input: EditText,
+        percent: Int,
+        isInputUpdating: () -> Boolean,
+        setInputUpdating: (Boolean) -> Unit
+    ) {
+        if (isInputUpdating()) return
+        setInputUpdating(true)
+        input.setText(formatInt(percent))
+        input.setSelection(input.text?.length ?: 0)
+        setInputUpdating(false)
     }
 
     private fun startTranslationWatcher(imageFile: java.io.File) {

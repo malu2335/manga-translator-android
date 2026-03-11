@@ -1,14 +1,4 @@
 <resources>
-    <color name="ink_950">#0E1726</color>
-    <color name="ink_900">#162033</color>
-    <color name="ink_700">#30415F</color>
-    <color name="ink_500">#62708A</color>
-    <color name="mist_100">#F4F7FB</color>
-    <color name="mist_200">#E9EEF6</color>
-    <color name="cyan_400">#51AFFF</color>
-    <color name="cyan_300">#8FD4FF</color>
-    <color name="amber_400">#FFB454</color>
-    <color name="amber_500">#F59E0B</color>
     <color name="white_85">#D9FFFFFF</color>
     <color name="pastel_base">#FFD4C4</color>
     <color name="pastel_surface">#FFF0E8</color>

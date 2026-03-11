@@ -122,6 +122,9 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             android.view.MotionEvent.ACTION_UP,
             android.view.MotionEvent.ACTION_CANCEL -> {
                 val hadTarget = draggingBubbleId != null
+                if (event.actionMasked == android.view.MotionEvent.ACTION_UP && hadTarget && !isDragging) {
+                    performClick()
+                }
                 draggingBubbleId = null
                 isDragging = false
                 return hadTarget
@@ -129,6 +132,10 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
 
             else -> return false
         }
+    }
+
+    override fun performClick(): Boolean {
+        return super.performClick()
     }
 
     private fun findBubbleAt(x: Float, y: Float): BubbleTranslation? {

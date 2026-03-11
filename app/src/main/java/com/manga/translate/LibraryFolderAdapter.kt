@@ -2,6 +2,8 @@ package com.manga.translate
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.manga.translate.databinding.ItemFolderBinding
 
@@ -9,19 +11,14 @@ class LibraryFolderAdapter(
     private val onClick: (FolderItem) -> Unit,
     private val onDelete: (FolderItem) -> Unit,
     private val onRename: (FolderItem) -> Unit
-) : RecyclerView.Adapter<LibraryFolderAdapter.FolderViewHolder>() {
-    private val items = ArrayList<FolderItem>()
+) : ListAdapter<FolderItem, LibraryFolderAdapter.FolderViewHolder>(DiffCallback) {
     private var actionPosition: Int? = null
 
     fun submit(list: List<FolderItem>) {
-        val oldSize = items.size
-        items.clear()
-        items.addAll(list)
-        if (oldSize > 0) {
-            notifyItemRangeRemoved(0, oldSize)
-        }
-        if (items.isNotEmpty()) {
-            notifyItemRangeInserted(0, items.size)
+        submitList(list)
+        val current = actionPosition
+        if (current != null && current >= list.size) {
+            actionPosition = null
         }
     }
 
@@ -39,10 +36,8 @@ class LibraryFolderAdapter(
     }
 
     override fun onBindViewHolder(holder: FolderViewHolder, position: Int) {
-        holder.bind(items[position], position == actionPosition)
+        holder.bind(getItem(position), position == actionPosition)
     }
-
-    override fun getItemCount(): Int = items.size
 
     class FolderViewHolder(
         private val binding: ItemFolderBinding,
@@ -80,5 +75,17 @@ class LibraryFolderAdapter(
             notifyItemChanged(previous)
         }
         notifyItemChanged(position)
+    }
+
+    private companion object {
+        val DiffCallback = object : DiffUtil.ItemCallback<FolderItem>() {
+            override fun areItemsTheSame(oldItem: FolderItem, newItem: FolderItem): Boolean {
+                return oldItem.folder.absolutePath == newItem.folder.absolutePath
+            }
+
+            override fun areContentsTheSame(oldItem: FolderItem, newItem: FolderItem): Boolean {
+                return oldItem == newItem
+            }
+        }
     }
 }
