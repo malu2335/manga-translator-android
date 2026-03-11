@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <attr name="surfaceColor" format="color" />
+    <attr name="surfaceAltColor" format="color" />
     <attr name="buttonFillColor" format="color" />
     <attr name="buttonFillPressedColor" format="color" />
     <attr name="buttonTextColor" format="color" />
+    <attr name="outlineColor" format="color" />
+    <attr name="mutedTextColor" format="color" />
+    <attr name="heroStartColor" format="color" />
+    <attr name="heroEndColor" format="color" />
 </resources>

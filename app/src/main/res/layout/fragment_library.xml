@@ -5,54 +5,185 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?android:attr/colorBackground"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:paddingStart="16dp"
-    android:paddingEnd="16dp">
+    android:paddingTop="8dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="12dp">
 
     <LinearLayout
         android:id="@+id/library_list_container"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="@drawable/bg_surface_panel_open_bottom"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:orientation="vertical"
-        android:padding="14dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <TextView
-            android:id="@+id/library_title"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/library_title"
-            android:textAppearance="@style/Widget.MangaTranslator.Title" />
+            android:layout_marginTop="2dp"
+            android:background="@drawable/bg_surface_card"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:orientation="vertical"
+            android:padding="18dp">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/folder_list"
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/library_quick_actions"
+                android:textAppearance="@style/Widget.MangaTranslator.SectionLabel" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/library_quick_actions_title"
+                android:textAppearance="@style/Widget.MangaTranslator.CardTitle" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:layout_marginTop="12dp"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/import_ehviewer_button"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_action_tile"
+                    android:gravity="center_vertical|start"
+                    android:minHeight="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="@string/import_ehviewer"
+                    android:textAlignment="viewStart"
+                    android:textAllCaps="false" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/import_cbz_button"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_action_tile"
+                    android:gravity="center_vertical|start"
+                    android:minHeight="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="@string/import_cbz"
+                    android:textAlignment="viewStart"
+                    android:textAllCaps="false" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:layout_marginTop="8dp"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/floating_translate_button"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_action_tile"
+                    android:gravity="center_vertical|start"
+                    android:minHeight="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="@string/floating_translate_button"
+                    android:textAlignment="viewStart"
+                    android:textAllCaps="false" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/tutorial_button"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_action_tile"
+                    android:gravity="center_vertical|start"
+                    android:minHeight="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="@string/tutorial_button"
+                    android:textAlignment="viewStart"
+                    android:textAllCaps="false" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_marginTop="12dp"
-            android:clipToPadding="false"
-            android:paddingBottom="240dp"
-            android:layout_weight="1" />
+            android:layout_marginTop="14dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_surface_card"
+            android:elevation="2dp"
+            android:orientation="vertical"
+            android:padding="18dp">
 
-        <TextView
-            android:id="@+id/library_empty"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/folder_empty"
-            android:gravity="center"
-            android:visibility="gone"
-            android:layout_marginTop="12dp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/library_collection_label"
+                android:textAppearance="@style/Widget.MangaTranslator.SectionLabel" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/library_collection_title"
+                android:textAppearance="@style/Widget.MangaTranslator.CardTitle" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/folder_list"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="14dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                android:paddingBottom="96dp" />
+
+            <TextView
+                android:id="@+id/library_empty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:text="@string/folder_empty"
+                android:textAppearance="@style/Widget.MangaTranslator.BodyMuted"
+                android:visibility="gone" />
+        </LinearLayout>
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/folder_detail_container"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="@drawable/bg_surface_panel_open_bottom"
+        android:background="?android:attr/colorBackground"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:orientation="vertical"
-        android:padding="14dp"
         android:visibility="gone"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -62,238 +193,305 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            style="?android:attr/buttonBarStyle">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <Button
                 android:id="@+id/folder_back_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                style="?android:attr/buttonBarButtonStyle"
+                android:minWidth="0dp"
                 android:text="@string/folder_back" />
 
             <TextView
                 android:id="@+id/folder_title"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:textSize="17sp"
-                android:textStyle="bold"
+                android:layout_marginStart="12dp"
                 android:layout_weight="1"
-                android:gravity="center_vertical"
-                android:layout_marginStart="12dp" />
+                android:textAppearance="@style/Widget.MangaTranslator.Title" />
         </LinearLayout>
 
-        <LinearLayout
+        <ScrollView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="12dp"
-            style="?android:attr/buttonBarStyle">
-
-            <Button
-                android:id="@+id/folder_add_images"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                style="?android:attr/buttonBarButtonStyle"
-                android:text="@string/folder_add_images" />
-
-            <Button
-                android:id="@+id/folder_export"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                style="?android:attr/buttonBarButtonStyle"
-                android:text="@string/folder_export"
-                android:layout_marginStart="8dp" />
-
-            <Button
-                android:id="@+id/folder_translate"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                style="?android:attr/buttonBarButtonStyle"
-                android:text="@string/folder_translate"
-                android:layout_marginStart="8dp" />
-
-            <Button
-                android:id="@+id/folder_read"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                style="?android:attr/buttonBarButtonStyle"
-                android:text="@string/folder_read"
-                android:layout_marginStart="8dp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp"
-            style="?android:attr/buttonBarStyle">
-
-            <Button
-                android:id="@+id/folder_embed"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                style="?android:attr/buttonBarButtonStyle"
-                android:text="@string/folder_embed" />
-
-            <Button
-                android:id="@+id/folder_unembed"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                style="?android:attr/buttonBarButtonStyle"
-                android:text="@string/folder_unembed"
-                android:layout_marginStart="8dp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/folder_translation_settings"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_surface_card"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/folder_translation_settings_title"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="8dp"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:text="@string/folder_translation_settings"
-                android:textStyle="bold" />
+            android:layout_height="0dp"
+            android:layout_marginTop="14dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:layout_weight="1"
+            android:fillViewport="true"
+            android:overScrollMode="ifContentScrolls">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:gravity="center_vertical"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:orientation="horizontal">
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="vertical"
+                android:paddingBottom="8dp">
 
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/folder_full_translate_switch"
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/folder_full_translate" />
+                    android:background="@drawable/bg_surface_card"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:orientation="vertical"
+                    android:padding="18dp">
 
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/folder_full_translate_info"
-                    android:layout_width="wrap_content"
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/library_action_panel_label"
+                        android:textAppearance="@style/Widget.MangaTranslator.SectionLabel" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
+                        android:layout_marginTop="12dp"
+                        android:orientation="vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:clipChildren="false"
+                            android:clipToPadding="false"
+                            android:paddingStart="2dp"
+                            android:paddingEnd="2dp"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/folder_add_images"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="6dp"
+                                android:layout_weight="1"
+                                android:text="@string/folder_add_images" />
+
+                            <Button
+                                android:id="@+id/folder_read"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:layout_weight="1"
+                                android:text="@string/folder_read" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:clipChildren="false"
+                            android:clipToPadding="false"
+                            android:layout_marginTop="8dp"
+                            android:paddingStart="2dp"
+                            android:paddingEnd="2dp"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/folder_translate"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="6dp"
+                                android:layout_weight="1"
+                                android:text="@string/folder_translate" />
+
+                            <Button
+                                android:id="@+id/folder_export"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:layout_weight="1"
+                                android:text="@string/folder_export" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:clipChildren="false"
+                            android:clipToPadding="false"
+                            android:layout_marginTop="8dp"
+                            android:paddingStart="2dp"
+                            android:paddingEnd="2dp"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/folder_embed"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="6dp"
+                                android:layout_weight="1"
+                                android:text="@string/folder_embed" />
+
+                            <Button
+                                android:id="@+id/folder_unembed"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:layout_weight="1"
+                                android:text="@string/folder_unembed" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/folder_translation_settings"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/folder_full_translate_info_desc"
-                    android:src="@android:drawable/ic_dialog_alert" />
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_surface_card"
+                    android:orientation="vertical"
+                    android:padding="18dp">
+
+                    <TextView
+                        android:id="@+id/folder_translation_settings_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/folder_translation_settings"
+                        android:textAppearance="@style/Widget.MangaTranslator.CardTitle" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/library_translation_settings_hint"
+                        android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:background="@drawable/bg_soft_panel"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="14dp"
+                        android:paddingTop="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingBottom="10dp">
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/folder_full_translate_switch"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/folder_full_translate" />
+
+                        <androidx.appcompat.widget.AppCompatImageButton
+                            android:id="@+id/folder_full_translate_info"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:contentDescription="@string/folder_full_translate_info_desc"
+                            android:padding="6dp"
+                            android:src="@android:drawable/ic_menu_info_details" />
+                    </LinearLayout>
+
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/folder_language_setting"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:gravity="center"
+                        android:maxWidth="360dp"
+                        android:text="@string/folder_language_setting"
+                        android:textAlignment="center"
+                        android:textAllCaps="false" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_surface_card"
+                    android:orientation="vertical"
+                    android:padding="18dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/library_pages_label"
+                        android:textAppearance="@style/Widget.MangaTranslator.SectionLabel" />
+
+                    <LinearLayout
+                        android:id="@+id/folder_status_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/folder_progress_left"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
+
+                        <TextView
+                            android:id="@+id/folder_progress_right"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:gravity="end"
+                            android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/folder_selection_actions"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <Button
+                            android:id="@+id/folder_select_all"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/select_all" />
+
+                        <Button
+                            android:id="@+id/folder_delete_selected"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/delete_selected" />
+
+                        <Button
+                            android:id="@+id/folder_cancel_selection"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/cancel_selection" />
+
+                        <Button
+                            android:id="@+id/folder_retranslate_selected"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/retranslate_selected" />
+                    </LinearLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/folder_image_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:nestedScrollingEnabled="false" />
+
+                    <TextView
+                        android:id="@+id/folder_images_empty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:gravity="center"
+                        android:text="@string/folder_images_empty"
+                        android:textAppearance="@style/Widget.MangaTranslator.BodyMuted"
+                        android:visibility="gone" />
+                </LinearLayout>
             </LinearLayout>
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/folder_language_setting"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="10dp"
-                android:layout_gravity="center_horizontal"
-                android:minWidth="180dp"
-                android:maxWidth="260dp"
-                android:textAllCaps="false"
-                android:gravity="center"
-                android:textAlignment="center"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:text="@string/folder_language_setting" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/folder_status_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/folder_progress_left"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FF555555" />
-
-            <TextView
-                android:id="@+id/folder_progress_right"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="end"
-                android:textColor="#FF555555" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/folder_selection_actions"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp"
-            android:visibility="gone"
-            style="?android:attr/buttonBarStyle">
-
-            <Button
-                android:id="@+id/folder_select_all"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                style="?android:attr/buttonBarButtonStyle"
-                android:text="@string/select_all" />
-
-            <Button
-                android:id="@+id/folder_delete_selected"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                style="?android:attr/buttonBarButtonStyle"
-                android:text="@string/delete_selected" />
-
-            <Button
-                android:id="@+id/folder_cancel_selection"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                style="?android:attr/buttonBarButtonStyle"
-                android:text="@string/cancel_selection" />
-
-            <Button
-                android:id="@+id/folder_retranslate_selected"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                style="?android:attr/buttonBarButtonStyle"
-                android:text="@string/retranslate_selected" />
-        </LinearLayout>
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/folder_image_list"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_marginTop="12dp"
-            android:layout_weight="1" />
-
-        <TextView
-            android:id="@+id/folder_images_empty"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/folder_images_empty"
-            android:gravity="center"
-            android:visibility="gone"
-            android:layout_marginTop="12dp" />
+        </ScrollView>
     </LinearLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -302,62 +500,10 @@
         android:layout_height="wrap_content"
         android:contentDescription="@string/create_folder"
         android:src="@android:drawable/ic_input_add"
-        app:backgroundTint="?attr/colorAccent"
-        app:tint="@android:color/white"
+        app:backgroundTint="?attr/heroStartColor"
+        app:elevation="8dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_margin="4dp" />
-
-    <androidx.appcompat.widget.AppCompatButton
-        android:id="@+id/tutorial_button"
-        android:layout_width="120dp"
-        android:layout_height="40dp"
-        android:gravity="center"
-        android:text="@string/tutorial_button"
-        android:textAlignment="center"
-        android:textAllCaps="false"
-        app:layout_constraintBottom_toTopOf="@id/floating_translate_button"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginStart="4dp"
-        android:layout_marginBottom="8dp" />
-
-    <androidx.appcompat.widget.AppCompatButton
-        android:id="@+id/floating_translate_button"
-        android:layout_width="120dp"
-        android:layout_height="40dp"
-        android:gravity="center"
-        android:text="@string/floating_translate_button"
-        android:textAlignment="center"
-        android:textAllCaps="false"
-        app:layout_constraintBottom_toTopOf="@id/import_cbz_button"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginStart="4dp"
-        android:layout_marginBottom="8dp" />
-
-    <androidx.appcompat.widget.AppCompatButton
-        android:id="@+id/import_cbz_button"
-        android:layout_width="120dp"
-        android:layout_height="40dp"
-        android:gravity="center"
-        android:text="@string/import_cbz"
-        android:textAlignment="center"
-        android:textAllCaps="false"
-        app:layout_constraintBottom_toTopOf="@id/import_ehviewer_button"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginStart="4dp"
-        android:layout_marginBottom="8dp" />
-
-    <androidx.appcompat.widget.AppCompatButton
-        android:id="@+id/import_ehviewer_button"
-        android:layout_width="120dp"
-        android:layout_height="40dp"
-        android:gravity="center"
-        android:text="@string/import_ehviewer"
-        android:textAlignment="center"
-        android:textAllCaps="false"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginStart="4dp"
-        android:layout_marginBottom="16dp" />
+        app:tint="@android:color/white" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

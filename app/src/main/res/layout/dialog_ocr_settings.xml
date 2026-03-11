@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:clipToPadding="false">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -21,10 +23,11 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/ocr_settings_note_local"
-            android:textSize="12sp" />
+            android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/ocr_api_url_layout"
+            style="@style/Widget.MangaTranslator.Input"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
@@ -39,6 +42,7 @@
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/ocr_api_key_layout"
+            style="@style/Widget.MangaTranslator.Input"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
@@ -53,6 +57,7 @@
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/ocr_model_name_layout"
+            style="@style/Widget.MangaTranslator.Input"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
@@ -67,6 +72,7 @@
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/ocr_api_timeout_layout"
+            style="@style/Widget.MangaTranslator.Input"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"

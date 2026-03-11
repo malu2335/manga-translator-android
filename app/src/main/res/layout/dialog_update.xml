@@ -2,16 +2,83 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:clipToPadding="false"
     android:fillViewport="true"
-    android:background="@drawable/bg_surface_card"
     android:overScrollMode="ifContentScrolls">
 
-    <TextView
-        android:id="@+id/update_dialog_content"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="20dp"
-        android:textColor="?android:attr/textColorPrimary"
-        android:textSize="14sp"
-        android:lineSpacingExtra="4dp" />
+        android:orientation="vertical"
+        android:padding="4dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_hero_panel"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <TextView
+                android:id="@+id/update_dialog_latest_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/update_dialog_latest_label"
+                android:textAppearance="@style/Widget.MangaTranslator.SectionLabel"
+                android:textColor="@color/white_85" />
+
+            <TextView
+                android:id="@+id/update_dialog_latest_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textAppearance="@style/Widget.MangaTranslator.HeroTitle"
+                android:textSize="26sp" />
+
+            <TextView
+                android:id="@+id/update_dialog_latest_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:lineSpacingExtra="4dp"
+                android:textAppearance="@style/Widget.MangaTranslator.HeroSubtitle"
+                android:textColor="@android:color/white" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/update_dialog_tip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:text="@string/update_dialog_tutorial_tip"
+            android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
+
+        <LinearLayout
+            android:id="@+id/update_dialog_history_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_surface_card"
+            android:orientation="vertical"
+            android:padding="18dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/update_dialog_history_header"
+                android:textAppearance="@style/Widget.MangaTranslator.CardTitle" />
+
+            <TextView
+                android:id="@+id/update_dialog_history_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:lineSpacingExtra="4dp"
+                android:textAppearance="@style/Widget.MangaTranslator.BodyMuted"
+                android:textColor="?android:attr/textColorPrimary" />
+        </LinearLayout>
+    </LinearLayout>
 </ScrollView>

@@ -6,10 +6,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.os.Build
-import android.text.SpannableStringBuilder
-import android.text.Spanned
-import android.text.style.ForegroundColorSpan
-import android.text.style.RelativeSizeSpan
 import android.widget.Toast
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -100,9 +96,15 @@ class MainActivity : AppCompatActivity() {
     ) {
         val versionLabel = buildVersionLabel(updateInfo)
         val dialogView = layoutInflater.inflate(R.layout.dialog_update, null)
-        val contentView = dialogView.findViewById<TextView>(R.id.update_dialog_content)
-        val message = buildUpdateDialogMessage(updateInfo, versionLabel, contentView.currentTextColor)
-        contentView.text = message
+        val latestTitleView = dialogView.findViewById<TextView>(R.id.update_dialog_latest_title)
+        val latestContentView = dialogView.findViewById<TextView>(R.id.update_dialog_latest_content)
+        val historyContainer = dialogView.findViewById<android.view.View>(R.id.update_dialog_history_container)
+        val historyContentView = dialogView.findViewById<TextView>(R.id.update_dialog_history_content)
+        latestTitleView.text = getString(R.string.update_dialog_latest_header, versionLabel)
+        latestContentView.text = buildLatestUpdateDialogMessage(updateInfo)
+        val historyMessage = buildHistoryUpdateDialogMessage(updateInfo, versionLabel)
+        historyContainer.visibility = if (historyMessage.isBlank()) android.view.View.GONE else android.view.View.VISIBLE
+        historyContentView.text = historyMessage
         val builder = AlertDialog.Builder(this)
             .setTitle(titleOverride ?: getString(R.string.update_dialog_title, versionLabel))
             .setView(dialogView)
@@ -241,70 +243,37 @@ class MainActivity : AppCompatActivity() {
         return isNewerVersion(updateInfo)
     }
 
-    private fun buildUpdateDialogMessage(
-        updateInfo: UpdateInfo,
-        versionLabel: String,
-        textColor: Int
-    ): CharSequence {
+    private fun buildLatestUpdateDialogMessage(updateInfo: UpdateInfo): String {
         val latestChangelog = updateInfo.changelog.trim()
-        if (latestChangelog.isBlank() && updateInfo.history.isEmpty()) {
+        if (latestChangelog.isBlank()) {
             return getString(R.string.update_dialog_message_default)
         }
-        val builder = SpannableStringBuilder()
-        builder.append(getString(R.string.update_dialog_latest_header, versionLabel)).append('\n')
-        if (latestChangelog.isNotBlank()) {
-            builder.append(latestChangelog).append('\n')
-        }
-        builder.append('\n')
-            .append(getString(R.string.update_dialog_tutorial_tip))
-            .append('\n')
+        return latestChangelog
+    }
+
+    private fun buildHistoryUpdateDialogMessage(
+        updateInfo: UpdateInfo,
+        versionLabel: String
+    ): String {
         val history = updateInfo.history.filterNot {
             it.versionName.equals(versionLabel, ignoreCase = true)
         }
-        if (history.isNotEmpty()) {
-            builder.append('\n')
-                .append(getString(R.string.update_dialog_history_header))
-                .append('\n')
-            history.forEach { entry ->
-                builder.append('\n')
-                    .append(entry.versionName)
-                if (entry.releasedAt.isNotBlank()) {
-                    builder.append(' ')
-                    appendDimmedText(builder, entry.releasedAt, textColor)
-                }
-                builder.append('\n')
-                    .append(entry.changelog.trim())
-                    .append('\n')
+        if (history.isEmpty()) return ""
+        val builder = StringBuilder()
+        history.forEachIndexed { index, entry ->
+            if (index > 0) {
+                builder.append("\n\n")
+            }
+            builder.append(entry.versionName)
+            if (entry.releasedAt.isNotBlank()) {
+                builder.append("  ").append(entry.releasedAt)
+            }
+            val changelog = entry.changelog.trim()
+            if (changelog.isNotBlank()) {
+                builder.append('\n').append(changelog)
             }
         }
-        return builder
-    }
-
-    private fun appendDimmedText(
-        builder: SpannableStringBuilder,
-        text: String,
-        textColor: Int
-    ) {
-        val start = builder.length
-        builder.append(text)
-        val end = builder.length
-        builder.setSpan(
-            ForegroundColorSpan(adjustAlpha(textColor, 0.6f)),
-            start,
-            end,
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        builder.setSpan(
-            RelativeSizeSpan(0.85f),
-            start,
-            end,
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-    }
-
-    private fun adjustAlpha(color: Int, factor: Float): Int {
-        val alpha = (android.graphics.Color.alpha(color) * factor).toInt().coerceIn(0, 255)
-        return (color and 0x00FFFFFF) or (alpha shl 24)
+        return builder.toString()
     }
 
     private fun extractVersionFromUrl(url: String): String? {
