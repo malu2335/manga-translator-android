@@ -11,6 +11,7 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.FloatBuffer
 
 class MiganInpainter(
@@ -181,13 +182,20 @@ class MiganInpainter(
     }
 
     private fun createSession(): OrtSession {
-        val modelFile = copyAssetToCacheIfMissing(modelAssetName)
+        val modelFile = copyAssetToCacheIfMissing(
+            assetName = modelAssetName,
+            minBytes = MIN_MODEL_FILE_BYTES
+        )
         ensureExternalDataFiles()
         return env.createSession(modelFile.absolutePath, OrtSession.SessionOptions())
     }
 
     private fun ensureExternalDataFiles() {
-        val primary = copyAssetToCacheIfMissing(externalDataAssetName, required = false)
+        val primary = copyAssetToCacheIfMissing(
+            assetName = externalDataAssetName,
+            required = false,
+            minBytes = MIN_EXTERNAL_DATA_FILE_BYTES
+        )
         val legacy = File(context.cacheDir, legacyExternalDataName)
         if (!legacy.exists() && primary.exists()) {
             runCatching {
@@ -201,30 +209,65 @@ class MiganInpainter(
             }
         }
         if (!primary.exists()) {
-            copyAssetToCacheIfMissing(legacyExternalDataName, required = false)
+            copyAssetToCacheIfMissing(
+                assetName = legacyExternalDataName,
+                required = false,
+                minBytes = MIN_EXTERNAL_DATA_FILE_BYTES
+            )
         }
     }
 
-    private fun copyAssetToCacheIfMissing(assetName: String, required: Boolean = true): File {
+    private fun copyAssetToCacheIfMissing(
+        assetName: String,
+        required: Boolean = true,
+        minBytes: Long = 1L
+    ): File {
         val file = File(context.cacheDir, assetName)
-        if (file.exists()) return file
-        try {
-            context.assets.open(assetName).use { input ->
-                FileOutputStream(file).use { output ->
-                    input.copyTo(output)
+        synchronized(assetCopyLock) {
+            if (isUsableCacheFile(file, minBytes)) return file
+            if (file.exists()) {
+                file.delete()
+            }
+            val tempFile = File(context.cacheDir, "$assetName.tmp")
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
+            try {
+                var copiedBytes = 0L
+                context.assets.open(assetName).use { input ->
+                    FileOutputStream(tempFile).use { output ->
+                        copiedBytes = input.copyTo(output)
+                        output.fd.sync()
+                    }
                 }
+                if (copiedBytes < minBytes) {
+                    throw IOException(
+                        "Copied asset $assetName is truncated: $copiedBytes bytes, expected at least $minBytes"
+                    )
+                }
+                if (!tempFile.renameTo(file)) {
+                    throw IOException("Failed to move temp asset into cache: $assetName")
+                }
+            } catch (e: Exception) {
+                tempFile.delete()
+                if (required) {
+                    throw e
+                }
+                AppLogger.log("MiganInpainter", "Optional asset not found: $assetName", e)
             }
-        } catch (e: Exception) {
-            if (required) {
-                throw e
-            }
-            AppLogger.log("MiganInpainter", "Optional asset not found: $assetName", e)
         }
         return file
+    }
+
+    private fun isUsableCacheFile(file: File, minBytes: Long): Boolean {
+        return file.exists() && file.length() >= minBytes
     }
 
     companion object {
         private const val MODEL_SIZE = 512
         private const val PRE_MODEL_DILATE_ITERATIONS = 2
+        private const val MIN_MODEL_FILE_BYTES = 669_332L
+        private const val MIN_EXTERNAL_DATA_FILE_BYTES = 29_476_864L
+        private val assetCopyLock = Any()
     }
 }

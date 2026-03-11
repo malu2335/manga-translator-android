@@ -323,17 +323,25 @@ class SettingsFragment : Fragment() {
 
     private fun showAboutDialog() {
         val versionName = resolveVersionName()
-        AlertDialog.Builder(requireContext())
+        val dialogView = layoutInflater.inflate(R.layout.dialog_about, null)
+        val messageView = dialogView.findViewById<TextView>(R.id.about_dialog_message)
+        messageView.text = getString(R.string.about_dialog_message, versionName)
+        val dialog = AlertDialog.Builder(requireContext())
             .setTitle(R.string.about_dialog_title)
-            .setMessage(getString(R.string.about_dialog_message, versionName))
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.about_open_project) { _, _ ->
-                openUrl(PROJECT_URL)
-            }
-            .setNeutralButton(R.string.about_view_updates) { _, _ ->
-                loadAndShowUpdateDialog()
-            }
-            .show()
+            .setView(dialogView)
+            .create()
+        dialogView.findViewById<View>(R.id.about_dialog_cancel).setOnClickListener {
+            dialog.dismiss()
+        }
+        dialogView.findViewById<View>(R.id.about_dialog_open_project).setOnClickListener {
+            dialog.dismiss()
+            openUrl(PROJECT_URL)
+        }
+        dialogView.findViewById<View>(R.id.about_dialog_view_updates).setOnClickListener {
+            dialog.dismiss()
+            loadAndShowUpdateDialog()
+        }
+        dialog.show()
     }
 
     private fun loadAndShowUpdateDialog() {

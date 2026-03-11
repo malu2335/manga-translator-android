@@ -10,30 +10,31 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="4dp">
+        android:padding="8dp">
 
         <LinearLayout
+            android:id="@+id/update_dialog_latest_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_hero_panel"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp">
 
             <TextView
                 android:id="@+id/update_dialog_latest_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/update_dialog_latest_label"
-                android:textAppearance="@style/Widget.MangaTranslator.SectionLabel"
-                android:textColor="@color/white_85" />
+                android:textAppearance="@style/Widget.MangaTranslator.SectionLabel" />
 
             <TextView
                 android:id="@+id/update_dialog_latest_title"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:textAppearance="@style/Widget.MangaTranslator.HeroTitle"
-                android:textSize="26sp" />
+                android:textAppearance="@style/Widget.MangaTranslator.CardTitle"
+                android:textColor="@color/light_button_text"
+                android:textSize="22sp" />
 
             <TextView
                 android:id="@+id/update_dialog_latest_content"
@@ -41,9 +42,15 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:lineSpacingExtra="4dp"
-                android:textAppearance="@style/Widget.MangaTranslator.HeroSubtitle"
-                android:textColor="@android:color/white" />
+                android:textAppearance="@style/Widget.MangaTranslator.DialogBody" />
         </LinearLayout>
+
+        <View
+            android:id="@+id/update_dialog_latest_divider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_dialog_divider" />
 
         <TextView
             android:id="@+id/update_dialog_tip"
@@ -60,10 +67,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:background="@drawable/bg_surface_card"
             android:orientation="vertical"
-            android:padding="18dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
             android:visibility="gone">
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginBottom="14dp"
+                android:background="@drawable/bg_dialog_divider" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -77,8 +90,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:lineSpacingExtra="4dp"
-                android:textAppearance="@style/Widget.MangaTranslator.BodyMuted"
-                android:textColor="?android:attr/textColorPrimary" />
+                android:textAppearance="@style/Widget.MangaTranslator.DialogBody" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

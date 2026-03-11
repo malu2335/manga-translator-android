@@ -55,10 +55,32 @@
         <item name="hintTextColor">?attr/mutedTextColor</item>
     </style>
 
+    <style name="Widget.MangaTranslator.DialogEditText" parent="Widget.MaterialComponents.TextInputEditText.OutlinedBox">
+        <item name="android:textColor">@color/light_button_text</item>
+        <item name="android:textColorHint">@color/light_muted_text</item>
+    </style>
+
+    <style name="Widget.MangaTranslator.DialogBody" parent="TextAppearance.AppCompat.Body1">
+        <item name="android:textSize">15sp</item>
+        <item name="android:lineSpacingExtra">4dp</item>
+        <item name="android:textColor">@color/light_button_text</item>
+    </style>
+
+    <style name="Widget.MangaTranslator.DialogActionButton" parent="Widget.MangaTranslator.Button">
+        <item name="android:minHeight">44dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
+    </style>
+
     <style name="ThemeOverlay.MangaTranslator.AlertDialog" parent="Theme.AppCompat.Dialog.Alert">
         <item name="android:windowBackground">@drawable/bg_dialog_surface</item>
-        <item name="android:textColorPrimary">?attr/colorAccent</item>
-        <item name="android:textColorSecondary">?attr/mutedTextColor</item>
+        <item name="android:textColorPrimary">@color/light_button_text</item>
+        <item name="android:textColorSecondary">@color/light_muted_text</item>
+        <item name="android:textColorHint">@color/light_muted_text</item>
+        <item name="editTextColor">@color/light_button_text</item>
+        <item name="colorControlNormal">@color/light_button_text</item>
         <item name="buttonBarButtonStyle">@style/Widget.MangaTranslator.Button</item>
         <item name="android:buttonBarButtonStyle">@style/Widget.MangaTranslator.Button</item>
         <item name="buttonBarPositiveButtonStyle">@style/Widget.MangaTranslator.Button</item>

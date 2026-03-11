@@ -3,6 +3,7 @@ package com.manga.translate
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.text.Layout
 import android.text.StaticLayout
@@ -10,6 +11,7 @@ import android.text.TextPaint
 import androidx.core.graphics.withTranslation
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 class EmbeddedTextRenderer {
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -52,6 +54,7 @@ class EmbeddedTextRenderer {
             drawTextInRect(
                 canvas = canvas,
                 text = text,
+                bubble = bubble,
                 rect = rect,
                 verticalLayoutEnabled = verticalLayoutEnabled,
                 drawBackground = shouldDrawTextBackground(bubble)
@@ -63,30 +66,40 @@ class EmbeddedTextRenderer {
     private fun drawTextInRect(
         canvas: Canvas,
         text: String,
+        bubble: BubbleTranslation,
         rect: RectF,
         verticalLayoutEnabled: Boolean,
         drawBackground: Boolean
     ) {
         if (rect.width() <= 0f || rect.height() <= 0f) return
         val pad = (min(rect.width(), rect.height()) * 0.08f).coerceAtLeast(4f)
-        val textRect = RectF(rect)
-        textRect.inset(pad, pad)
-
-        if (verticalLayoutEnabled) {
-            val converted = VerticalTextSymbolConverter.convert(text)
-            drawVerticalTextInRect(canvas, converted, textRect, drawBackground)
+        val paddedRect = RectF(rect)
+        paddedRect.inset(pad, pad)
+        val ellipseRegion = if (bubble.source == BubbleSource.BUBBLE_DETECTOR) {
+            createEllipseRegion(paddedRect)
         } else {
-            val maxWidth = textRect.width().toInt().coerceAtLeast(1)
-            val maxHeight = textRect.height().toInt().coerceAtLeast(1)
-            var textSize = (textRect.height() / 3f).coerceIn(12f, 42f)
-            var layout = buildLayout(text, maxWidth, textSize)
-            while (layout.height > maxHeight && textSize > 10f) {
-                textSize *= 0.9f
-                layout = buildLayout(text, maxWidth, textSize)
+            null
+        }
+        val textRect = ellipseRegion?.inscribedTextRect ?: paddedRect
+
+        drawClipped(canvas, ellipseRegion?.clipPath) {
+            if (verticalLayoutEnabled) {
+                val converted = VerticalTextSymbolConverter.convert(text)
+                drawVerticalTextInRect(canvas, converted, textRect, drawBackground)
+            } else {
+                val maxWidth = textRect.width().toInt().coerceAtLeast(1)
+                val maxHeight = textRect.height().toInt().coerceAtLeast(1)
+                var textSize = (textRect.height() / 3f).coerceIn(12f, 42f)
+                var layout = buildLayout(text, maxWidth, textSize)
+                while ((!horizontalLayoutFitsEllipse(text, layout, textRect, ellipseRegion) ||
+                        layout.height > maxHeight) && textSize > 10f) {
+                    textSize *= 0.9f
+                    layout = buildLayout(text, maxWidth, textSize)
+                }
+                val dx = textRect.left
+                val dy = textRect.top + ((textRect.height() - layout.height) / 2f).coerceAtLeast(0f)
+                drawHorizontalTextLayout(canvas, text, layout, dx, dy, textRect, drawBackground)
             }
-            val dx = textRect.left
-            val dy = textRect.top + ((textRect.height() - layout.height) / 2f).coerceAtLeast(0f)
-            drawHorizontalTextLayout(canvas, text, layout, dx, dy, textRect, drawBackground)
         }
     }
 
@@ -279,6 +292,75 @@ class EmbeddedTextRenderer {
         canvas.drawRoundRect(bg, radius, radius, textBackgroundPaint)
     }
 
+    private fun createEllipseRegion(bounds: RectF): EllipseRegion? {
+        if (bounds.width() <= 0f || bounds.height() <= 0f) return null
+        val clipPath = Path().apply {
+            addOval(bounds, Path.Direction.CW)
+        }
+        val halfWidth = bounds.width() * 0.5f
+        val halfHeight = bounds.height() * 0.5f
+        val insetX = halfWidth * (1f - INSCRIBED_RECT_SCALE)
+        val insetY = halfHeight * (1f - INSCRIBED_RECT_SCALE)
+        val inscribedTextRect = RectF(bounds)
+        inscribedTextRect.inset(insetX, insetY)
+        return EllipseRegion(
+            clipPath = clipPath,
+            bounds = RectF(bounds),
+            inscribedTextRect = inscribedTextRect
+        )
+    }
+
+    private fun drawClipped(canvas: Canvas, clipPath: Path?, block: () -> Unit) {
+        if (clipPath == null) {
+            block()
+            return
+        }
+        val saveCount = canvas.save()
+        canvas.clipPath(clipPath)
+        try {
+            block()
+        } finally {
+            canvas.restoreToCount(saveCount)
+        }
+    }
+
+    private fun horizontalLayoutFitsEllipse(
+        text: String,
+        layout: StaticLayout,
+        textRect: RectF,
+        ellipseRegion: EllipseRegion?
+    ): Boolean {
+        if (ellipseRegion == null) return true
+        val dy = textRect.top + ((textRect.height() - layout.height) / 2f).coerceAtLeast(0f)
+        val fm = textPaint.fontMetrics
+        for (line in 0 until layout.lineCount) {
+            val lineBounds = computeHorizontalLineBounds(text, layout, line, textRect.left, dy, fm) ?: continue
+            if (!ellipseContainsRect(ellipseRegion.bounds, lineBounds)) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun ellipseContainsRect(ellipseBounds: RectF, rect: RectF): Boolean {
+        if (rect.width() <= 0f || rect.height() <= 0f) return false
+        return ellipseContainsPoint(ellipseBounds, rect.left, rect.top) &&
+            ellipseContainsPoint(ellipseBounds, rect.right, rect.top) &&
+            ellipseContainsPoint(ellipseBounds, rect.left, rect.bottom) &&
+            ellipseContainsPoint(ellipseBounds, rect.right, rect.bottom)
+    }
+
+    private fun ellipseContainsPoint(ellipseBounds: RectF, x: Float, y: Float): Boolean {
+        val rx = ellipseBounds.width() * 0.5f
+        val ry = ellipseBounds.height() * 0.5f
+        if (rx <= 0f || ry <= 0f) return false
+        val cx = ellipseBounds.centerX()
+        val cy = ellipseBounds.centerY()
+        val nx = (x - cx) / rx
+        val ny = (y - cy) / ry
+        return nx * nx + ny * ny <= 1f
+    }
+
     private fun computeMinPadding(maxRect: RectF): Float {
         val scaled = (min(maxRect.width(), maxRect.height()) / 600f) * 1.8f
         return scaled.coerceIn(0.8f, 2f)
@@ -301,4 +383,14 @@ class EmbeddedTextRenderer {
         val fontMetrics: Paint.FontMetrics,
         val fits: Boolean
     )
+
+    private data class EllipseRegion(
+        val clipPath: Path,
+        val bounds: RectF,
+        val inscribedTextRect: RectF
+    )
+
+    companion object {
+        private const val INSCRIBED_RECT_SCALE = 0.5f * 1.4142135f
+    }
 }

@@ -102,7 +102,7 @@
     <string name="library_quick_actions">快捷入口</string>
     <string name="library_quick_actions_title">导入与工具</string>
     <string name="library_collection_label">Collection</string>
-    <string name="library_collection_title">你的漫画项目</string>
+    <string name="library_collection_title">漫画项目</string>
     <string name="library_action_panel_label">操作面板</string>
     <string name="library_translation_settings_hint">为当前文件夹单独配置翻译语言与全文速译策略。</string>
     <string name="library_pages_label">页面列表</string>
