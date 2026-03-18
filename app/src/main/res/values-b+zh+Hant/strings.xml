@@ -1,0 +1,328 @@
+<resources>
+    <!-- Global / Pipeline -->
+    <string name="preview_image">檢測預覽</string>
+    <string name="detecting_bubbles">氣泡檢測中…</string>
+    <string name="translating_bubbles">翻譯中…</string>
+
+    <!-- Main Tabs -->
+    <string name="tab_library">漫畫庫</string>
+    <string name="tab_reading">閱讀</string>
+    <string name="tab_settings">設定</string>
+
+    <!-- Settings / API -->
+    <string name="settings_group_api">API</string>
+    <string name="settings_group_api_title">主模型與介面配置</string>
+    <string name="settings_group_translation">Translation</string>
+    <string name="settings_group_translation_title">翻譯與 OCR 工作流程</string>
+    <string name="settings_group_experience">Experience</string>
+    <string name="settings_group_experience_title">閱讀體驗與介面行為</string>
+    <string name="settings_group_support">Support</string>
+    <string name="settings_group_support_title">日誌、版本與問題排查</string>
+    <string name="api_url_hint">LLM API 位址</string>
+    <string name="api_key_hint">API Key</string>
+    <string name="api_format_button">API 格式</string>
+    <string name="api_format_title">API 格式</string>
+    <string name="api_format_format">API 格式：%1$s</string>
+    <string name="api_format_openai_compatible">OpenAI 相容</string>
+    <string name="api_format_gemini">Gemini</string>
+    <string name="model_name_hint">模型名稱</string>
+    <string name="api_timeout_hint">API 逾時 (秒, 30–1200)</string>
+    <string name="max_concurrency_hint">最大並行數 (1–50)</string>
+    <string name="translation_bubble_opacity_hint">翻譯氣泡透明度 (0–100，100 為完全不透明)</string>
+    <string name="api_settings_note_openai">範例 URL：https://api.siliconflow.cn/v1</string>
+    <string name="api_settings_note_gemini">範例 URL：https://generativelanguage.googleapis.com/v1beta</string>
+    <string name="api_url_required">請先填寫 API 位址</string>
+    <string name="missing_api_settings">請先在設定中填寫 API 位址與 Key</string>
+
+    <!-- Settings / Display -->
+    <string name="text_layout_horizontal">漫畫使用橫向排版</string>
+    <string name="model_io_logging">列印 AI 模型輸入輸出</string>
+    <string name="theme_setting_button">主題設定</string>
+    <string name="theme_setting_title">主題設定</string>
+    <string name="theme_setting_format">主題設定：%1$s</string>
+    <string name="language_setting_button">語言設定</string>
+    <string name="language_setting_title">語言設定</string>
+    <string name="language_setting_format">語言設定：%1$s</string>
+    <string name="language_follow_system">跟隨系統</string>
+    <string name="language_simplified_chinese">簡體中文</string>
+    <string name="language_traditional_chinese">繁體中文</string>
+    <string name="reading_display_button">閱讀設定</string>
+    <string name="reading_display_title">閱讀顯示</string>
+    <string name="reading_display_format">閱讀顯示：%1$s</string>
+    <string name="link_source_button">更新連結來源</string>
+    <string name="link_source_title">更新連結來源</string>
+    <string name="link_source_format">更新連結來源：%1$s</string>
+    <string name="reading_display_fit_width">等寬顯示</string>
+    <string name="reading_display_fit_height">等高顯示</string>
+    <string name="theme_follow_system">跟隨系統</string>
+    <string name="theme_dark">暗色</string>
+    <string name="theme_light">白色</string>
+    <string name="theme_pastel">粉彩</string>
+    <string name="theme_deep_sea">深海</string>
+
+    <!-- Settings / Model & Params -->
+    <string name="fetch_models">取得模型列表</string>
+    <string name="fetch_models_title">模型列表</string>
+    <string name="fetch_models_loading">正在取得模型列表…</string>
+    <string name="fetch_models_multi_select_hint">可多選，確認後會用英文逗號寫入模型名稱</string>
+    <string name="fetch_models_failed_title">取得模型列表失敗</string>
+    <string name="fetch_models_failed_message">請求失敗（%1$s）</string>
+    <string name="llm_params_button">AI 參數設定</string>
+    <string name="llm_params_title">AI 參數設定</string>
+    <string name="ocr_settings_button">OCR 設定</string>
+    <string name="ocr_settings_title">OCR 設定</string>
+    <string name="floating_translate_settings_button">懸浮窗翻譯設定</string>
+    <string name="floating_translate_settings_title">懸浮窗翻譯設定</string>
+    <string name="floating_api_url_hint">懸浮窗翻譯 API 位址</string>
+    <string name="floating_api_key_hint">懸浮窗翻譯 API Key</string>
+    <string name="floating_model_name_hint">懸浮窗翻譯模型名稱</string>
+    <string name="floating_use_vl_direct_translate">使用 VL 模型直接翻譯整個氣泡</string>
+    <string name="floating_use_vl_direct_translate_note">開啟後會把檢測到的氣泡裁圖直接送給視覺模型翻譯，跳過 OCR 識別步驟。請確認所填模型支援影像輸入。</string>
+    <string name="floating_use_vl_direct_translate_warning">已開啟 VL 直翻。請使用支援影像輸入的 VL 模型，否則呼叫會失敗。</string>
+    <string name="floating_vl_translate_concurrency_hint">VL 翻譯執行緒數 (1–16)</string>
+    <string name="floating_translate_settings_note">留空某一項則使用主設定中的對應配置。模型名稱支援用英文逗號分隔多個模型，軟體會按填寫順序均勻輪詢；重複填寫可提高某個模型的分配權重。</string>
+    <string name="ocr_use_local">使用本地 OCR</string>
+    <string name="ocr_api_url_hint">OCR API 位址</string>
+    <string name="ocr_api_key_hint">OCR API Key</string>
+    <string name="ocr_model_name_hint">OCR 模型名稱</string>
+    <string name="ocr_api_timeout_hint">OCR API 逾時 (秒, 30–1200)</string>
+    <string name="ocr_settings_note_local">啟用後將只使用軟體內建 OCR</string>
+    <string name="ocr_settings_note_api">關閉本地 OCR 後可配置 OpenAI 相容 OCR</string>
+    <string name="missing_ocr_api_settings">請先在 OCR 設定中填寫 API 位址、Key 與模型名稱</string>
+    <string name="llm_params_clear">全部留空</string>
+    <string name="llm_params_invalid">參數格式有誤，已忽略無效項</string>
+    <string name="llm_params_note">留空將不傳送該欄位</string>
+    <string name="llm_param_temperature">temperature</string>
+    <string name="llm_param_top_p">top_p</string>
+    <string name="llm_param_top_k">top_k</string>
+    <string name="llm_param_max_output_tokens">max_output_tokens</string>
+    <string name="llm_param_frequency_penalty">frequency_penalty</string>
+    <string name="llm_param_presence_penalty">presence_penalty</string>
+
+    <!-- Settings / Logs -->
+    <string name="view_logs">查看日誌</string>
+    <string name="share_logs">分享日誌</string>
+    <string name="logs_title">應用日誌</string>
+    <string name="logs_folder_title">選擇要分享的日誌</string>
+    <string name="logs_folder_empty">暫無日誌檔案</string>
+    <string name="share_error_logs">一鍵分享錯誤日誌</string>
+    <string name="error_logs_empty">暫無錯誤日誌</string>
+    <string name="share_logs_failed">無法分享日誌檔案</string>
+    <string name="copy_logs">複製日誌</string>
+    <string name="logs_empty">暫無日誌</string>
+
+    <!-- Library / Entry -->
+    <string name="library_quick_actions">快捷入口</string>
+    <string name="library_quick_actions_title">匯入與工具</string>
+    <string name="library_collection_label">Collection</string>
+    <string name="library_collection_title">漫畫專案</string>
+    <string name="library_action_panel_label">操作面板</string>
+    <string name="library_translation_settings_hint">為目前資料夾單獨配置翻譯語言與全文速譯策略。</string>
+    <string name="library_pages_label">頁面列表</string>
+    <string name="tutorial_button">使用教學</string>
+    <string name="tutorial_open_title">開啟教學</string>
+    <string name="tutorial_open_message">是否使用國內鏡像開啟教學？</string>
+    <string name="tutorial_open_mirror">使用鏡像站</string>
+    <string name="tutorial_open_github">使用 GitHub</string>
+    <string name="floating_translate_button">懸浮窗翻譯</string>
+    <string name="overlay_permission_required_title">需要懸浮窗權限</string>
+    <string name="overlay_permission_required_message">請先授予懸浮窗權限，才能啟用懸浮球。</string>
+    <string name="overlay_permission_failed_title">未取得懸浮窗權限</string>
+    <string name="overlay_permission_failed_message">未檢測到懸浮窗權限，功能無法啟動。</string>
+    <string name="overlay_exit_button">退出</string>
+    <string name="overlay_drag_bubble_auto_disable_notice">拖動氣泡已開啟，10 秒後將自動關閉。</string>
+    <string name="overlay_drag_bubble_auto_disabled">拖動氣泡已自動關閉。</string>
+    <string name="screen_capture_permission_required_title">需要螢幕擷取權限</string>
+    <string name="screen_capture_permission_required_message">請授權螢幕擷取，用於識別目前螢幕文字區域。</string>
+    <string name="screen_capture_permission_failed">未取得螢幕擷取權限，無法進行懸浮識別。</string>
+    <string name="common_on">開</string>
+    <string name="common_off">關</string>
+    <string name="overlay_drag_bubble_option_format">氣泡可拖動：%1$s</string>
+    <string name="floating_progress_capturing">懸浮翻譯中：正在擷取螢幕…</string>
+    <string name="floating_progress_detecting">懸浮翻譯中：正在檢測文字區域…</string>
+    <string name="floating_progress_recognizing">懸浮翻譯中：正在識別文字（%1$d 個區域）…</string>
+    <string name="floating_progress_vl_translating">懸浮翻譯中：正在用 VL 模型翻譯氣泡（%1$d 個區域）…</string>
+    <string name="floating_progress_translating">懸浮翻譯中：正在翻譯文字…</string>
+    <string name="floating_progress_done">懸浮翻譯完成：共 %1$d 個文字區域</string>
+    <string name="floating_detected_count">已識別 %1$d 個文字區域</string>
+    <string name="floating_capture_not_ready">螢幕擷取未就緒，請重新啟動懸浮窗翻譯。</string>
+    <string name="floating_detect_failed">識別失敗，請重試。</string>
+    <string name="floating_translate_timeout">翻譯逾時，請重試。</string>
+    <string name="floating_vl_model_required">目前懸浮窗直翻需要 VL 模型。請在懸浮窗翻譯設定中改用支援影像輸入的模型，或關閉該開關。</string>
+    <string name="floating_service_channel">懸浮窗識別</string>
+    <string name="floating_service_title">懸浮窗識別執行中</string>
+    <string name="floating_service_message">點擊懸浮球可識別目前螢幕文字區域</string>
+    <string name="floating_usage_tip">單擊懸浮球：識別並翻譯目前螢幕文字區域
+雙擊懸浮球：清除目前識別/翻譯氣泡
+長按懸浮球：彈出選單</string>
+    <string name="floating_bubble_placeholder">文字區域</string>
+    <string name="tutorial_option_gitee_recommended">鏡像站</string>
+    <string name="tutorial_option_github">GitHub</string>
+
+    <!-- Library / Folder Actions -->
+    <string name="create_folder">新建資料夾</string>
+    <string name="import_ehviewer">從 EhViewer 匯入</string>
+    <string name="import_cbz">從 CBZ/ZIP 匯入</string>
+    <string name="folder_name_hint">資料夾名稱</string>
+    <string name="folder_create_failed">建立失敗，請檢查名稱</string>
+    <string name="folder_empty">暫無漫畫資料夾</string>
+    <string name="folder_images_empty">該資料夾暫無圖片</string>
+    <string name="folder_add_images">上傳圖片</string>
+    <string name="folder_export">匯出漫畫</string>
+    <string name="folder_translate">一鍵翻譯</string>
+    <string name="folder_read">開始閱讀</string>
+    <string name="folder_embed">一鍵嵌字</string>
+    <string name="folder_unembed">取消嵌字</string>
+    <string name="folder_back">返回</string>
+    <string name="folder_image_count">%1$d 張圖片</string>
+    <string name="folder_delete">刪除</string>
+    <string name="folder_rename">重新命名</string>
+    <string name="folder_delete_confirm">確定刪除資料夾「%1$s」嗎？此操作無法撤銷。</string>
+    <string name="folder_delete_failed">刪除失敗，請稍後重試</string>
+    <string name="folder_rename_failed">重新命名失敗，請檢查名稱</string>
+
+    <!-- Library / Translation Options -->
+    <string name="folder_translation_settings">翻譯設定</string>
+    <string name="folder_language_setting">語言設定：%1$s</string>
+    <string name="folder_language_setting_title">選擇翻譯語言</string>
+    <string name="folder_language_to_zh">翻譯成中文</string>
+    <string name="folder_language_ja_to_zh">日文 → 中文</string>
+    <string name="folder_language_en_to_zh">英文 → 中文</string>
+    <string name="folder_full_translate">全文速譯</string>
+    <string name="folder_full_translate_info_title">全文速譯說明</string>
+    <string name="folder_full_translate_info">開啟後會先識別全部圖片文字並提取譯名，再按整頁翻譯氣泡內容。開啟後第一張圖片的翻譯速度視圖片總數而定。如果翻譯出現錯誤，可以關閉此開關，然後長按錯誤翻譯的圖片進行重譯</string>
+    <string name="folder_full_translate_info_desc">全文速譯說明</string>
+
+    <!-- Library / Progress -->
+    <string name="translation_preparing">預處理中</string>
+    <string name="folder_preprocess_progress">%1$s（%2$d/%3$d）</string>
+    <string name="folder_preprocess_stage_ocr">預處理 OCR</string>
+    <string name="folder_preprocess_stage_glossary">預處理 譯名提取</string>
+    <string name="folder_translation_count">%1$d/%2$d</string>
+    <string name="translation_done">翻譯完成</string>
+    <string name="translation_failed">翻譯失敗</string>
+    <string name="folder_embed_progress">嵌字中…(%1$d/%2$d)</string>
+    <string name="folder_embed_done">嵌字完成</string>
+    <string name="folder_embed_failed">嵌字失敗</string>
+    <string name="folder_embed_failed_image">嵌字失敗：%1$s</string>
+    <string name="folder_embed_running">已有嵌字任務在進行中</string>
+    <string name="folder_read_force_bubble_unembedded">檢測到未嵌字圖片，已切換為氣泡模式閱讀</string>
+    <string name="folder_unembed_done">已取消嵌字</string>
+    <string name="folder_unembed_failed">取消嵌字失敗</string>
+
+    <!-- Library / Selection -->
+    <string name="select_all">全選</string>
+    <string name="clear_all">取消全選</string>
+    <string name="delete_selected">刪除所選</string>
+    <string name="retranslate_selected">重譯所選</string>
+    <string name="cancel_selection">取消</string>
+    <string name="folder_selection_count">已選擇 %1$d 張</string>
+    <string name="delete_images_confirm">確定刪除選中的 %1$d 張圖片嗎？此操作無法撤銷。</string>
+    <string name="delete_images_failed">部分圖片刪除失敗</string>
+    <string name="delete_images_empty">請先選擇要刪除的圖片</string>
+    <string name="retranslate_images_empty">請先選擇要重譯的圖片</string>
+
+    <!-- Import / EhViewer -->
+    <string name="ehviewer_permission_required">請授予 EhViewer/download 目錄存取權限</string>
+    <string name="ehviewer_permission_hint">正在申請 EhViewer 資料夾權限，請選擇 EhViewer/download/</string>
+    <string name="ehviewer_permission_invalid">請選擇 EhViewer/download 目錄</string>
+    <string name="ehviewer_select_folder">選擇要匯入的漫畫資料夾</string>
+    <string name="ehviewer_import_name_title">匯入後資料夾名稱</string>
+    <string name="ehviewer_folder_exists">資料夾已存在，請換個名稱</string>
+    <string name="ehviewer_no_subfolders">該目錄下沒有可匯入的資料夾</string>
+    <string name="ehviewer_no_images">所選資料夾沒有圖片</string>
+    <string name="ehviewer_import_failed">匯入失敗，請重試</string>
+    <string name="ehviewer_import_done">已匯入 %1$d 張圖片</string>
+
+    <!-- Import / CBZ -->
+    <string name="cbz_import_failed">CBZ/ZIP 匯入失敗，請重試</string>
+    <string name="cbz_import_no_images">壓縮包中未找到可匯入圖片</string>
+    <string name="cbz_import_done">CBZ/ZIP 匯入完成，已匯入 %1$d 張圖片</string>
+
+    <!-- Export -->
+    <string name="exporting_progress">匯出中…(%1$d/%2$d)</string>
+    <string name="export_done">匯出完成</string>
+    <string name="export_failed">匯出失敗</string>
+    <string name="export_permission_denied">未授予儲存權限，無法匯出</string>
+    <string name="export_directory_required">請在內部儲存/Documents/manga-translator 選擇匯出目錄</string>
+    <string name="export_success_title">匯出成功</string>
+    <string name="export_success_message">檔案已匯出到：%1$s</string>
+    <string name="export_options_title">匯出參數</string>
+    <string name="export_thread_hint">匯出執行緒數 (1–16)</string>
+    <string name="export_thread_invalid">執行緒數無效，請輸入 1–16</string>
+    <string name="export_as_cbz_option">匯出為 CBZ</string>
+    <string name="export_embedded_images_option">匯出嵌入圖片</string>
+    <string name="export_path_hint_format">匯出路徑：%1$s</string>
+
+    <!-- Embed -->
+    <string name="embed_options_title">嵌字參數</string>
+    <string name="embed_thread_note">該參數用於調整嵌字執行緒數。</string>
+    <string name="embed_thread_hint">嵌字執行緒數 (1–16)</string>
+    <string name="embed_thread_invalid">執行緒數無效，請輸入 1–16</string>
+    <string name="embed_white_cover_option">使用白色覆蓋氣泡內文字</string>
+    <string name="embed_ellipse_limit_option">限制白色覆蓋在氣泡橢圓內</string>
+    <string name="embed_image_repair_option">啟用圖像修復（非氣泡）</string>
+
+    <!-- Error Dialogs -->
+    <string name="api_request_failed_title">API 呼叫失敗</string>
+    <string name="api_request_failed_message">請求失敗（%1$s），翻譯已終止。</string>
+    <string name="model_response_failed_title">模型返回異常</string>
+    <string name="model_response_failed_message">模型返回有問題的結果，翻譯已終止：
+%1$s</string>
+
+    <!-- Foreground Notifications -->
+    <string name="translation_keepalive_channel">背景翻譯</string>
+    <string name="translation_keepalive_title">翻譯進行中</string>
+    <string name="translation_keepalive_message">保持背景執行，請勿關閉應用</string>
+    <string name="embed_keepalive_title">嵌字進行中</string>
+    <string name="export_keepalive_title">匯出進行中</string>
+
+    <!-- Reading -->
+    <string name="reading_empty">請選擇一個資料夾開始閱讀</string>
+    <string name="reading_page_info">%1$s  (%2$d/%3$d)</string>
+    <string name="reading_edit_bubbles">編輯氣泡</string>
+    <string name="reading_confirm_edit">完成編輯</string>
+    <string name="reading_edit_bubble_title">編輯氣泡內容</string>
+    <string name="reading_bubble_width_hint">寬%%</string>
+    <string name="reading_bubble_height_hint">高%%</string>
+    <string name="reading_add_bubble">新增氣泡</string>
+    <string name="reading_empty_bubble_hint">留空則軟體會自動在對應區域識別文字。</string>
+    <string name="reading_empty_bubble_translating">正在翻譯氣泡…</string>
+    <string name="reading_empty_bubble_translated">氣泡翻譯完成</string>
+    <string name="reading_bubble_resize_done">確認</string>
+    <string name="reading_bubble_action_resize">調整氣泡大小</string>
+    <string name="reading_bubble_action_delete">刪除氣泡</string>
+    <string name="image_embedded">已嵌字</string>
+    <string name="image_translated">已翻譯</string>
+    <string name="image_not_translated">未翻譯</string>
+
+    <!-- Update -->
+    <string name="update_dialog_title">發現新版本 %1$s</string>
+    <string name="update_dialog_message_default">發現新版本，是否下載更新？</string>
+    <string name="update_dialog_latest_label">Current Latest</string>
+    <string name="update_dialog_latest_header">最新版本 %1$s</string>
+    <string name="update_dialog_history_header">歷史更新</string>
+    <string name="update_dialog_tutorial_tip">Tip：偶爾記得去查看教學看看有沒有最新玩法。</string>
+    <string name="update_dialog_no_update_title">暫無新版本</string>
+    <string name="update_dialog_load_failed">取得更新資訊失敗，請稍後重試。</string>
+    <string name="update_dialog_cancel">取消</string>
+    <string name="update_dialog_download">下載</string>
+    <string name="update_dialog_ignore">忽略此版本</string>
+    <string name="update_download_title">正在下載更新 %1$s</string>
+    <string name="update_download_description">下載完成後可在通知欄安裝（%1$s）</string>
+    <string name="update_download_failed_manual_tip">下載失敗，可手動開啟專案頁面下載更新。</string>
+
+    <!-- About / Crash / Permission -->
+    <string name="about_button">關於軟體</string>
+    <string name="about_dialog_title">關於</string>
+    <string name="about_dialog_message">目前版本：%1$s
+交流與回饋群：1080302768</string>
+    <string name="about_open_project">開啟專案頁面</string>
+    <string name="about_view_updates">查看更新</string>
+    <string name="crash_dialog_title">檢測到上次異常退出</string>
+    <string name="crash_dialog_message">上次執行可能發生了崩潰，是否分享日誌以便排查？</string>
+    <string name="crash_dialog_share">分享崩潰日誌</string>
+    <string name="notification_permission_title">通知權限</string>
+    <string name="notification_permission_message">用於顯示翻譯進度通知。</string>
+    <string name="notification_permission_denied">未授予通知權限，可能無法顯示翻譯進度。</string>
+</resources>

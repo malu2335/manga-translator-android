@@ -186,6 +186,17 @@ class SettingsStore(context: Context) {
         return ThemeMode.fromPref(saved)
     }
 
+    fun loadAppLanguage(): AppLanguage {
+        val saved = prefs.getString(KEY_APP_LANGUAGE, AppLanguage.FOLLOW_SYSTEM.prefValue)
+        return AppLanguage.fromPref(saved)
+    }
+
+    fun saveAppLanguage(language: AppLanguage) {
+        prefs.edit() {
+                putString(KEY_APP_LANGUAGE, language.prefValue)
+            }
+    }
+
     fun saveThemeMode(mode: ThemeMode) {
         prefs.edit() {
                 putString(KEY_THEME_MODE, mode.prefValue)
@@ -312,6 +323,7 @@ class SettingsStore(context: Context) {
         private const val KEY_FLOATING_BUBBLE_DRAG_ENABLED = "floating_bubble_drag_enabled"
         private const val KEY_MAX_CONCURRENCY = "max_concurrency"
         private const val KEY_API_TIMEOUT_SECONDS = "api_timeout_seconds"
+        private const val KEY_APP_LANGUAGE = "app_language"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_READING_DISPLAY_MODE = "reading_display_mode"
         private const val KEY_TRANSLATION_BUBBLE_OPACITY_PERCENT = "translation_bubble_opacity_percent"

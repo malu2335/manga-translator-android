@@ -7,7 +7,9 @@ class MangaTranslateApp : Application() {
     override fun onCreate() {
         super.onCreate()
         AppLogger.init(this)
-        val themeMode = SettingsStore(this).loadThemeMode()
+        val settingsStore = SettingsStore(this)
+        AppCompatDelegate.setApplicationLocales(settingsStore.loadAppLanguage().toLocales())
+        val themeMode = settingsStore.loadThemeMode()
         AppCompatDelegate.setDefaultNightMode(themeMode.nightMode)
         val crashStateStore = CrashStateStore(this)
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()

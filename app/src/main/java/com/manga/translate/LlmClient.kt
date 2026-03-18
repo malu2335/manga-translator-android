@@ -944,7 +944,8 @@ class LlmClient(context: Context) {
     }
 
     private fun getPromptConfig(name: String): LlmPromptConfig {
-        return promptCache.getOrPut(name) { loadPromptConfig(name) }
+        val resolvedName = PromptAssetResolver.resolve(appContext, name)
+        return promptCache.getOrPut(resolvedName) { loadPromptConfig(resolvedName) }
     }
 
     private fun loadPromptConfig(name: String): LlmPromptConfig {

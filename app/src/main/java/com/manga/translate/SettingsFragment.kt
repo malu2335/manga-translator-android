@@ -81,6 +81,8 @@ class SettingsFragment : Fragment() {
         )
         binding.textLayoutSwitch.isChecked = settingsStore.loadUseHorizontalText()
         binding.modelIoLoggingSwitch.isChecked = settingsStore.loadModelIoLogging()
+        val appLanguage = settingsStore.loadAppLanguage()
+        updateLanguageButton(appLanguage)
         val themeMode = settingsStore.loadThemeMode()
         updateThemeButton(themeMode)
         val readingMode = settingsStore.loadReadingDisplayMode()
@@ -100,6 +102,9 @@ class SettingsFragment : Fragment() {
         }
         binding.themeButton.setOnClickListener {
             showThemeDialog()
+        }
+        binding.languageButton.setOnClickListener {
+            showLanguageDialog()
         }
         binding.readingDisplayButton.setOnClickListener {
             showReadingDisplayDialog()
@@ -288,6 +293,21 @@ class SettingsFragment : Fragment() {
         }
     }
 
+    private fun showLanguageDialog() {
+        showSingleChoiceSettingDialog(
+            titleRes = R.string.language_setting_title,
+            options = AppLanguage.entries,
+            current = settingsStore.loadAppLanguage(),
+            labelRes = { it.labelRes }
+        ) { dialog, selected ->
+            settingsStore.saveAppLanguage(selected)
+            updateLanguageButton(selected)
+            AppCompatDelegate.setApplicationLocales(selected.toLocales())
+            AppLogger.log("Settings", "App language set to ${selected.prefValue}")
+            dialog.dismiss()
+        }
+    }
+
     private fun applyThemeSelection(mode: ThemeMode) {
         AppCompatDelegate.setDefaultNightMode(mode.nightMode)
         activity?.recreate()
@@ -328,6 +348,10 @@ class SettingsFragment : Fragment() {
 
     private fun updateThemeButton(mode: ThemeMode) {
         updateLabeledButton(binding.themeButton, R.string.theme_setting_format, mode.labelRes)
+    }
+
+    private fun updateLanguageButton(language: AppLanguage) {
+        updateLabeledButton(binding.languageButton, R.string.language_setting_format, language.labelRes)
     }
 
     private fun showReadingDisplayDialog() {
