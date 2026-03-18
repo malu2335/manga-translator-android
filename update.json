@@ -1,10 +1,16 @@
 {
-  "versionCode": 28,
-  "versionName": "2.3.4",
-  "releasedAt": "2026-03-08",
-  "apkUrl": "https://github.com/jedzqer/manga-translator/releases/download/v2.3.4/app-release.apk",
-  "changelog": "重构UI界面（建议更新），优化嵌字效果",
+  "versionCode": 29,
+  "versionName": "2.3.5",
+  "releasedAt": "2026-03-18",
+  "apkUrl": "https://github.com/jedzqer/manga-translator/releases/download/v2.3.5/app-release.apk",
+  "changelog": "支持繁体中文，优化模型多选界面，支持Gemini格式",
   "history": [
+    {
+      "versionName": "2.3.4",
+      "releasedAt": "2026-03-08",
+      "apkUrl": "https://github.com/jedzqer/manga-translator/releases/download/v2.3.4/app-release.apk",
+      "changelog": "重构UI界面（建议更新），优化嵌字效果"
+    },
     {
       "versionName": "2.3.3",
       "releasedAt": "2026-03-08",
