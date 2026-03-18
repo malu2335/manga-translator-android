@@ -49,6 +49,13 @@ class SettingsFragment : Fragment() {
         numberFormatter.parse(text?.trim().orEmpty())?.toDouble()
     }.getOrNull()
 
+    private fun parseModelCandidates(input: String?): List<String> {
+        return input.orEmpty()
+            .split(",")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -65,6 +72,8 @@ class SettingsFragment : Fragment() {
         binding.apiUrlInput.setText(settings.apiUrl)
         binding.apiKeyInput.setText(settings.apiKey)
         binding.modelNameInput.setText(settings.modelName)
+        updateApiFormatButton(settings.apiFormat)
+        updateApiSettingsNote(settings.apiFormat)
         binding.apiTimeoutInput.setText(formatNumber(settingsStore.loadApiTimeoutSeconds()))
         binding.maxConcurrencyInput.setText(formatNumber(settingsStore.loadMaxConcurrency()))
         binding.translationBubbleOpacityInput.setText(
@@ -97,6 +106,9 @@ class SettingsFragment : Fragment() {
         }
         binding.linkSourceButton.setOnClickListener {
             showLinkSourceDialog()
+        }
+        binding.apiFormatButton.setOnClickListener {
+            showApiFormatDialog()
         }
 
         binding.fetchModelsButton.setOnClickListener {
@@ -146,7 +158,7 @@ class SettingsFragment : Fragment() {
         val url = binding.apiUrlInput.text?.toString()?.trim().orEmpty()
         val key = binding.apiKeyInput.text?.toString()?.trim().orEmpty()
         val model = binding.modelNameInput.text?.toString()?.trim().orEmpty()
-        settingsStore.save(ApiSettings(url, key, model))
+        settingsStore.save(ApiSettings(url, key, model, currentApiFormat()))
         val timeoutInput = binding.apiTimeoutInput.text?.toString()?.trim()
         val timeoutSeconds = parseIntInput(timeoutInput) ?: settingsStore.loadApiTimeoutSeconds()
         settingsStore.saveApiTimeoutSeconds(timeoutSeconds)
@@ -279,6 +291,39 @@ class SettingsFragment : Fragment() {
     private fun applyThemeSelection(mode: ThemeMode) {
         AppCompatDelegate.setDefaultNightMode(mode.nightMode)
         activity?.recreate()
+    }
+
+    private fun showApiFormatDialog() {
+        showSingleChoiceSettingDialog(
+            titleRes = R.string.api_format_title,
+            options = ApiFormat.entries,
+            current = currentApiFormat(),
+            labelRes = { it.labelRes }
+        ) { dialog, selected ->
+            updateApiFormatButton(selected)
+            updateApiSettingsNote(selected)
+            AppLogger.log("Settings", "API format set to ${selected.prefValue}")
+            dialog.dismiss()
+        }
+    }
+
+    private fun currentApiFormat(): ApiFormat {
+        return binding.apiFormatButton.getTag(R.id.api_format_button) as? ApiFormat
+            ?: settingsStore.load().apiFormat
+    }
+
+    private fun updateApiFormatButton(format: ApiFormat) {
+        binding.apiFormatButton.setTag(R.id.api_format_button, format)
+        updateLabeledButton(binding.apiFormatButton, R.string.api_format_format, format.labelRes)
+    }
+
+    private fun updateApiSettingsNote(format: ApiFormat) {
+        binding.apiUrlHintText.setText(
+            when (format) {
+                ApiFormat.OPENAI_COMPATIBLE -> R.string.api_settings_note_openai
+                ApiFormat.GEMINI -> R.string.api_settings_note_gemini
+            }
+        )
     }
 
     private fun updateThemeButton(mode: ThemeMode) {
@@ -550,6 +595,7 @@ class SettingsFragment : Fragment() {
     private fun fetchModelList() {
         val apiUrl = binding.apiUrlInput.text?.toString()?.trim().orEmpty()
         val apiKey = binding.apiKeyInput.text?.toString()?.trim().orEmpty()
+        val apiFormat = currentApiFormat()
         if (apiUrl.isBlank()) {
             Toast.makeText(requireContext(), R.string.api_url_required, Toast.LENGTH_SHORT).show()
             return
@@ -563,7 +609,7 @@ class SettingsFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val models = withContext(Dispatchers.IO) {
-                    LlmClient(requireContext()).fetchModelList(apiUrl, apiKey)
+                    LlmClient(requireContext()).fetchModelList(apiUrl, apiKey, apiFormat)
                 }
                 if (models.isEmpty()) {
                     showModelFetchError("EMPTY_RESPONSE")
@@ -581,10 +627,20 @@ class SettingsFragment : Fragment() {
 
     private fun showModelSelectionDialog(models: List<String>) {
         val items = models.toTypedArray()
+        val currentSelections = parseModelCandidates(binding.modelNameInput.text?.toString()).toSet()
+        val checkedItems = BooleanArray(items.size) { index -> items[index] in currentSelections }
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.fetch_models_title)
-            .setItems(items) { _, which ->
-                binding.modelNameInput.setText(items[which])
+            .setMessage(R.string.fetch_models_multi_select_hint)
+            .setMultiChoiceItems(items, checkedItems) { _, which, isChecked ->
+                checkedItems[which] = isChecked
+            }
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val selectedModels = items.filterIndexed { index, _ -> checkedItems[index] }
+                binding.modelNameInput.setText(selectedModels.joinToString(","))
+            }
+            .setNeutralButton(R.string.llm_params_clear) { _, _ ->
+                binding.modelNameInput.setText("")
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

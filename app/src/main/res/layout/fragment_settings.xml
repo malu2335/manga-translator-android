@@ -47,7 +47,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="@string/api_settings_note"
+                android:text="@string/api_settings_note_openai"
                 android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
 
             <com.google.android.material.textfield.TextInputLayout
@@ -64,6 +64,15 @@
                     android:layout_height="wrap_content"
                     android:inputType="textUri" />
             </com.google.android.material.textfield.TextInputLayout>
+
+            <Button
+                android:id="@+id/api_format_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:layout_marginStart="2dp"
+                android:layout_marginEnd="2dp"
+                android:text="@string/api_format_button" />
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/api_key_layout"

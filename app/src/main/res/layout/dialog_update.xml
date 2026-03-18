@@ -92,5 +92,49 @@
                 android:lineSpacingExtra="4dp"
                 android:textAppearance="@style/Widget.MangaTranslator.DialogBody" />
         </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_dialog_divider" />
+
+        <LinearLayout
+            android:id="@+id/update_dialog_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:baselineAligned="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/update_dialog_negative_button"
+                style="@style/Widget.MangaTranslator.DialogActionButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:text="@string/update_dialog_cancel" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/update_dialog_neutral_button"
+                style="@style/Widget.MangaTranslator.DialogActionButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:text="@string/about_open_project" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/update_dialog_positive_button"
+                style="@style/Widget.MangaTranslator.DialogActionButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:text="@string/update_dialog_download" />
+        </LinearLayout>
     </LinearLayout>
 </ScrollView>

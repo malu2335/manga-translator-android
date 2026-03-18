@@ -8,6 +8,7 @@ import android.os.Environment
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.widget.Toast
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -117,28 +118,36 @@ class MainActivity : AppCompatActivity() {
         val latestContentView = dialogView.findViewById<TextView>(R.id.update_dialog_latest_content)
         val historyContainer = dialogView.findViewById<android.view.View>(R.id.update_dialog_history_container)
         val historyContentView = dialogView.findViewById<TextView>(R.id.update_dialog_history_content)
+        val negativeButton = dialogView.findViewById<androidx.appcompat.widget.AppCompatButton>(R.id.update_dialog_negative_button)
+        val neutralButton = dialogView.findViewById<androidx.appcompat.widget.AppCompatButton>(R.id.update_dialog_neutral_button)
+        val positiveButton = dialogView.findViewById<androidx.appcompat.widget.AppCompatButton>(R.id.update_dialog_positive_button)
         latestTitleView.text = getString(R.string.update_dialog_latest_header, versionLabel)
         latestContentView.text = buildLatestUpdateDialogMessage(updateInfo)
         val historyMessage = buildHistoryUpdateDialogMessage(updateInfo, versionLabel)
         historyContainer.visibility = if (historyMessage.isBlank()) android.view.View.GONE else android.view.View.VISIBLE
         historyContentView.text = historyMessage
-        val builder = AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(titleOverride ?: getString(R.string.update_dialog_title, versionLabel))
             .setView(dialogView)
-            .setPositiveButton(R.string.update_dialog_download) { _, _ ->
-                startDownload(updateInfo)
-            }
-            .setNeutralButton(R.string.about_open_project) { _, _ ->
-                openProjectPage()
-            }
-        if (showIgnoreButton) {
-            builder.setNegativeButton(R.string.update_dialog_ignore) { _, _ ->
+            .create()
+        negativeButton.text = getString(
+            if (showIgnoreButton) R.string.update_dialog_ignore else R.string.update_dialog_cancel
+        )
+        negativeButton.setOnClickListener {
+            if (showIgnoreButton) {
                 updateIgnoreStore.saveIgnoredVersionCode(updateInfo.versionCode)
             }
-        } else {
-            builder.setNegativeButton(R.string.update_dialog_cancel, null)
+            dialog.dismiss()
         }
-        builder.show()
+        neutralButton.setOnClickListener {
+            openProjectPage()
+            dialog.dismiss()
+        }
+        positiveButton.setOnClickListener {
+            dialog.dismiss()
+            startDownload(updateInfo)
+        }
+        dialog.show()
     }
 
     private fun startDownload(updateInfo: UpdateInfo) {

@@ -18,13 +18,19 @@
     <string name="settings_group_experience_title">阅读体验与界面行为</string>
     <string name="settings_group_support">Support</string>
     <string name="settings_group_support_title">日志、版本与问题排查</string>
-    <string name="api_url_hint">OpenAI 兼容 API 地址</string>
+    <string name="api_url_hint">LLM API 地址</string>
     <string name="api_key_hint">API Key</string>
+    <string name="api_format_button">API 格式</string>
+    <string name="api_format_title">API 格式</string>
+    <string name="api_format_format">API 格式：%1$s</string>
+    <string name="api_format_openai_compatible">OpenAI 兼容</string>
+    <string name="api_format_gemini">Gemini</string>
     <string name="model_name_hint">模型名称</string>
     <string name="api_timeout_hint">API 超时 (秒, 30–1200)</string>
     <string name="max_concurrency_hint">最大并发数 (1–50)</string>
     <string name="translation_bubble_opacity_hint">翻译气泡透明度 (0–100，100 为完全不透明)</string>
-    <string name="api_settings_note">示例URL：https://api.siliconflow.cn/v1</string>
+    <string name="api_settings_note_openai">示例 URL：https://api.siliconflow.cn/v1</string>
+    <string name="api_settings_note_gemini">示例 URL：https://generativelanguage.googleapis.com/v1beta</string>
     <string name="api_url_required">请先填写 API 地址</string>
     <string name="missing_api_settings">请先在设置中填写 API 地址与 Key</string>
 
@@ -52,6 +58,7 @@
     <string name="fetch_models">获取模型列表</string>
     <string name="fetch_models_title">模型列表</string>
     <string name="fetch_models_loading">正在获取模型列表…</string>
+    <string name="fetch_models_multi_select_hint">可多选，确认后会用英文逗号写入模型名称</string>
     <string name="fetch_models_failed_title">获取模型列表失败</string>
     <string name="fetch_models_failed_message">请求失败（%1$s）</string>
     <string name="llm_params_button">AI 参数设置</string>

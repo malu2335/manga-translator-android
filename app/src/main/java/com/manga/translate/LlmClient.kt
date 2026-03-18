@@ -12,6 +12,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
+import java.net.URLEncoder
 import java.net.URL
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicLong
@@ -62,9 +63,10 @@ class LlmClient(context: Context) {
 
     suspend fun fetchModelList(
         apiUrl: String,
-        apiKey: String
+        apiKey: String,
+        apiFormat: ApiFormat
     ): List<String> = withContext(Dispatchers.IO) {
-        requestModelList(apiUrl, apiKey)
+        requestModelList(apiUrl, apiKey, apiFormat)
     }
 
     suspend fun recognizeImageText(image: Bitmap): String? = withContext(Dispatchers.IO) {
@@ -72,7 +74,7 @@ class LlmClient(context: Context) {
         if (!ocrSettings.isValid() || ocrSettings.useLocalOcr) {
             return@withContext null
         }
-        val endpoint = buildEndpoint(ocrSettings.apiUrl)
+        val endpoint = buildOpenAiEndpoint(ocrSettings.apiUrl)
         val payload = buildImageOcrPayload(ocrSettings.modelName, image)
         val timeoutMs = ocrSettings.timeoutSeconds * 1000
         var lastErrorCode: String? = null
@@ -100,7 +102,7 @@ class LlmClient(context: Context) {
                     lastErrorBody = body
                     null
                 } else {
-                    parseResponseContent(body)?.trim()
+                    parseResponseContent(body, ApiFormat.OPENAI_COMPATIBLE)?.trim()
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -152,9 +154,16 @@ class LlmClient(context: Context) {
     ): String? {
         val settings = apiSettings ?: settingsStore.load()
         if (!settings.isValid()) return null
-        val endpoint = buildEndpoint(settings.apiUrl)
         val selectedModel = selectModelForRequest(settings.modelName)
-        val payload = buildPayload(text, glossary, selectedModel, promptAsset, useJsonPayload)
+        val endpoint = buildEndpoint(settings, selectedModel)
+        val payload = buildPayload(
+            text = text,
+            glossary = glossary,
+            modelName = selectedModel,
+            promptAsset = promptAsset,
+            useJsonPayload = useJsonPayload,
+            apiFormat = settings.apiFormat
+        )
         val logModelIo = settingsStore.loadModelIoLogging()
         if (logModelIo) {
             AppLogger.log("LlmClient", "Model input ($promptAsset): $payload")
@@ -166,14 +175,7 @@ class LlmClient(context: Context) {
         var lastErrorBody: String? = null
         for (attempt in 1..retries) {
             currentCoroutineContext().ensureActive()
-            val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("Authorization", "Bearer ${settings.apiKey}")
-                connectTimeout = timeoutMs
-                readTimeout = timeoutMs
-                doOutput = true
-            }
+            val connection = openTextRequestConnection(endpoint, settings, timeoutMs)
             val result = try {
                 connection.outputStream.use { output ->
                     output.write(payload.toString().toByteArray(Charsets.UTF_8))
@@ -194,7 +196,7 @@ class LlmClient(context: Context) {
                     lastErrorBody = body
                     null
                 } else {
-                    val content = parseResponseContent(body)
+                    val content = parseResponseContent(body, settings.apiFormat)
                     if (content == null) {
                         AppLogger.log(
                             "LlmClient",
@@ -246,9 +248,14 @@ class LlmClient(context: Context) {
     ): String? {
         val settings = apiSettings ?: settingsStore.load()
         if (!settings.isValid()) return null
-        val endpoint = buildEndpoint(settings.apiUrl)
         val selectedModel = selectModelForRequest(settings.modelName)
-        val payload = buildImageTranslationPayload(selectedModel, image, promptAsset)
+        val endpoint = buildEndpoint(settings, selectedModel)
+        val payload = buildImageTranslationPayload(
+            modelName = selectedModel,
+            image = image,
+            promptAsset = promptAsset,
+            apiFormat = settings.apiFormat
+        )
         val logModelIo = settingsStore.loadModelIoLogging()
         if (logModelIo) {
             AppLogger.log("LlmClient", "Model input ($promptAsset): $payload")
@@ -260,14 +267,7 @@ class LlmClient(context: Context) {
         var lastErrorBody: String? = null
         for (attempt in 1..retries) {
             currentCoroutineContext().ensureActive()
-            val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("Authorization", "Bearer ${settings.apiKey}")
-                connectTimeout = timeoutMs
-                readTimeout = timeoutMs
-                doOutput = true
-            }
+            val connection = openTextRequestConnection(endpoint, settings, timeoutMs)
             val result = try {
                 connection.outputStream.use { output ->
                     output.write(payload.toString().toByteArray(Charsets.UTF_8))
@@ -281,7 +281,7 @@ class LlmClient(context: Context) {
                     lastErrorBody = body
                     null
                 } else {
-                    val content = parseResponseContent(body)
+                    val content = parseResponseContent(body, settings.apiFormat)
                     if (content == null) {
                         AppLogger.log(
                             "LlmClient",
@@ -324,7 +324,7 @@ class LlmClient(context: Context) {
         return null
     }
 
-    private fun buildEndpoint(baseUrl: String): String {
+    private fun buildOpenAiEndpoint(baseUrl: String): String {
         val trimmed = baseUrl.trimEnd('/')
         return when {
             trimmed.endsWith("/v1/chat/completions") -> trimmed
@@ -333,7 +333,7 @@ class LlmClient(context: Context) {
         }
     }
 
-    private fun buildModelsEndpoint(baseUrl: String): String {
+    private fun buildOpenAiModelsEndpoint(baseUrl: String): String {
         val trimmed = baseUrl.trimEnd('/')
         return when {
             trimmed.endsWith("/v1/models") -> trimmed
@@ -342,15 +342,81 @@ class LlmClient(context: Context) {
         }
     }
 
+    private fun buildEndpoint(settings: ApiSettings, modelName: String): String {
+        return when (settings.apiFormat) {
+            ApiFormat.OPENAI_COMPATIBLE -> buildOpenAiEndpoint(settings.apiUrl)
+            ApiFormat.GEMINI -> buildGeminiGenerateEndpoint(settings.apiUrl, modelName, settings.apiKey)
+        }
+    }
+
+    private fun buildGeminiGenerateEndpoint(baseUrl: String, modelName: String, apiKey: String): String {
+        val trimmed = baseUrl.trimEnd('/')
+        val normalizedModel = normalizeGeminiModelName(modelName)
+        val baseEndpoint = when {
+            trimmed.contains(":generateContent") -> trimmed
+            trimmed.endsWith("/v1beta") || trimmed.endsWith("/v1") -> {
+                "$trimmed/$normalizedModel:generateContent"
+            }
+            else -> "$trimmed/v1beta/$normalizedModel:generateContent"
+        }
+        return appendApiKeyQuery(baseEndpoint, apiKey)
+    }
+
+    private fun buildGeminiModelsEndpoint(baseUrl: String, apiKey: String): String {
+        val trimmed = baseUrl.trimEnd('/')
+        val baseEndpoint = when {
+            trimmed.endsWith("/models") -> trimmed
+            trimmed.endsWith("/v1beta") || trimmed.endsWith("/v1") -> "$trimmed/models"
+            else -> "$trimmed/v1beta/models"
+        }
+        return appendApiKeyQuery(baseEndpoint, apiKey)
+    }
+
+    private fun normalizeGeminiModelName(modelName: String): String {
+        val trimmed = modelName.trim().removePrefix("/")
+        return if (trimmed.startsWith("models/")) trimmed else "models/$trimmed"
+    }
+
+    private fun appendApiKeyQuery(endpoint: String, apiKey: String): String {
+        if (apiKey.isBlank()) return endpoint
+        val separator = if (endpoint.contains("?")) "&" else "?"
+        return endpoint + separator + "key=" + URLEncoder.encode(apiKey, Charsets.UTF_8.name())
+    }
+
     private fun buildPayload(
         text: String,
         glossary: Map<String, String>,
         modelName: String,
         promptAsset: String,
+        useJsonPayload: Boolean,
+        apiFormat: ApiFormat
+    ): JSONObject {
+        val config = getPromptConfig(promptAsset)
+        return when (apiFormat) {
+            ApiFormat.OPENAI_COMPATIBLE -> buildOpenAiPayload(
+                text = text,
+                glossary = glossary,
+                modelName = modelName,
+                config = config,
+                useJsonPayload = useJsonPayload
+            )
+            ApiFormat.GEMINI -> buildGeminiTextPayload(
+                text = text,
+                glossary = glossary,
+                config = config,
+                useJsonPayload = useJsonPayload
+            )
+        }
+    }
+
+    private fun buildOpenAiPayload(
+        text: String,
+        glossary: Map<String, String>,
+        modelName: String,
+        config: LlmPromptConfig,
         useJsonPayload: Boolean
     ): JSONObject {
         val llmParams = settingsStore.loadLlmParameters()
-        val config = getPromptConfig(promptAsset)
         val messages = JSONArray()
         messages.put(
             JSONObject()
@@ -388,6 +454,26 @@ class LlmClient(context: Context) {
         return payload
     }
 
+    private fun buildGeminiTextPayload(
+        text: String,
+        glossary: Map<String, String>,
+        config: LlmPromptConfig,
+        useJsonPayload: Boolean
+    ): JSONObject {
+        val userText = config.userPromptPrefix + if (useJsonPayload) {
+            buildUserPayload(text, glossary)
+        } else {
+            text
+        }
+        val payload = JSONObject()
+            .put("contents", buildGeminiContents(config, buildGeminiUserParts(buildGeminiTextPart(userText))))
+        if (config.systemPrompt.isNotBlank()) {
+            payload.put("systemInstruction", buildGeminiSystemInstruction(config.systemPrompt))
+        }
+        buildGeminiGenerationConfig(useJsonPayload)?.let { payload.put("generationConfig", it) }
+        return payload
+    }
+
     private fun selectModelForRequest(modelConfig: String): String {
         val models = parseModelCandidates(modelConfig)
         if (models.isEmpty()) return modelConfig.trim()
@@ -401,7 +487,14 @@ class LlmClient(context: Context) {
             .filter { it.isNotBlank() }
     }
 
-    private fun parseResponseContent(body: String): String? {
+    private fun parseResponseContent(body: String, apiFormat: ApiFormat): String? {
+        return when (apiFormat) {
+            ApiFormat.OPENAI_COMPATIBLE -> parseOpenAiResponseContent(body)
+            ApiFormat.GEMINI -> parseGeminiResponseContent(body)
+        }
+    }
+
+    private fun parseOpenAiResponseContent(body: String): String? {
         return try {
             val json = JSONObject(body)
             val choices = json.optJSONArray("choices") ?: return null
@@ -426,6 +519,26 @@ class LlmClient(context: Context) {
                 }
                 else -> null
             }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun parseGeminiResponseContent(body: String): String? {
+        return try {
+            val json = JSONObject(body)
+            val candidates = json.optJSONArray("candidates") ?: return null
+            val first = candidates.optJSONObject(0) ?: return null
+            val content = first.optJSONObject("content") ?: return null
+            val parts = content.optJSONArray("parts") ?: return null
+            val texts = ArrayList<String>(parts.length())
+            for (i in 0 until parts.length()) {
+                val text = parts.optJSONObject(i)?.optString("text")?.trim().orEmpty()
+                if (text.isNotBlank()) {
+                    texts.add(text)
+                }
+            }
+            texts.joinToString("\n").trim().ifBlank { null }
         } catch (e: Exception) {
             null
         }
@@ -475,6 +588,18 @@ class LlmClient(context: Context) {
     }
 
     private fun buildImageTranslationPayload(
+        modelName: String,
+        image: Bitmap,
+        promptAsset: String,
+        apiFormat: ApiFormat
+    ): JSONObject {
+        return when (apiFormat) {
+            ApiFormat.OPENAI_COMPATIBLE -> buildOpenAiImageTranslationPayload(modelName, image, promptAsset)
+            ApiFormat.GEMINI -> buildGeminiImageTranslationPayload(image, promptAsset)
+        }
+    }
+
+    private fun buildOpenAiImageTranslationPayload(
         modelName: String,
         image: Bitmap,
         promptAsset: String
@@ -529,6 +654,33 @@ class LlmClient(context: Context) {
         llmParams.maxOutputTokens?.let { payload.put("max_output_tokens", it) }
         llmParams.frequencyPenalty?.let { payload.put("frequency_penalty", it) }
         llmParams.presencePenalty?.let { payload.put("presence_penalty", it) }
+        return payload
+    }
+
+    private fun buildGeminiImageTranslationPayload(
+        image: Bitmap,
+        promptAsset: String
+    ): JSONObject {
+        val config = getPromptConfig(promptAsset)
+        val userText = config.userPromptPrefix.ifBlank {
+            DEFAULT_IMAGE_TRANSLATION_USER_PROMPT
+        }
+        val payload = JSONObject().put(
+            "contents",
+            buildGeminiContents(
+                config,
+                buildGeminiUserParts(
+                    buildGeminiTextPart(userText),
+                    buildGeminiInlineImagePart(encodeBitmapToBase64(image))
+                )
+            )
+        )
+        if (config.systemPrompt.isNotBlank()) {
+            payload.put("systemInstruction", buildGeminiSystemInstruction(config.systemPrompt))
+        }
+        buildGeminiGenerationConfig(useJsonPayload = false)?.let {
+            payload.put("generationConfig", it)
+        }
         return payload
     }
 
@@ -589,11 +741,18 @@ class LlmClient(context: Context) {
         }
     }
 
-    private suspend fun requestModelList(apiUrl: String, apiKey: String): List<String> {
+    private suspend fun requestModelList(
+        apiUrl: String,
+        apiKey: String,
+        apiFormat: ApiFormat
+    ): List<String> {
         if (apiUrl.isBlank()) {
             throw LlmRequestException("MISSING_URL")
         }
-        val endpoint = buildModelsEndpoint(apiUrl)
+        val endpoint = when (apiFormat) {
+            ApiFormat.OPENAI_COMPATIBLE -> buildOpenAiModelsEndpoint(apiUrl)
+            ApiFormat.GEMINI -> buildGeminiModelsEndpoint(apiUrl, apiKey)
+        }
         val timeoutMs = settingsStore.loadApiTimeoutMs()
         var lastErrorCode: String? = null
         var lastErrorBody: String? = null
@@ -602,7 +761,7 @@ class LlmClient(context: Context) {
             val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 setRequestProperty("Content-Type", "application/json")
-                if (apiKey.isNotBlank()) {
+                if (apiFormat == ApiFormat.OPENAI_COMPATIBLE && apiKey.isNotBlank()) {
                     setRequestProperty("Authorization", "Bearer $apiKey")
                 }
                 connectTimeout = timeoutMs
@@ -625,7 +784,7 @@ class LlmClient(context: Context) {
                     lastErrorBody = body
                     null
                 } else {
-                    val models = parseModelList(body)
+                    val models = parseModelList(body, apiFormat)
                     if (models.isEmpty()) {
                         lastErrorCode = "EMPTY_RESPONSE"
                         lastErrorBody = body
@@ -662,7 +821,14 @@ class LlmClient(context: Context) {
         return emptyList()
     }
 
-    private fun parseModelList(body: String): List<String> {
+    private fun parseModelList(body: String, apiFormat: ApiFormat): List<String> {
+        return when (apiFormat) {
+            ApiFormat.OPENAI_COMPATIBLE -> parseOpenAiModelList(body)
+            ApiFormat.GEMINI -> parseGeminiModelList(body)
+        }
+    }
+
+    private fun parseOpenAiModelList(body: String): List<String> {
         return try {
             val json = JSONObject(body)
             val data = json.optJSONArray("data") ?: return emptyList()
@@ -677,6 +843,103 @@ class LlmClient(context: Context) {
         } catch (e: Exception) {
             AppLogger.log("LlmClient", "Model list parse failed", e)
             emptyList()
+        }
+    }
+
+    private fun parseGeminiModelList(body: String): List<String> {
+        return try {
+            val json = JSONObject(body)
+            val modelsJson = json.optJSONArray("models") ?: return emptyList()
+            val models = ArrayList<String>(modelsJson.length())
+            for (i in 0 until modelsJson.length()) {
+                val item = modelsJson.optJSONObject(i) ?: continue
+                val id = item.optString("baseModelId").trim().ifBlank {
+                    item.optString("name").trim().removePrefix("models/")
+                }
+                if (id.isNotBlank()) {
+                    models.add(id)
+                }
+            }
+            models
+        } catch (e: Exception) {
+            AppLogger.log("LlmClient", "Gemini model list parse failed", e)
+            emptyList()
+        }
+    }
+
+    private fun buildGeminiContents(config: LlmPromptConfig, userParts: JSONArray): JSONArray {
+        val contents = JSONArray()
+        for (message in config.exampleMessages) {
+            val role = when (message.role.lowercase()) {
+                "assistant", "model" -> "model"
+                else -> "user"
+            }
+            contents.put(
+                JSONObject()
+                    .put("role", role)
+                    .put("parts", buildGeminiUserParts(buildGeminiTextPart(message.content)))
+            )
+        }
+        contents.put(
+            JSONObject()
+                .put("role", "user")
+                .put("parts", userParts)
+        )
+        return contents
+    }
+
+    private fun buildGeminiSystemInstruction(systemPrompt: String): JSONObject {
+        return JSONObject().put("parts", buildGeminiUserParts(buildGeminiTextPart(systemPrompt)))
+    }
+
+    private fun buildGeminiUserParts(vararg parts: JSONObject): JSONArray {
+        val array = JSONArray()
+        parts.forEach { array.put(it) }
+        return array
+    }
+
+    private fun buildGeminiTextPart(text: String): JSONObject {
+        return JSONObject().put("text", text)
+    }
+
+    private fun buildGeminiInlineImagePart(imageBase64: String): JSONObject {
+        return JSONObject().put(
+            "inline_data",
+            JSONObject()
+                .put("mime_type", "image/jpeg")
+                .put("data", imageBase64)
+        )
+    }
+
+    private fun buildGeminiGenerationConfig(useJsonPayload: Boolean): JSONObject? {
+        val llmParams = settingsStore.loadLlmParameters()
+        val config = JSONObject()
+        if (useJsonPayload) {
+            config.put("responseMimeType", "application/json")
+        }
+        llmParams.temperature?.let { config.put("temperature", it) }
+        llmParams.topP?.let { config.put("topP", it) }
+        llmParams.topK?.let { config.put("topK", it) }
+        llmParams.maxOutputTokens?.let { config.put("maxOutputTokens", it) }
+        llmParams.frequencyPenalty?.let { config.put("frequencyPenalty", it) }
+        llmParams.presencePenalty?.let { config.put("presencePenalty", it) }
+        return config.takeIf { it.length() > 0 }
+    }
+
+    private fun openTextRequestConnection(
+        endpoint: String,
+        settings: ApiSettings,
+        timeoutMs: Int
+    ): HttpURLConnection {
+        return (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            setRequestProperty("Content-Type", "application/json")
+            if (settings.apiFormat == ApiFormat.OPENAI_COMPATIBLE) {
+                setRequestProperty("Authorization", "Bearer ${settings.apiKey}")
+            }
+            connectTimeout = timeoutMs
+            readTimeout = timeoutMs
+            doOutput = true
         }
     }
 

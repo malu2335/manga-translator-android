@@ -6,7 +6,8 @@ import androidx.core.content.edit
 data class ApiSettings(
     val apiUrl: String,
     val apiKey: String,
-    val modelName: String
+    val modelName: String,
+    val apiFormat: ApiFormat = ApiFormat.OPENAI_COMPATIBLE
 ) {
     fun isValid(): Boolean {
         return apiUrl.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()
@@ -40,7 +41,8 @@ class SettingsStore(context: Context) {
         val url = prefs.getString(KEY_API_URL, DEFAULT_API_URL) ?: DEFAULT_API_URL
         val key = prefs.getString(KEY_API_KEY, "") ?: ""
         val model = prefs.getString(KEY_MODEL_NAME, DEFAULT_MODEL) ?: DEFAULT_MODEL
-        return ApiSettings(url, key, model)
+        val apiFormat = ApiFormat.fromPref(prefs.getString(KEY_API_FORMAT, null))
+        return ApiSettings(url, key, model, apiFormat)
     }
 
     fun save(settings: ApiSettings) {
@@ -48,6 +50,7 @@ class SettingsStore(context: Context) {
                 putString(KEY_API_URL, settings.apiUrl)
                 .putString(KEY_API_KEY, settings.apiKey)
                 .putString(KEY_MODEL_NAME, settings.modelName)
+                .putString(KEY_API_FORMAT, settings.apiFormat.prefValue)
             }
     }
 
@@ -73,7 +76,8 @@ class SettingsStore(context: Context) {
         return ApiSettings(
             apiUrl = floating.apiUrl.ifBlank { main.apiUrl },
             apiKey = floating.apiKey.ifBlank { main.apiKey },
-            modelName = floating.modelName.ifBlank { main.modelName }
+            modelName = floating.modelName.ifBlank { main.modelName },
+            apiFormat = main.apiFormat
         )
     }
 
@@ -292,6 +296,7 @@ class SettingsStore(context: Context) {
         private const val KEY_API_URL = "api_url"
         private const val KEY_API_KEY = "api_key"
         private const val KEY_MODEL_NAME = "model_name"
+        private const val KEY_API_FORMAT = "api_format"
         private const val KEY_OCR_USE_LOCAL = "ocr_use_local"
         private const val KEY_OCR_API_URL = "ocr_api_url"
         private const val KEY_OCR_API_KEY = "ocr_api_key"
