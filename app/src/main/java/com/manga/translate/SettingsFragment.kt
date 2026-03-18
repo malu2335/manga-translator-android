@@ -655,7 +655,6 @@ class SettingsFragment : Fragment() {
         val checkedItems = BooleanArray(items.size) { index -> items[index] in currentSelections }
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.fetch_models_title)
-            .setMessage(R.string.fetch_models_multi_select_hint)
             .setMultiChoiceItems(items, checkedItems) { _, which, isChecked ->
                 checkedItems[which] = isChecked
             }
