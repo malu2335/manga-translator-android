@@ -183,6 +183,13 @@
 
     <!-- Library / Translation Options -->
     <string name="folder_translation_settings">翻译设置</string>
+    <string name="folder_reading_settings">阅读设置</string>
+    <string name="folder_reading_settings_hint">为当前漫画单独设置阅读方式，不影响其他漫画。</string>
+    <string name="folder_reading_mode_setting">阅读方式</string>
+    <string name="folder_reading_mode_title">选择阅读方式</string>
+    <string name="folder_reading_mode_format">阅读方式：%1$s</string>
+    <string name="folder_reading_mode_standard">普通阅读</string>
+    <string name="folder_reading_mode_webtoon_scroll">条漫滚动</string>
     <string name="folder_language_setting">语言设置：%1$s</string>
     <string name="folder_language_setting_title">选择翻译语言</string>
     <string name="folder_language_to_zh">翻译成中文</string>

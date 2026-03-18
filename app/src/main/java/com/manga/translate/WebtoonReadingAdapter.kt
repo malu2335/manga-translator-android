@@ -1,0 +1,232 @@
+package com.manga.translate
+
+import android.graphics.Bitmap
+import android.graphics.RectF
+import android.graphics.BitmapFactory
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.core.view.doOnLayout
+import androidx.recyclerview.widget.RecyclerView
+import com.manga.translate.databinding.ItemReadingWebtoonPageBinding
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+
+class WebtoonReadingAdapter(
+    private val scope: CoroutineScope,
+    private val translationStore: TranslationStore
+) : RecyclerView.Adapter<WebtoonReadingAdapter.WebtoonPageViewHolder>() {
+
+    private var items: List<File> = emptyList()
+    private var isEmbeddedMode: Boolean = false
+    private var verticalLayoutEnabled: Boolean = true
+    private var bubbleOpacity: Float = 1f
+
+    fun submit(
+        images: List<File>,
+        embeddedMode: Boolean,
+        verticalLayoutEnabled: Boolean,
+        bubbleOpacity: Float
+    ) {
+        items = images
+        isEmbeddedMode = embeddedMode
+        this.verticalLayoutEnabled = verticalLayoutEnabled
+        this.bubbleOpacity = bubbleOpacity
+        notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): WebtoonPageViewHolder {
+        val binding = ItemReadingWebtoonPageBinding.inflate(
+            LayoutInflater.from(parent.context),
+            parent,
+            false
+        )
+        return WebtoonPageViewHolder(binding)
+    }
+
+    override fun getItemCount(): Int = items.size
+
+    override fun onBindViewHolder(holder: WebtoonPageViewHolder, position: Int) {
+        holder.bind(
+            imageFile = items[position],
+            embeddedMode = isEmbeddedMode,
+            verticalLayoutEnabled = verticalLayoutEnabled,
+            bubbleOpacity = bubbleOpacity
+        )
+    }
+
+    override fun onViewRecycled(holder: WebtoonPageViewHolder) {
+        holder.recycle()
+    }
+
+    override fun onViewDetachedFromWindow(holder: WebtoonPageViewHolder) {
+        holder.stopWatching()
+    }
+
+    override fun onViewAttachedToWindow(holder: WebtoonPageViewHolder) {
+        holder.resumeWatching()
+    }
+
+    inner class WebtoonPageViewHolder(
+        private val binding: ItemReadingWebtoonPageBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+        private var bindJob: Job? = null
+        private var watchJob: Job? = null
+        private var boundPath: String? = null
+        private var boundFile: File? = null
+        private var boundEmbeddedMode: Boolean = false
+        private var currentBitmap: Bitmap? = null
+        private var lastTranslationModified: Long = Long.MIN_VALUE
+
+        fun bind(
+            imageFile: File,
+            embeddedMode: Boolean,
+            verticalLayoutEnabled: Boolean,
+            bubbleOpacity: Float
+        ) {
+            boundPath = imageFile.absolutePath
+            boundFile = imageFile
+            boundEmbeddedMode = embeddedMode
+            currentBitmap = null
+            lastTranslationModified = Long.MIN_VALUE
+            bindJob?.cancel()
+            watchJob?.cancel()
+            binding.readingPageOverlay.setEditMode(false)
+            binding.readingPageOverlay.setTouchPassthroughEnabled(true)
+            binding.readingPageOverlay.setVerticalLayoutEnabled(verticalLayoutEnabled)
+            binding.readingPageOverlay.setBubbleOpacity(bubbleOpacity)
+            binding.readingPageOverlay.visibility = View.GONE
+            binding.readingPageImage.setImageDrawable(null)
+            binding.root.doOnLayout {
+                if (boundPath != imageFile.absolutePath) return@doOnLayout
+                loadPage(imageFile, embeddedMode)
+            }
+        }
+
+        fun resumeWatching() {
+            val imageFile = boundFile ?: return
+            if (boundEmbeddedMode) return
+            if (watchJob?.isActive == true) return
+            startWatchingTranslations(imageFile)
+        }
+
+        fun stopWatching() {
+            watchJob?.cancel()
+            watchJob = null
+        }
+
+        private fun loadPage(imageFile: File, embeddedMode: Boolean) {
+            bindJob?.cancel()
+            bindJob = scope.launch {
+                val targetWidth = resolveTargetWidth()
+                val bitmap = withContext(Dispatchers.IO) { decodeSampledBitmap(imageFile, targetWidth) }
+                val translation = if (embeddedMode) {
+                    null
+                } else {
+                    withContext(Dispatchers.IO) { translationStore.load(imageFile) }
+                }
+                if (boundPath != imageFile.absolutePath) return@launch
+                if (bitmap == null) {
+                    binding.readingPageImage.setImageDrawable(null)
+                    binding.readingPageOverlay.visibility = View.GONE
+                    return@launch
+                }
+                currentBitmap = bitmap
+                binding.readingPageImage.setImageBitmap(bitmap)
+                binding.readingPageImage.doOnLayout {
+                    if (boundPath != imageFile.absolutePath) return@doOnLayout
+                    bindOverlay(bitmap, translation)
+                    if (!embeddedMode) {
+                        startWatchingTranslations(imageFile)
+                    }
+                }
+            }
+        }
+
+        fun recycle() {
+            bindJob?.cancel()
+            watchJob?.cancel()
+            boundPath = null
+            boundFile = null
+            currentBitmap = null
+            binding.readingPageImage.setImageDrawable(null)
+            binding.readingPageOverlay.visibility = View.GONE
+        }
+
+        private fun bindOverlay(bitmap: Bitmap, translation: TranslationResult?) {
+            val width = binding.readingPageImage.width.toFloat()
+            val height = binding.readingPageImage.height.toFloat()
+            if (width <= 0f || height <= 0f) {
+                binding.readingPageOverlay.visibility = View.GONE
+                return
+            }
+            val resolved = when {
+                translation == null -> TranslationResult("", bitmap.width, bitmap.height, emptyList())
+                translation.width == bitmap.width && translation.height == bitmap.height -> translation
+                else -> translation.copy(width = bitmap.width, height = bitmap.height)
+            }
+            binding.readingPageOverlay.setDisplayRect(RectF(0f, 0f, width, height))
+            binding.readingPageOverlay.setOffsets(emptyMap())
+            binding.readingPageOverlay.setTranslations(resolved)
+            binding.readingPageOverlay.visibility = if (resolved.bubbles.isEmpty()) View.GONE else View.VISIBLE
+        }
+
+        private fun startWatchingTranslations(imageFile: File) {
+            watchJob?.cancel()
+            watchJob = scope.launch {
+                val translationFile = translationStore.translationFileFor(imageFile)
+                while (isActive && boundPath == imageFile.absolutePath) {
+                    val modified = if (translationFile.exists()) translationFile.lastModified() else Long.MIN_VALUE
+                    if (modified != lastTranslationModified) {
+                        lastTranslationModified = modified
+                        val bitmap = currentBitmap
+                        if (bitmap != null) {
+                            val translation = withContext(Dispatchers.IO) {
+                                if (translationFile.exists()) translationStore.load(imageFile) else null
+                            }
+                            if (boundPath != imageFile.absolutePath) return@launch
+                            bindOverlay(bitmap, translation)
+                        }
+                    }
+                    delay(800)
+                }
+            }
+        }
+
+        private fun resolveTargetWidth(): Int {
+            return binding.readingPageImage.width
+                .takeIf { it > 0 }
+                ?: binding.root.width.takeIf { it > 0 }
+                ?: binding.root.resources.displayMetrics.widthPixels
+        }
+
+        private fun decodeSampledBitmap(imageFile: File, targetWidth: Int): Bitmap? {
+            val safeTargetWidth = targetWidth.coerceAtLeast(1)
+            val bounds = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeFile(imageFile.absolutePath, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+            val sampleSize = calculateInSampleSize(bounds.outWidth, safeTargetWidth)
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+                inPreferredConfig = Bitmap.Config.RGB_565
+            }
+            return BitmapFactory.decodeFile(imageFile.absolutePath, options)
+        }
+
+        private fun calculateInSampleSize(sourceWidth: Int, targetWidth: Int): Int {
+            var sample = 1
+            while (sourceWidth / (sample * 2) >= targetWidth) {
+                sample *= 2
+            }
+            return sample.coerceAtLeast(1)
+        }
+    }
+}

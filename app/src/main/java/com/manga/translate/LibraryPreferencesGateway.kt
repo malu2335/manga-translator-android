@@ -25,8 +25,17 @@ internal class LibraryPreferencesGateway(
         return TranslationLanguage.fromString(value)
     }
 
+    fun getReadingMode(folder: File): FolderReadingMode {
+        val value = prefs.getString(readingModeKeyPrefix + folder.absolutePath, null)
+        return FolderReadingMode.fromPref(value)
+    }
+
     fun setTranslationLanguage(folder: File, language: TranslationLanguage) {
         prefs.edit() {putString(languageKeyPrefix + folder.absolutePath, language.name)}
+    }
+
+    fun setReadingMode(folder: File, mode: FolderReadingMode) {
+        prefs.edit() {putString(readingModeKeyPrefix + folder.absolutePath, mode.prefValue)}
     }
 
     fun getEhViewerTreeUri(): Uri? {
@@ -113,5 +122,6 @@ internal class LibraryPreferencesGateway(
         private const val exportTreeKey = "export_tree_uri"
         private const val fullTranslateKeyPrefix = "full_translate_enabled_"
         private const val languageKeyPrefix = "translation_language_"
+        private const val readingModeKeyPrefix = "reading_mode_"
     }
 }

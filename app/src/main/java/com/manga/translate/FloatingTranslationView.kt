@@ -71,6 +71,7 @@ class FloatingTranslationView @JvmOverloads constructor(
     private var swipeTriggered = false
     private var longPressTriggered = false
     private var editMode = false
+    private var touchPassthroughEnabled = false
     private var bubbleOpacity = SettingsStore(context).loadTranslationBubbleOpacity()
     private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
     private val longPressRunnable = Runnable {
@@ -139,6 +140,10 @@ class FloatingTranslationView @JvmOverloads constructor(
         invalidate()
     }
 
+    fun setTouchPassthroughEnabled(enabled: Boolean) {
+        touchPassthroughEnabled = enabled
+    }
+
     fun getOffsets(): Map<Int, Pair<Float, Float>> {
         return offsets.toMap()
     }
@@ -163,6 +168,9 @@ class FloatingTranslationView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (touchPassthroughEnabled && !editMode) {
+            return false
+        }
         val transformHandled = onTransformTouch?.invoke(event) == true
         if (transformHandled) {
             if (event.actionMasked == MotionEvent.ACTION_DOWN ||

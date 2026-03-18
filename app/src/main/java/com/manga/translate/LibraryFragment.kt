@@ -309,6 +309,7 @@ class LibraryFragment : Fragment() {
         }
         binding.folderFullTranslateInfo.setOnClickListener { showFullTranslateInfo() }
         binding.folderLanguageSetting.setOnClickListener { showLanguageSettingDialog() }
+        binding.folderReadingModeButton.setOnClickListener { showFolderReadingModeDialog() }
         binding.folderFullTranslateSwitch.setOnCheckedChangeListener { _, isChecked ->
             currentFolder?.let { preferencesGateway.setFullTranslateEnabled(it, isChecked) }
         }
@@ -435,6 +436,7 @@ class LibraryFragment : Fragment() {
         binding.folderTitle.text = folder.name
         binding.folderFullTranslateSwitch.isChecked = preferencesGateway.isFullTranslateEnabled(folder)
         updateLanguageSettingButton(folder)
+        updateReadingModeButton(folder)
         updateEmbedButtonState(folder)
         selectionController.exitSelectionMode()
         loadImages(folder)
@@ -781,7 +783,8 @@ class LibraryFragment : Fragment() {
             "Start reading ${folder.name}, ${images.size} images, embedded=$embeddedMode"
         )
         val startIndex = readingProgressStore.load(folder)
-        readingSessionViewModel.setFolder(folder, images, startIndex, embeddedMode)
+        val readingMode = preferencesGateway.getReadingMode(folder)
+        readingSessionViewModel.setFolder(folder, images, startIndex, embeddedMode, readingMode)
         (activity as? MainActivity)?.switchToTab(MainPagerAdapter.READING_INDEX)
     }
 
@@ -812,7 +815,8 @@ class LibraryFragment : Fragment() {
             "Library",
             "Open image ${imageFile.name} at index $startIndex in ${folder.name}, embedded=$embeddedMode"
         )
-        readingSessionViewModel.setFolder(folder, images, startIndex, embeddedMode)
+        val readingMode = preferencesGateway.getReadingMode(folder)
+        readingSessionViewModel.setFolder(folder, images, startIndex, embeddedMode, readingMode)
         (activity as? MainActivity)?.switchToTab(MainPagerAdapter.READING_INDEX)
     }
 
@@ -898,6 +902,14 @@ class LibraryFragment : Fragment() {
         binding.folderLanguageSetting.text = getString(R.string.folder_language_setting, displayName)
     }
 
+    private fun updateReadingModeButton(folder: File) {
+        val mode = preferencesGateway.getReadingMode(folder)
+        binding.folderReadingModeButton.text = getString(
+            R.string.folder_reading_mode_format,
+            getString(mode.labelRes)
+        )
+    }
+
     private fun showLanguageSettingDialog() {
         val folder = currentFolder ?: return
         if (!settingsStore.loadOcrApiSettings().useLocalOcr) {
@@ -909,6 +921,16 @@ class LibraryFragment : Fragment() {
             preferencesGateway.setTranslationLanguage(folder, selectedLanguage)
             updateLanguageSettingButton(folder)
             AppLogger.log("Library", "Set language for ${folder.name}: ${selectedLanguage.name}")
+        }
+    }
+
+    private fun showFolderReadingModeDialog() {
+        val folder = currentFolder ?: return
+        val currentMode = preferencesGateway.getReadingMode(folder)
+        dialogs.showFolderReadingModeDialog(requireContext(), currentMode) { selectedMode ->
+            preferencesGateway.setReadingMode(folder, selectedMode)
+            updateReadingModeButton(folder)
+            AppLogger.log("Library", "Set reading mode for ${folder.name}: ${selectedMode.prefValue}")
         }
     }
 

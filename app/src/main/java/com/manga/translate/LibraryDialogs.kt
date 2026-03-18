@@ -143,6 +143,19 @@ internal class LibraryDialogs {
         ) { }
     }
 
+    fun showFolderReadingModeDialog(
+        context: Context,
+        currentMode: FolderReadingMode,
+        onSelected: (FolderReadingMode) -> Unit
+    ) {
+        val modes = FolderReadingMode.entries
+        val names = modes.map { context.getString(it.labelRes) }.toTypedArray()
+        val currentIndex = modes.indexOf(currentMode)
+        showSingleChoiceDialog(context, R.string.folder_reading_mode_title, names, currentIndex) {
+            onSelected(modes[it])
+        }
+    }
+
     fun showApiErrorDialog(context: Context, errorCode: String) {
         showMessageDialog(
             context,

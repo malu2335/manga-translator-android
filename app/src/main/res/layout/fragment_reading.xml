@@ -5,13 +5,49 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <ImageView
-        android:id="@+id/reading_image"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/reading_webtoon_list"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:adjustViewBounds="true"
-        android:scaleType="fitCenter"
-        android:contentDescription="@string/preview_image" />
+        android:clipToPadding="false"
+        android:paddingBottom="16dp"
+        android:scrollbars="vertical"
+        android:visibility="gone" />
+
+    <com.manga.translate.ReadingScrollView
+        android:id="@+id/reading_scroll_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:overScrollMode="ifContentScrolls"
+        android:scrollbars="vertical">
+
+        <FrameLayout
+            android:id="@+id/reading_content_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <FrameLayout
+                android:id="@+id/reading_image_frame"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <ImageView
+                    android:id="@+id/reading_image"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:adjustViewBounds="true"
+                    android:contentDescription="@string/preview_image"
+                    android:scaleType="fitCenter" />
+
+                <com.manga.translate.FloatingTranslationView
+                    android:id="@+id/translation_overlay"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </FrameLayout>
+    </com.manga.translate.ReadingScrollView>
 
     <TextView
         android:id="@+id/reading_page_info"
@@ -33,12 +69,6 @@
         android:text="@string/reading_empty"
         android:textColor="#FFCCCCCC"
         android:textSize="14sp" />
-
-    <com.manga.translate.FloatingTranslationView
-        android:id="@+id/translation_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone" />
 
     <LinearLayout
         android:id="@+id/reading_edit_controls"
