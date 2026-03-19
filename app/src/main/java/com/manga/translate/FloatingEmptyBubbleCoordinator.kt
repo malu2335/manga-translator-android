@@ -3,11 +3,7 @@ package com.manga.translate
 import android.content.Context
 import android.graphics.Bitmap
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 class FloatingEmptyBubbleCoordinator(
@@ -17,6 +13,11 @@ class FloatingEmptyBubbleCoordinator(
     private val settingsStore: SettingsStore
 ) {
     private val appContext = context.applicationContext
+    private val floatingBubbleTranslationCoordinator = FloatingBubbleTranslationCoordinator(
+        llmClient = llmClient,
+        floatingTranslationCacheStore = floatingTranslationCacheStore,
+        settingsStore = settingsStore
+    )
     private var mangaOcr: MangaOcr? = null
 
     suspend fun process(
@@ -112,74 +113,15 @@ class FloatingEmptyBubbleCoordinator(
         promptAsset: String,
         apiSettings: ApiSettings
     ): List<BubbleTranslation>? {
-        if (bubbles.isEmpty()) return bubbles
-        val translatable = bubbles.filter { it.text.isNotBlank() }
-        if (translatable.isEmpty()) {
-            return bubbles
-        }
-
-        val translatedMap = HashMap<Int, String>(translatable.size)
-        val cacheMisses = ArrayList<BubbleTranslation>(translatable.size)
-        for (bubble in translatable) {
-            val cached = floatingTranslationCacheStore.findTextTranslation(bubble.text)
-            if (cached == null) {
-                cacheMisses.add(bubble)
-            } else {
-                translatedMap[bubble.id] = cached.translation
-            }
-        }
-
-        fun merge(): List<BubbleTranslation> {
-            return bubbles.map { bubble ->
-                translatedMap[bubble.id]?.let { translated ->
-                    bubble.copy(text = translated)
-                } ?: bubble
-            }
-        }
-
-        if (cacheMisses.isEmpty()) {
-            return merge()
-        }
-        if (!llmClient.isConfigured(apiSettings)) {
-            return merge()
-        }
-
-        return try {
-            val text = cacheMisses.joinToString("\n") {
-                "<b>${normalizeOcrText(it.text, TranslationLanguage.JA_TO_ZH)}</b>"
-            }
-            val translated = llmClient.translate(
-                text = text,
-                glossary = emptyMap(),
-                promptAsset = promptAsset,
-                requestTimeoutMs = timeoutMs,
-                retryCount = retryCount,
-                apiSettings = apiSettings
-            ) ?: return merge()
-            val segments = extractTaggedSegments(
-                translated.translation,
-                cacheMisses.map { it.text }
-            )
-            for (i in cacheMisses.indices) {
-                val source = cacheMisses[i]
-                val translatedText = segments.getOrElse(i) { source.text }
-                translatedMap[source.id] = translatedText
-                if (translatedText.isNotBlank()) {
-                    floatingTranslationCacheStore.putTextTranslation(source.text, translatedText)
-                }
-            }
-            merge()
-        } catch (e: LlmRequestException) {
-            if (e.errorCode == "TIMEOUT") {
-                null
-            } else {
-                AppLogger.log("FloatingOCR", "Translate empty bubbles failed", e)
-                merge()
-            }
-        } catch (e: Exception) {
-            AppLogger.log("FloatingOCR", "Translate empty bubbles failed", e)
-            merge()
-        }
+        return floatingBubbleTranslationCoordinator.translateTextBubbles(
+            bubbles = bubbles,
+            timeoutMs = timeoutMs,
+            retryCount = retryCount,
+            promptAsset = promptAsset,
+            apiSettings = apiSettings,
+            language = TranslationLanguage.JA_TO_ZH,
+            logTag = "FloatingOCR"
+        )
     }
 
     private suspend fun translateBubbleImages(
@@ -192,80 +134,22 @@ class FloatingEmptyBubbleCoordinator(
         concurrency: Int,
         maxVlConcurrency: Int
     ): FloatingVlBubbleTranslateOutcome = coroutineScope {
-        val semaphore = Semaphore(concurrency.coerceIn(1, maxVlConcurrency))
-        val tasks = bubbles.map { bubble ->
-            async(Dispatchers.IO) {
-                semaphore.withPermit {
-                    val crop = cropBitmap(bitmap, bubble.rect)
-                    if (crop == null) {
-                        return@withPermit FloatingVlBubbleTranslateTaskResult(
-                            bubble = bubble
-                        )
-                    }
-                    val imageCacheKey = floatingTranslationCacheStore.createImageKey(crop)
-                    val cachedTranslation = floatingTranslationCacheStore.findImageTranslation(imageCacheKey)
-                    if (!cachedTranslation.isNullOrBlank()) {
-                        crop.recycle()
-                        return@withPermit FloatingVlBubbleTranslateTaskResult(
-                            bubble = bubble.copy(text = cachedTranslation)
-                        )
-                    }
-                    val translatedText = try {
-                        llmClient.translateImageBubble(
-                            image = crop,
-                            promptAsset = promptAsset,
-                            requestTimeoutMs = timeoutMs,
-                            retryCount = retryCount,
-                            apiSettings = apiSettings
-                        ).orEmpty()
-                    } catch (e: LlmRequestException) {
-                        if (e.errorCode == "TIMEOUT") {
-                            return@withPermit FloatingVlBubbleTranslateTaskResult(timedOut = true)
-                        }
-                        if (looksLikeVisionModelError(e)) {
-                            return@withPermit FloatingVlBubbleTranslateTaskResult(requiresVlModel = true)
-                        }
-                        AppLogger.log("FloatingOCR", "Translate image bubble failed id=${bubble.id}", e)
-                        ""
-                    } catch (e: Exception) {
-                        AppLogger.log("FloatingOCR", "Translate image bubble failed id=${bubble.id}", e)
-                        ""
-                    } finally {
-                        crop.recycle()
-                    }
-                    if (translatedText.isNotBlank()) {
-                        floatingTranslationCacheStore.putImageTranslation(imageCacheKey, translatedText)
-                    }
-                    FloatingVlBubbleTranslateTaskResult(
-                        bubble = bubble.copy(text = translatedText)
-                    )
-                }
-            }
-        }
-        val results = tasks.awaitAll()
-        if (results.any { it.requiresVlModel }) {
-            return@coroutineScope FloatingVlBubbleTranslateOutcome(requiresVlModel = true)
-        }
-        if (results.any { it.timedOut }) {
-            return@coroutineScope FloatingVlBubbleTranslateOutcome(timedOut = true)
-        }
-        FloatingVlBubbleTranslateOutcome(bubbles = results.mapNotNull { it.bubble })
-    }
-
-    private fun looksLikeVisionModelError(error: LlmRequestException): Boolean {
-        val body = error.responseBody.orEmpty().lowercase()
-        val code = error.errorCode.lowercase()
-        val hints = listOf(
-            "image",
-            "vision",
-            "multimodal",
-            "multi-modal",
-            "image_url",
-            "input_image",
-            "does not support image",
-            "unsupported content type"
+        val outcome = floatingBubbleTranslationCoordinator.translateImageBubbles(
+            bitmap = bitmap,
+            bubbles = bubbles,
+            timeoutMs = timeoutMs,
+            retryCount = retryCount,
+            promptAsset = promptAsset,
+            apiSettings = apiSettings,
+            concurrency = concurrency,
+            maxConcurrency = maxVlConcurrency,
+            logTag = "FloatingOCR"
         )
-        return code.startsWith("http") && hints.any { it in body }
+        return@coroutineScope FloatingVlBubbleTranslateOutcome(
+            bubbles = outcome.bubbles,
+            timedOut = outcome.timedOut,
+            requiresVlModel = outcome.requiresVlModel
+        )
     }
 
     private fun getMangaOcr(): MangaOcr? {
@@ -287,12 +171,6 @@ data class FloatingEmptyBubbleOutcome(
 
 private data class FloatingVlBubbleTranslateOutcome(
     val bubbles: List<BubbleTranslation> = emptyList(),
-    val timedOut: Boolean = false,
-    val requiresVlModel: Boolean = false
-)
-
-private data class FloatingVlBubbleTranslateTaskResult(
-    val bubble: BubbleTranslation? = null,
     val timedOut: Boolean = false,
     val requiresVlModel: Boolean = false
 )

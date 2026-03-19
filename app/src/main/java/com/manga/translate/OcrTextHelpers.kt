@@ -54,6 +54,25 @@ fun cropBitmap(source: Bitmap, rect: RectF): Bitmap? {
     return Bitmap.createBitmap(source, left, top, width, height)
 }
 
+fun Bitmap?.recycleSafely() {
+    if (this != null && !isRecycled) {
+        recycle()
+    }
+}
+
+inline fun <T> withBitmapCrop(
+    source: Bitmap,
+    rect: RectF,
+    block: (Bitmap) -> T
+): T? {
+    val crop = cropBitmap(source, rect) ?: return null
+    return try {
+        block(crop)
+    } finally {
+        crop.recycleSafely()
+    }
+}
+
 fun recognizeEnglishLines(
     source: Bitmap,
     lineRects: List<RectF>,
@@ -63,11 +82,13 @@ fun recognizeEnglishLines(
     if (lineRects.isEmpty()) return emptyList()
     val results = ArrayList<EnglishLine>(lineRects.size)
     for (rect in lineRects) {
-        val crop = cropBitmap(source, rect) ?: continue
-        val decoded = ocrEngine.recognizeWithScore(crop)
-        val text = decoded.text.trim()
-        if (decoded.score < minLineScore || text.isBlank()) continue
-        results.add(EnglishLine(rect, text))
+        withBitmapCrop(source, rect) { crop ->
+            val decoded = ocrEngine.recognizeWithScore(crop)
+            val text = decoded.text.trim()
+            if (decoded.score >= minLineScore && text.isNotBlank()) {
+                results.add(EnglishLine(rect, text))
+            }
+        }
     }
     return results
 }

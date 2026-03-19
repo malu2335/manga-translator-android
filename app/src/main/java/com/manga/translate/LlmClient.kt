@@ -450,12 +450,7 @@ class LlmClient(context: Context) {
         val payload = JSONObject()
             .put("model", modelName)
             .put("messages", messages)
-        llmParams.temperature?.let { payload.put("temperature", it) }
-        llmParams.topP?.let { payload.put("top_p", it) }
-        llmParams.topK?.let { payload.put("top_k", it) }
-        llmParams.maxOutputTokens?.let { payload.put("max_output_tokens", it) }
-        llmParams.frequencyPenalty?.let { payload.put("frequency_penalty", it) }
-        llmParams.presencePenalty?.let { payload.put("presence_penalty", it) }
+        applyOpenAiSamplingParams(payload, llmParams, settings)
         applyOpenAiExtraBody(payload, llmParams, settings)
         return payload
     }
@@ -661,14 +656,22 @@ class LlmClient(context: Context) {
         val payload = JSONObject()
             .put("model", modelName)
             .put("messages", messages)
+        applyOpenAiSamplingParams(payload, llmParams, settings)
+        applyOpenAiExtraBody(payload, llmParams, settings)
+        return payload
+    }
+
+    private fun applyOpenAiSamplingParams(
+        payload: JSONObject,
+        llmParams: LlmParameterSettings,
+        settings: ApiSettings
+    ) {
         llmParams.temperature?.let { payload.put("temperature", it) }
         llmParams.topP?.let { payload.put("top_p", it) }
         llmParams.topK?.let { payload.put("top_k", it) }
         llmParams.maxOutputTokens?.let { payload.put("max_output_tokens", it) }
         llmParams.frequencyPenalty?.let { payload.put("frequency_penalty", it) }
         llmParams.presencePenalty?.let { payload.put("presence_penalty", it) }
-        applyOpenAiExtraBody(payload, llmParams, settings)
-        return payload
     }
 
     private fun buildGeminiImageTranslationPayload(

@@ -35,6 +35,7 @@ class SettingsFragment : Fragment() {
     private var _binding: FragmentSettingsBinding? = null
     private val binding get() = _binding!!
     private lateinit var settingsStore: SettingsStore
+    private lateinit var settingsPersistenceController: SettingsPersistenceController
     private val numberFormatter by lazy {
         NumberFormat.getNumberInstance(Locale.getDefault()).apply {
             isGroupingUsed = false
@@ -80,6 +81,7 @@ class SettingsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         settingsStore = SettingsStore(requireContext())
+        settingsPersistenceController = SettingsPersistenceController(settingsStore)
         val settings = settingsStore.load()
         binding.apiUrlInput.setText(settings.apiUrl)
         binding.apiKeyInput.setText(settings.apiKey)
@@ -179,28 +181,33 @@ class SettingsFragment : Fragment() {
         val url = binding.apiUrlInput.text?.toString()?.trim().orEmpty()
         val key = binding.apiKeyInput.text?.toString()?.trim().orEmpty()
         val model = binding.modelNameInput.text?.toString()?.trim().orEmpty()
-        settingsStore.save(ApiSettings(url, key, model, currentApiFormat()))
         val timeoutInput = binding.apiTimeoutInput.text?.toString()?.trim()
         val timeoutSeconds = parseIntInput(timeoutInput) ?: settingsStore.loadApiTimeoutSeconds()
-        settingsStore.saveApiTimeoutSeconds(timeoutSeconds)
-        val normalizedTimeout = settingsStore.loadApiTimeoutSeconds()
-        val normalizedTimeoutText = formatNumber(normalizedTimeout)
-        if (normalizedTimeoutText != timeoutInput) {
-            binding.apiTimeoutInput.setText(normalizedTimeoutText)
-        }
         val concurrencyInput = binding.maxConcurrencyInput.text?.toString()?.trim()
         val maxConcurrency = parseIntInput(concurrencyInput) ?: settingsStore.loadMaxConcurrency()
-        val normalized = maxConcurrency.coerceIn(1, 50)
-        settingsStore.saveMaxConcurrency(normalized)
-        val normalizedConcurrencyText = formatNumber(normalized)
-        if (normalizedConcurrencyText != concurrencyInput) {
-            binding.maxConcurrencyInput.setText(normalizedConcurrencyText)
-        }
         val bubbleOpacityInput = binding.translationBubbleOpacityInput.text?.toString()?.trim()
         val bubbleOpacity = parseIntInput(bubbleOpacityInput)
             ?: settingsStore.loadTranslationBubbleOpacityPercent()
-        val normalizedBubbleOpacity = bubbleOpacity.coerceIn(0, 100)
-        settingsStore.saveTranslationBubbleOpacityPercent(normalizedBubbleOpacity)
+        val persisted = settingsPersistenceController.persistMainForm(
+            SettingsMainForm(
+                apiUrl = url,
+                apiKey = key,
+                modelName = model,
+                apiFormat = currentApiFormat(),
+                apiTimeoutSeconds = timeoutSeconds,
+                maxConcurrency = maxConcurrency,
+                translationBubbleOpacityPercent = bubbleOpacity
+            )
+        )
+        val normalizedTimeoutText = formatNumber(persisted.apiTimeoutSeconds)
+        if (normalizedTimeoutText != timeoutInput) {
+            binding.apiTimeoutInput.setText(normalizedTimeoutText)
+        }
+        val normalizedConcurrencyText = formatNumber(persisted.maxConcurrency)
+        if (normalizedConcurrencyText != concurrencyInput) {
+            binding.maxConcurrencyInput.setText(normalizedConcurrencyText)
+        }
+        val normalizedBubbleOpacity = persisted.translationBubbleOpacityPercent
         val normalizedBubbleOpacityText = formatNumber(normalizedBubbleOpacity)
         if (normalizedBubbleOpacityText != bubbleOpacityInput) {
             binding.translationBubbleOpacityInput.setText(normalizedBubbleOpacityText)

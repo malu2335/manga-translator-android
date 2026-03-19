@@ -4,6 +4,8 @@ import android.content.Context
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.PrintWriter
+import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -69,6 +71,8 @@ object AppLogger {
                 append(throwable::class.java.simpleName)
                 append(": ")
                 append(throwable.message ?: "no message")
+                append('\n')
+                append(stackTraceString(throwable))
             }
             append('\n')
         }
@@ -154,6 +158,14 @@ object AppLogger {
         for (file in files.drop(MAX_LOG_FILES)) {
             file.delete()
         }
+    }
+
+    private fun stackTraceString(throwable: Throwable): String {
+        val writer = StringWriter()
+        PrintWriter(writer).use { printWriter ->
+            throwable.printStackTrace(printWriter)
+        }
+        return writer.toString().trimEnd()
     }
 
     private const val LEGACY_EXCEPTION_MARKER = "Exception:"

@@ -269,20 +269,11 @@ class SettingsStore(context: Context) {
             temperature = readDoubleWithDefault(KEY_LLM_TEMPERATURE, DEFAULT_LLM_TEMPERATURE),
             topP = readDoubleWithDefault(KEY_LLM_TOP_P, DEFAULT_LLM_TOP_P),
             topK = readIntOptional(KEY_LLM_TOP_K),
-            maxOutputTokens = readIntWithDefault(
-                KEY_LLM_MAX_OUTPUT_TOKENS,
-                DEFAULT_LLM_MAX_OUTPUT_TOKENS
-            ),
+            maxOutputTokens = readIntOptional(KEY_LLM_MAX_OUTPUT_TOKENS),
             enableThinking = prefs.getBoolean(KEY_LLM_ENABLE_THINKING, DEFAULT_LLM_ENABLE_THINKING),
             thinkingBudget = readIntOptional(KEY_LLM_THINKING_BUDGET),
-            frequencyPenalty = readDoubleWithDefault(
-                KEY_LLM_FREQUENCY_PENALTY,
-                DEFAULT_LLM_FREQUENCY_PENALTY
-            ),
-            presencePenalty = readDoubleWithDefault(
-                KEY_LLM_PRESENCE_PENALTY,
-                DEFAULT_LLM_PRESENCE_PENALTY
-            )
+            frequencyPenalty = readDoubleOptional(KEY_LLM_FREQUENCY_PENALTY),
+            presencePenalty = readDoubleOptional(KEY_LLM_PRESENCE_PENALTY)
         )
     }
 
@@ -306,11 +297,11 @@ class SettingsStore(context: Context) {
         return value.toDoubleOrNull()
     }
 
-    private fun readIntWithDefault(key: String, defaultValue: Int): Int? {
-        if (!prefs.contains(key)) return defaultValue
+    private fun readDoubleOptional(key: String): Double? {
+        if (!prefs.contains(key)) return null
         val value = prefs.getString(key, null)
         if (value.isNullOrBlank()) return null
-        return value.toIntOrNull()
+        return value.toDoubleOrNull()
     }
 
     private fun readIntOptional(key: String): Int? {
@@ -357,10 +348,7 @@ class SettingsStore(context: Context) {
         private const val KEY_LLM_PRESENCE_PENALTY = "llm_presence_penalty"
         private const val DEFAULT_LLM_TEMPERATURE = 0.8
         private const val DEFAULT_LLM_TOP_P = 1.0
-        private const val DEFAULT_LLM_MAX_OUTPUT_TOKENS = 8192
         private const val DEFAULT_LLM_ENABLE_THINKING = false
-        private const val DEFAULT_LLM_FREQUENCY_PENALTY = 0.4
-        private const val DEFAULT_LLM_PRESENCE_PENALTY = 0.2
         private const val DEFAULT_API_URL = "https://api.siliconflow.cn/v1"
         private const val DEFAULT_MODEL = "Qwen/Qwen3.5-35B-A3B"
         private const val DEFAULT_OCR_API_URL = "https://api.siliconflow.cn/v1"

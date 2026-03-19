@@ -15,10 +15,15 @@ internal object ErrorDialogFormatter {
                 else -> errorCode
             }
         }
-        return if (resolvedDetail == errorCode) {
+        val message = if (resolvedDetail == errorCode) {
             resolvedDetail
         } else {
             "$resolvedDetail\n\n${context.getString(R.string.error_code_with_label, errorCode)}"
+        }
+        return if (shouldSuggestClearingAdvancedParams(errorCode, detail, resolvedDetail)) {
+            "$message\n\n高级 LLM 参数可能不受当前接口支持。请在“LLM 参数”里把可选高级参数留空后重试。"
+        } else {
+            message
         }
     }
 
@@ -34,6 +39,31 @@ internal object ErrorDialogFormatter {
         if (trimmed.isBlank()) return ""
         parseJsonErrorDetail(trimmed)?.let { return it }
         return trimmed
+    }
+
+    private fun shouldSuggestClearingAdvancedParams(
+        errorCode: String,
+        detail: String?,
+        resolvedDetail: String
+    ): Boolean {
+        if (errorCode.equals("HTTP 400", ignoreCase = true)) return true
+        val haystack = buildString {
+            append(errorCode)
+            append('\n')
+            append(detail.orEmpty())
+            append('\n')
+            append(resolvedDetail)
+        }.lowercase()
+        return listOf(
+            "unknown parameter",
+            "unsupported parameter",
+            "invalid parameter",
+            "unrecognized request argument",
+            "top_k",
+            "max_output_tokens",
+            "frequency_penalty",
+            "presence_penalty"
+        ).any(haystack::contains)
     }
 
     private fun parseJsonErrorDetail(body: String): String? {

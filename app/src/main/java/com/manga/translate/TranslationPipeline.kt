@@ -139,81 +139,93 @@ class TranslationPipeline(context: Context) {
                 AppLogger.log("Pipeline", "Failed to decode ${imageFile.name}")
                 return@withContext null
             }
-        onProgress(appContext.getString(R.string.detecting_bubbles))
-        val detections = detector.detect(bitmap)
-        AppLogger.log("Pipeline", "Detected ${detections.size} bubbles in ${imageFile.name}")
-        val bubbleRects = detections.map { it.rect }
-        if (useLocalOcr && language == TranslationLanguage.EN_TO_ZH && ocrEngine is EnglishOcr) {
-            val lineDetector = getEnglishLineDetector()
-            val bubbles = ArrayList<OcrBubble>(bubbleRects.size)
-            if (bubbleRects.isEmpty()) {
-                val lineRects = lineDetector?.detectLines(bitmap).orEmpty()
-                val lines = recognizeEnglishLines(bitmap, lineRects, ocrEngine)
-                for ((index, line) in lines.withIndex()) {
-                    bubbles.add(OcrBubble(index, line.rect, line.text, BubbleSource.TEXT_DETECTOR))
-                }
-            } else {
-                for ((bubbleId, rect) in bubbleRects.withIndex()) {
-                    val crop = cropBitmap(bitmap, rect) ?: continue
-                    val lineRects = lineDetector?.detectLines(crop).orEmpty()
-                    val lines = recognizeEnglishLines(crop, lineRects, ocrEngine)
-                    val text = if (lines.isEmpty()) {
-                        ocrEngine.recognize(crop).trim()
-                    } else {
-                        lines.joinToString("\n") { it.text }
+        try {
+            onProgress(appContext.getString(R.string.detecting_bubbles))
+            val detections = detector.detect(bitmap)
+            AppLogger.log("Pipeline", "Detected ${detections.size} bubbles in ${imageFile.name}")
+            val bubbleRects = detections.map { it.rect }
+            if (useLocalOcr && language == TranslationLanguage.EN_TO_ZH && ocrEngine is EnglishOcr) {
+                val lineDetector = getEnglishLineDetector()
+                val bubbles = ArrayList<OcrBubble>(bubbleRects.size)
+                if (bubbleRects.isEmpty()) {
+                    val lineRects = lineDetector?.detectLines(bitmap).orEmpty()
+                    val lines = recognizeEnglishLines(bitmap, lineRects, ocrEngine)
+                    for ((index, line) in lines.withIndex()) {
+                        bubbles.add(OcrBubble(index, line.rect, line.text, BubbleSource.TEXT_DETECTOR))
                     }
-                    bubbles.add(OcrBubble(bubbleId, rect, text, BubbleSource.BUBBLE_DETECTOR))
+                } else {
+                    for ((bubbleId, rect) in bubbleRects.withIndex()) {
+                        val text = withBitmapCrop(bitmap, rect) { crop ->
+                            val lineRects = lineDetector?.detectLines(crop).orEmpty()
+                            val lines = recognizeEnglishLines(crop, lineRects, ocrEngine)
+                            if (lines.isEmpty()) {
+                                ocrEngine.recognize(crop).trim()
+                            } else {
+                                lines.joinToString("\n") { it.text }
+                            }
+                        } ?: continue
+                        bubbles.add(OcrBubble(bubbleId, rect, text, BubbleSource.BUBBLE_DETECTOR))
+                    }
                 }
+                val result = PageOcrResult(imageFile, bitmap.width, bitmap.height, bubbles, cacheMode)
+                ocrStore.save(imageFile, result)
+                return@withContext result
+            }
+            val textRects = textDetector?.let { detectorInstance ->
+                val masked = maskDetections(bitmap, bubbleRects)
+                try {
+                    val rawTextRects = detectorInstance.detect(masked)
+                    val filtered = filterOverlapping(rawTextRects, bubbleRects, TEXT_IOU_THRESHOLD)
+                    RectGeometryDeduplicator.mergeSupplementRects(filtered, bitmap.width, bitmap.height)
+                } finally {
+                    if (masked !== bitmap) {
+                        masked.recycleSafely()
+                    }
+                }
+            } ?: emptyList()
+            if (bubbleRects.isEmpty() && textRects.isEmpty()) {
+                val emptyResult = PageOcrResult(
+                    imageFile,
+                    bitmap.width,
+                    bitmap.height,
+                    emptyList(),
+                    cacheMode
+                )
+                ocrStore.save(imageFile, emptyResult)
+                return@withContext emptyResult
+            }
+            if (textRects.isNotEmpty()) {
+                AppLogger.log(
+                    "Pipeline",
+                    "Supplemented ${textRects.size} text boxes in ${imageFile.name}"
+                )
+            }
+            val allRects = ArrayList<RectF>(bubbleRects.size + textRects.size)
+            allRects.addAll(bubbleRects)
+            allRects.addAll(textRects)
+            val bubbles = ArrayList<OcrBubble>(allRects.size)
+            val bubbleDetectorCount = bubbleRects.size
+            for ((bubbleId, rect) in allRects.withIndex()) {
+                val text = withBitmapCrop(bitmap, rect) { crop ->
+                    if (useLocalOcr) {
+                        ocrEngine?.recognize(crop)?.trim().orEmpty()
+                    } else {
+                        recognizeTextWithApiOcr(crop)
+                    }
+                } ?: continue
+                val source = if (bubbleId < bubbleDetectorCount) {
+                    BubbleSource.BUBBLE_DETECTOR
+                } else {
+                    BubbleSource.TEXT_DETECTOR
+                }
+                bubbles.add(OcrBubble(bubbleId, rect, text, source))
             }
             val result = PageOcrResult(imageFile, bitmap.width, bitmap.height, bubbles, cacheMode)
             ocrStore.save(imageFile, result)
-            return@withContext result
+            result
+        } finally {
+            bitmap.recycleSafely()
         }
-        val textRects = textDetector?.let { detectorInstance ->
-            val masked = maskDetections(bitmap, bubbleRects)
-            val rawTextRects = detectorInstance.detect(masked)
-            val filtered = filterOverlapping(rawTextRects, bubbleRects, TEXT_IOU_THRESHOLD)
-            RectGeometryDeduplicator.mergeSupplementRects(filtered, bitmap.width, bitmap.height)
-        } ?: emptyList()
-        if (bubbleRects.isEmpty() && textRects.isEmpty()) {
-            val emptyResult = PageOcrResult(
-                imageFile,
-                bitmap.width,
-                bitmap.height,
-                emptyList(),
-                cacheMode
-            )
-            ocrStore.save(imageFile, emptyResult)
-            return@withContext emptyResult
-        }
-        if (textRects.isNotEmpty()) {
-            AppLogger.log(
-                "Pipeline",
-                "Supplemented ${textRects.size} text boxes in ${imageFile.name}"
-            )
-        }
-        val allRects = ArrayList<RectF>(bubbleRects.size + textRects.size)
-        allRects.addAll(bubbleRects)
-        allRects.addAll(textRects)
-        val bubbles = ArrayList<OcrBubble>(allRects.size)
-        val bubbleDetectorCount = bubbleRects.size
-        for ((bubbleId, rect) in allRects.withIndex()) {
-            val crop = cropBitmap(bitmap, rect) ?: continue
-            val text = if (useLocalOcr) {
-                ocrEngine?.recognize(crop)?.trim().orEmpty()
-            } else {
-                recognizeTextWithApiOcr(crop)
-            }
-            val source = if (bubbleId < bubbleDetectorCount) {
-                BubbleSource.BUBBLE_DETECTOR
-            } else {
-                BubbleSource.TEXT_DETECTOR
-            }
-            bubbles.add(OcrBubble(bubbleId, rect, text, source))
-        }
-        val result = PageOcrResult(imageFile, bitmap.width, bitmap.height, bubbles, cacheMode)
-        ocrStore.save(imageFile, result)
-        result
     }
 
     suspend fun translateFullPage(
