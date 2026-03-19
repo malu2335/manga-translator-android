@@ -144,11 +144,11 @@ class LibraryFragment : Fragment() {
         }
     }
 
-    private val pickEhViewerTree = registerForActivityResult(
+    private val pickImportTree = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
         if (uri != null) {
-            importExportCoordinator.handleEhViewerTreeSelection(
+            importExportCoordinator.handleImportTreeSelection(
                 uiContext = requireContext(),
                 uri = uri,
                 scope = viewLifecycleOwner.lifecycleScope,
@@ -629,12 +629,9 @@ class LibraryFragment : Fragment() {
     }
 
     private fun importFromEhViewer() {
-        importExportCoordinator.importFromEhViewer(
-            uiContext = requireContext(),
-            requestEhViewerPermission = { initialUri -> pickEhViewerTree.launch(initialUri) },
-            scope = viewLifecycleOwner.lifecycleScope,
-            onShowFolderList = { showFolderList() }
-        )
+        importExportCoordinator.requestImportDirectory { initialUri ->
+            pickImportTree.launch(initialUri)
+        }
     }
 
     private fun importFromCbz(uri: Uri) {

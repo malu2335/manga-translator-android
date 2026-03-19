@@ -38,12 +38,12 @@ internal class LibraryPreferencesGateway(
         prefs.edit() {putString(readingModeKeyPrefix + folder.absolutePath, mode.prefValue)}
     }
 
-    fun getEhViewerTreeUri(): Uri? {
-        return prefs.getString(ehViewerTreeKey, null)?.let(Uri::parse)
+    fun getImportTreeUri(): Uri? {
+        return prefs.getString(importTreeKey, null)?.let(Uri::parse)
     }
 
-    fun setEhViewerTreeUri(uri: Uri) {
-        prefs.edit() {putString(ehViewerTreeKey, uri.toString())}
+    fun setImportTreeUri(uri: Uri) {
+        prefs.edit() {putString(importTreeKey, uri.toString())}
     }
 
     fun getExportTreeUri(): Uri? {
@@ -54,7 +54,7 @@ internal class LibraryPreferencesGateway(
         prefs.edit() {putString(exportTreeKey, uri.toString())}
     }
 
-    fun hasEhViewerPermission(uri: Uri): Boolean {
+    fun hasImportPermission(uri: Uri): Boolean {
         val persisted = context
             .contentResolver
             .persistedUriPermissions
@@ -72,31 +72,8 @@ internal class LibraryPreferencesGateway(
         return persisted && root?.canWrite() == true
     }
 
-    fun isEhViewerTree(uri: Uri): Boolean {
-        return try {
-            val docId = DocumentsContract.getTreeDocumentId(uri)
-            docId.contains("EhViewer/download", ignoreCase = true)
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    fun buildEhViewerInitialUri(): Uri? {
-        return try {
-            DocumentsContract.buildTreeDocumentUri(
-                "com.android.externalstorage.documents",
-                "primary:EhViewer/download"
-            )
-        } catch (_: Exception) {
-            try {
-                DocumentsContract.buildTreeDocumentUri(
-                    "com.android.externalstorage.documents",
-                    "primary:EhViewer"
-                )
-            } catch (_: Exception) {
-                null
-            }
-        }
+    fun buildImportInitialUri(): Uri? {
+        return getImportTreeUri()?.takeIf(::hasImportPermission)
     }
 
     fun buildExportInitialUri(): Uri? {
@@ -118,7 +95,7 @@ internal class LibraryPreferencesGateway(
     }
 
     private companion object {
-        private const val ehViewerTreeKey = "ehviewer_tree_uri"
+        private const val importTreeKey = "ehviewer_tree_uri"
         private const val exportTreeKey = "export_tree_uri"
         private const val fullTranslateKeyPrefix = "full_translate_enabled_"
         private const val languageKeyPrefix = "translation_language_"

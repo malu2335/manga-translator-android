@@ -162,7 +162,7 @@
 
     <!-- Library / Folder Actions -->
     <string name="create_folder">新建資料夾</string>
-    <string name="import_ehviewer">從 EhViewer 匯入</string>
+    <string name="import_ehviewer">從漫畫資料夾匯入</string>
     <string name="import_cbz">從 CBZ/ZIP 匯入</string>
     <string name="folder_name_hint">資料夾名稱</string>
     <string name="folder_create_failed">建立失敗，請檢查名稱</string>
@@ -230,17 +230,15 @@
     <string name="delete_images_empty">請先選擇要刪除的圖片</string>
     <string name="retranslate_images_empty">請先選擇要重譯的圖片</string>
 
-    <!-- Import / EhViewer -->
-    <string name="ehviewer_permission_required">請授予 EhViewer/download 目錄存取權限</string>
-    <string name="ehviewer_permission_hint">正在申請 EhViewer 資料夾權限，請選擇 EhViewer/download/</string>
-    <string name="ehviewer_permission_invalid">請選擇 EhViewer/download 目錄</string>
+    <!-- Import / Folder -->
+    <string name="import_permission_required">請授予所選漫畫目錄存取權限</string>
     <string name="ehviewer_select_folder">選擇要匯入的漫畫資料夾</string>
     <string name="ehviewer_import_name_title">匯入後資料夾名稱</string>
-    <string name="ehviewer_folder_exists">資料夾已存在，請換個名稱</string>
-    <string name="ehviewer_no_subfolders">該目錄下沒有可匯入的資料夾</string>
-    <string name="ehviewer_no_images">所選資料夾沒有圖片</string>
-    <string name="ehviewer_import_failed">匯入失敗，請重試</string>
-    <string name="ehviewer_import_done">已匯入 %1$d 張圖片</string>
+    <string name="import_folder_exists">資料夾已存在，請換個名稱</string>
+    <string name="import_no_folders">所選目錄下沒有可匯入的漫畫資料夾</string>
+    <string name="import_no_images">所選資料夾沒有圖片</string>
+    <string name="import_failed">匯入失敗，請重試</string>
+    <string name="import_done">已匯入 %1$d 張圖片</string>
 
     <!-- Import / CBZ -->
     <string name="cbz_import_failed">CBZ/ZIP 匯入失敗，請重試</string>

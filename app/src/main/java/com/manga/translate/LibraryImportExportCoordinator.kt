@@ -63,19 +63,10 @@ internal class LibraryImportExportCoordinator(
         return treeUri?.let(::buildExportRootPathHint) ?: "/Documents/manga-translate"
     }
 
-    fun importFromEhViewer(
-        uiContext: Context,
-        requestEhViewerPermission: (Uri?) -> Unit,
-        scope: CoroutineScope,
-        onShowFolderList: () -> Unit
+    fun requestImportDirectory(
+        requestImportPermission: (Uri?) -> Unit
     ) {
-        val treeUri = preferencesGateway.getEhViewerTreeUri()
-        if (treeUri == null || !preferencesGateway.hasEhViewerPermission(treeUri)) {
-            ui.showToast(R.string.ehviewer_permission_hint)
-            requestEhViewerPermission(preferencesGateway.buildEhViewerInitialUri())
-            return
-        }
-        showEhViewerSubfolderPicker(uiContext, treeUri, scope, onShowFolderList)
+        requestImportPermission(preferencesGateway.buildImportInitialUri())
     }
 
     fun importFromCbz(
@@ -100,27 +91,23 @@ internal class LibraryImportExportCoordinator(
         }
     }
 
-    fun handleEhViewerTreeSelection(
+    fun handleImportTreeSelection(
         uiContext: Context,
         uri: Uri,
         scope: CoroutineScope,
         onShowFolderList: () -> Unit
     ) {
-        if (!preferencesGateway.isEhViewerTree(uri)) {
-            ui.showToast(R.string.ehviewer_permission_invalid)
-            return
-        }
         val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         try {
             uiContext.contentResolver.takePersistableUriPermission(uri, flags)
         } catch (e: SecurityException) {
-            AppLogger.log("Library", "Persist ehviewer permission failed", e)
+            AppLogger.log("Library", "Persist import permission failed", e)
         }
-        preferencesGateway.setEhViewerTreeUri(uri)
-        showEhViewerSubfolderPicker(uiContext, uri, scope, onShowFolderList)
+        preferencesGateway.setImportTreeUri(uri)
+        showImportFolderPicker(uiContext, uri, scope, onShowFolderList)
     }
 
-    private fun showEhViewerSubfolderPicker(
+    private fun showImportFolderPicker(
         uiContext: Context,
         treeUri: Uri,
         scope: CoroutineScope,
@@ -128,12 +115,23 @@ internal class LibraryImportExportCoordinator(
     ) {
         val root = DocumentFile.fromTreeUri(uiContext, treeUri)
         if (root == null || !root.canRead()) {
-            ui.showToast(R.string.ehviewer_permission_required)
+            ui.showToast(R.string.import_permission_required)
             return
         }
-        val folders = root.listFiles().filter { it.isDirectory }
+        val files = root.listFiles()
+        val rootHasImages = files.any { it.isFile && isImageDocument(it) }
+        val folders = files.filter { file ->
+            file.isDirectory && file.listFiles().any { child -> child.isFile && isImageDocument(child) }
+        }
+        if (rootHasImages) {
+            val defaultName = root.name ?: ""
+            dialogs.showEhViewerImportNameDialog(uiContext, defaultName) { importName ->
+                importEhViewerFolder(uiContext, root, importName, scope, onShowFolderList)
+            }
+            return
+        }
         if (folders.isEmpty()) {
-            ui.showToast(R.string.ehviewer_no_subfolders)
+            ui.showToast(R.string.import_no_folders)
             return
         }
         dialogs.showEhViewerSubfolderPicker(uiContext, folders) { folder ->
@@ -153,13 +151,13 @@ internal class LibraryImportExportCoordinator(
     ) {
         val folder = repository.createFolder(importName)
         if (folder == null) {
-            ui.showToast(R.string.ehviewer_folder_exists)
+            ui.showToast(R.string.import_folder_exists)
             return
         }
         val images = source.listFiles().filter { it.isFile && isImageDocument(it) }
         if (images.isEmpty()) {
             folder.deleteRecursively()
-            ui.showToast(R.string.ehviewer_no_images)
+            ui.showToast(R.string.import_no_images)
             return
         }
         scope.launch(Dispatchers.IO) {
@@ -167,9 +165,9 @@ internal class LibraryImportExportCoordinator(
             withContext(Dispatchers.Main) {
                 if (added.isEmpty()) {
                     folder.deleteRecursively()
-                    ui.showToast(R.string.ehviewer_import_failed)
+                    ui.showToast(R.string.import_failed)
                 } else {
-                    ui.showToastMessage(uiContext.getString(R.string.ehviewer_import_done, added.size))
+                    ui.showToastMessage(uiContext.getString(R.string.import_done, added.size))
                 }
                 ui.refreshFolders()
                 onShowFolderList()

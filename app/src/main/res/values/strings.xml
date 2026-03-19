@@ -165,7 +165,7 @@
 
     <!-- Library / Folder Actions -->
     <string name="create_folder">新建文件夹</string>
-    <string name="import_ehviewer">从 EhViewer 导入</string>
+    <string name="import_ehviewer">从漫画文件夹导入</string>
     <string name="import_cbz">从 CBZ/ZIP 导入</string>
     <string name="folder_name_hint">文件夹名称</string>
     <string name="folder_create_failed">创建失败，请检查名称</string>
@@ -233,17 +233,15 @@
     <string name="delete_images_empty">请先选择要删除的图片</string>
     <string name="retranslate_images_empty">请先选择要重译的图片</string>
 
-    <!-- Import / EhViewer -->
-    <string name="ehviewer_permission_required">请授予 EhViewer/download 目录访问权限</string>
-    <string name="ehviewer_permission_hint">正在申请 EhViewer 文件夹权限，请选择 EhViewer/download/</string>
-    <string name="ehviewer_permission_invalid">请选择 EhViewer/download 目录</string>
+    <!-- Import / Folder -->
+    <string name="import_permission_required">请授予所选漫画目录访问权限</string>
     <string name="ehviewer_select_folder">选择要导入的漫画文件夹</string>
     <string name="ehviewer_import_name_title">导入后文件夹名称</string>
-    <string name="ehviewer_folder_exists">文件夹已存在，请换个名称</string>
-    <string name="ehviewer_no_subfolders">该目录下没有可导入的文件夹</string>
-    <string name="ehviewer_no_images">所选文件夹没有图片</string>
-    <string name="ehviewer_import_failed">导入失败，请重试</string>
-    <string name="ehviewer_import_done">已导入 %1$d 张图片</string>
+    <string name="import_folder_exists">文件夹已存在，请换个名称</string>
+    <string name="import_no_folders">所选目录下没有可导入的漫画文件夹</string>
+    <string name="import_no_images">所选文件夹没有图片</string>
+    <string name="import_failed">导入失败，请重试</string>
+    <string name="import_done">已导入 %1$d 张图片</string>
 
     <!-- Import / CBZ -->
     <string name="cbz_import_failed">CBZ/ZIP 导入失败，请重试</string>
