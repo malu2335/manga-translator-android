@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
+import android.graphics.RectF
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.hardware.display.DisplayManager
@@ -49,10 +50,19 @@ class FloatingBallOverlayService : Service() {
     private val floatingTranslationCacheStore by lazy {
         FloatingTranslationCacheStore(applicationContext)
     }
+    private val emptyBubbleCoordinator by lazy {
+        FloatingEmptyBubbleCoordinator(
+            context = applicationContext,
+            llmClient = llmClient ?: LlmClient(applicationContext).also { llmClient = it },
+            floatingTranslationCacheStore = floatingTranslationCacheStore,
+            settingsStore = settingsStore
+        )
+    }
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var windowManager: WindowManager
     private var controllerRoot: LinearLayout? = null
     private var controllerLayoutParams: WindowManager.LayoutParams? = null
+    private var controllerMenuPanel: LinearLayout? = null
     private var detectionOverlayView: FloatingDetectionOverlayView? = null
     private var detectionLayoutParams: WindowManager.LayoutParams? = null
     private var mediaProjection: MediaProjection? = null
@@ -67,7 +77,17 @@ class FloatingBallOverlayService : Service() {
     private var densityDpi = 0
     private var bubbleDragEnabled = false
     private var bubbleDragToggleButton: AppCompatButton? = null
+    private var editModeToggleButton: AppCompatButton? = null
+    private var addBubbleButton: AppCompatButton? = null
+    private var confirmEditButton: AppCompatButton? = null
+    private var cancelEditButton: AppCompatButton? = null
     private var progressStatusView: TextView? = null
+    private var currentSession: TranslationResult? = null
+    private var editSessionSnapshot: TranslationResult? = null
+    private var currentSessionBitmap: Bitmap? = null
+    private var editModeEnabled = false
+    private var createBubbleModeEnabled = false
+    private var editSessionDirty = false
     private val hideProgressStatusRunnable = Runnable {
         progressStatusView?.visibility = View.GONE
     }
@@ -83,6 +103,7 @@ class FloatingBallOverlayService : Service() {
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
             scope.launch(Dispatchers.Main) {
+                clearCurrentSession()
                 releaseProjection()
                 Toast.makeText(
                     this@FloatingBallOverlayService,
@@ -134,6 +155,7 @@ class FloatingBallOverlayService : Service() {
     override fun onDestroy() {
         detectJob?.cancel()
         cancelBubbleDragAutoDisable()
+        clearCurrentSession()
         releaseProjection()
         removeOverlay()
         scope.cancel()
@@ -234,53 +256,84 @@ class FloatingBallOverlayService : Service() {
             }
             visibility = View.GONE
         }
-        val bubbleDragButton = AppCompatButton(this).apply {
-            textSize = 13f
-            setTextColor(0xFF1F1F1F.toInt())
-            background = GradientDrawable().apply {
-                cornerRadius = 8f * density
-                setColor(0xFFFFFFFF.toInt())
-                setStroke((1f * density).toInt(), 0x33222222)
-            }
-            minimumWidth = 0
-            minWidth = 0
-            setPadding(
-                (10f * density).toInt(),
-                (8f * density).toInt(),
-                (10f * density).toInt(),
-                (8f * density).toInt()
-            )
+        val bubbleDragButton = createMenuButton().apply {
+            setOnClickListener { applyBubbleDragEnabled(!bubbleDragEnabled) }
+        }
+        val editButton = createMenuButton().apply {
+            setOnClickListener { toggleEditMode() }
+        }
+        val addButton = createMenuButton().apply {
+            text = getString(R.string.overlay_add_bubble_button)
+            setOnClickListener { toggleCreateBubbleMode() }
+        }
+        val confirmButton = createMenuButton().apply {
+            text = getString(R.string.overlay_confirm_button)
             setOnClickListener {
-                applyBubbleDragEnabled(!bubbleDragEnabled)
+                controllerMenuPanel?.visibility = View.GONE
+                confirmEditSession()
             }
         }
-        val exitButton = AppCompatButton(this).apply {
-            text = getString(R.string.overlay_exit_button)
-            textSize = 13f
-            setTextColor(0xFF1F1F1F.toInt())
-            background = GradientDrawable().apply {
-                cornerRadius = 8f * density
-                setColor(0xFFFFFFFF.toInt())
-                setStroke((1f * density).toInt(), 0x33222222)
+        val cancelButton = createMenuButton().apply {
+            text = getString(R.string.overlay_cancel_button)
+            setOnClickListener {
+                controllerMenuPanel?.visibility = View.GONE
+                cancelEditSession()
             }
-            minimumWidth = 0
-            minWidth = 0
-            setPadding(
-                (10f * density).toInt(),
-                (8f * density).toInt(),
-                (10f * density).toInt(),
-                (8f * density).toInt()
-            )
+        }
+        val exitButton = createMenuButton().apply {
+            text = getString(R.string.overlay_exit_button)
             setOnClickListener { stopSelf() }
         }
         bubbleDragToggleButton = bubbleDragButton
+        editModeToggleButton = editButton
+        addBubbleButton = addButton
+        confirmEditButton = confirmButton
+        cancelEditButton = cancelButton
         updateBubbleDragToggleButton()
+        updateEditModeToggleButton()
+        updateEditButtons()
         menuPanel.addView(
             bubbleDragButton,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
+        )
+        menuPanel.addView(
+            editButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = (6f * density).toInt()
+            }
+        )
+        menuPanel.addView(
+            addButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = (6f * density).toInt()
+            }
+        )
+        menuPanel.addView(
+            confirmButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = (6f * density).toInt()
+            }
+        )
+        menuPanel.addView(
+            cancelButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = (6f * density).toInt()
+            }
         )
         menuPanel.addView(
             exitButton,
@@ -331,6 +384,7 @@ class FloatingBallOverlayService : Service() {
         AppLogger.log("FloatingOCR", "Controller overlay added")
         controllerRoot = root
         controllerLayoutParams = params
+        controllerMenuPanel = menuPanel
         progressStatusView = progressView
     }
 
@@ -347,7 +401,7 @@ class FloatingBallOverlayService : Service() {
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             type,
-            buildDetectionFlags(bubbleDragEnabled),
+            buildDetectionFlags(),
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -356,10 +410,33 @@ class FloatingBallOverlayService : Service() {
         }
         overlay.setBubbleDragEnabled(bubbleDragEnabled)
         overlay.setBubbleOpacity(settingsStore.loadTranslationBubbleOpacity())
+        overlay.setEditMode(editModeEnabled)
+        overlay.setCreateBubbleMode(createBubbleModeEnabled)
+        overlay.onBubblesChanged = { bubbles ->
+            val session = currentSession
+            if (session != null) {
+                currentSession = session.copy(bubbles = bubbles)
+            }
+        }
+        overlay.onBubbleDelete = { bubbleId ->
+            val session = currentSession
+            if (session != null) {
+                currentSession = session.copy(bubbles = session.bubbles.filterNot { it.id == bubbleId })
+                syncOverlaySession()
+            }
+        }
+        overlay.onManualBubbleCreated = { rect ->
+            appendManualBubble(rect)
+        }
+        overlay.onEditDirtyChanged = { dirty ->
+            editSessionDirty = dirty
+            updateEditButtons()
+        }
         windowManager.addView(overlay, params)
         AppLogger.log("FloatingOCR", "Detection overlay added dragEnabled=$bubbleDragEnabled")
         detectionOverlayView = overlay
         detectionLayoutParams = params
+        syncOverlaySession()
     }
 
     private fun ensureWindowManager() {
@@ -368,10 +445,10 @@ class FloatingBallOverlayService : Service() {
         }
     }
 
-    private fun buildDetectionFlags(dragEnabled: Boolean): Int {
+    private fun buildDetectionFlags(): Int {
         var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-        if (!dragEnabled) {
+        if (!bubbleDragEnabled && !editModeEnabled) {
             flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
         return flags
@@ -394,7 +471,7 @@ class FloatingBallOverlayService : Service() {
         updateBubbleDragToggleButton()
         detectionOverlayView?.setBubbleDragEnabled(enabled)
         val params = detectionLayoutParams ?: return
-        val newFlags = buildDetectionFlags(enabled)
+        val newFlags = buildDetectionFlags()
         if (params.flags != newFlags) {
             params.flags = newFlags
             try {
@@ -445,6 +522,236 @@ class FloatingBallOverlayService : Service() {
         )
     }
 
+    private fun updateEditModeToggleButton() {
+        editModeToggleButton?.text = getString(
+            R.string.overlay_edit_mode_option_format,
+            if (editModeEnabled) getString(R.string.common_on) else getString(R.string.common_off)
+        )
+    }
+
+    private fun updateEditButtons() {
+        val isEditing = editModeEnabled
+        addBubbleButton?.visibility = if (isEditing) View.VISIBLE else View.GONE
+        confirmEditButton?.visibility = if (isEditing) View.VISIBLE else View.GONE
+        cancelEditButton?.visibility = if (isEditing) View.VISIBLE else View.GONE
+        addBubbleButton?.isEnabled = isEditing && currentSession != null
+        confirmEditButton?.isEnabled = isEditing && currentSession != null
+        cancelEditButton?.isEnabled = isEditing
+        addBubbleButton?.alpha = if (addBubbleButton?.isEnabled == true) 1f else 0.5f
+        confirmEditButton?.alpha = if (confirmEditButton?.isEnabled == true) 1f else 0.5f
+        cancelEditButton?.alpha = if (cancelEditButton?.isEnabled == true) 1f else 0.5f
+        addBubbleButton?.text = if (createBubbleModeEnabled) {
+            getString(R.string.overlay_add_bubble_mode_active)
+        } else {
+            getString(R.string.overlay_add_bubble_button)
+        }
+    }
+
+    private fun createMenuButton(): AppCompatButton {
+        val density = resources.displayMetrics.density
+        return AppCompatButton(this).apply {
+            textSize = 13f
+            setTextColor(0xFF1F1F1F.toInt())
+            background = GradientDrawable().apply {
+                cornerRadius = 8f * density
+                setColor(0xFFFFFFFF.toInt())
+                setStroke((1f * density).toInt(), 0x33222222)
+            }
+            minimumWidth = 0
+            minWidth = 0
+            setPadding(
+                (10f * density).toInt(),
+                (8f * density).toInt(),
+                (10f * density).toInt(),
+                (8f * density).toInt()
+            )
+        }
+    }
+
+    private fun toggleEditMode() {
+        if (editModeEnabled) {
+            cancelEditSession()
+            controllerMenuPanel?.visibility = View.GONE
+            return
+        }
+        val session = currentSession
+        if (session == null) {
+            Toast.makeText(this, R.string.overlay_edit_requires_detection, Toast.LENGTH_SHORT).show()
+            return
+        }
+        editModeEnabled = true
+        createBubbleModeEnabled = false
+        editSessionDirty = false
+        editSessionSnapshot = session.deepCopy()
+        detectionOverlayView?.setEditMode(true)
+        detectionOverlayView?.setCreateBubbleMode(false)
+        refreshDetectionOverlayTouchability()
+        updateEditModeToggleButton()
+        updateEditButtons()
+        Toast.makeText(this, R.string.overlay_edit_mode_enabled, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun toggleCreateBubbleMode() {
+        if (!editModeEnabled) return
+        createBubbleModeEnabled = !createBubbleModeEnabled
+        detectionOverlayView?.setCreateBubbleMode(createBubbleModeEnabled)
+        updateEditButtons()
+        if (createBubbleModeEnabled) {
+            Toast.makeText(this, R.string.overlay_create_bubble_hint, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun cancelEditSession() {
+        if (!editModeEnabled) return
+        val restored = editSessionSnapshot?.deepCopy()
+        editModeEnabled = false
+        createBubbleModeEnabled = false
+        editSessionDirty = false
+        editSessionSnapshot = null
+        currentSession = restored ?: currentSession
+        detectionOverlayView?.setEditMode(false)
+        detectionOverlayView?.setCreateBubbleMode(false)
+        syncOverlaySession()
+        refreshDetectionOverlayTouchability()
+        updateEditModeToggleButton()
+        updateEditButtons()
+        Toast.makeText(this, R.string.overlay_edit_canceled, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun finishEditSession(showToast: Boolean) {
+        editModeEnabled = false
+        createBubbleModeEnabled = false
+        editSessionDirty = false
+        editSessionSnapshot = null
+        detectionOverlayView?.setEditMode(false)
+        detectionOverlayView?.setCreateBubbleMode(false)
+        refreshDetectionOverlayTouchability()
+        updateEditModeToggleButton()
+        updateEditButtons()
+        if (showToast) {
+            Toast.makeText(this, R.string.overlay_edit_applied, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun confirmEditSession() {
+        if (!editModeEnabled) return
+        val session = currentSession ?: run {
+            finishEditSession(showToast = false)
+            return
+        }
+        val bitmapSnapshot = currentSessionBitmap?.let { source ->
+            runCatching { source.copy(source.config ?: Bitmap.Config.ARGB_8888, false) }.getOrNull()
+        } ?: run {
+            showProgressStatus(R.string.floating_capture_not_ready, autoHide = true)
+            Toast.makeText(this, R.string.floating_capture_not_ready, Toast.LENGTH_SHORT).show()
+            return
+        }
+        showProgressStatus(R.string.overlay_empty_bubble_translating)
+        detectJob?.cancel()
+        detectJob = scope.launch(Dispatchers.Default) {
+            try {
+                val outcome = emptyBubbleCoordinator.process(
+                    bitmap = bitmapSnapshot,
+                    baseTranslation = session,
+                    timeoutMs = FLOATING_TRANSLATE_TIMEOUT_MS.toInt(),
+                    retryCount = FLOATING_TRANSLATE_RETRY_COUNT,
+                    floatPromptAsset = FLOAT_PROMPT_ASSET,
+                    floatVlPromptAsset = FLOAT_VL_PROMPT_ASSET,
+                    maxVlConcurrency = MAX_FLOATING_VL_TRANSLATE_CONCURRENCY
+                )
+                withContext(Dispatchers.Main) {
+                    if (outcome.requiresVlModel) {
+                        showProgressStatus(R.string.floating_vl_model_required, autoHide = true)
+                        Toast.makeText(
+                            this@FloatingBallOverlayService,
+                            R.string.floating_vl_model_required,
+                            Toast.LENGTH_LONG
+                        ).show()
+                        return@withContext
+                    }
+                    if (outcome.timedOut) {
+                        showProgressStatus(R.string.floating_translate_timeout, autoHide = true)
+                        Toast.makeText(
+                            this@FloatingBallOverlayService,
+                            R.string.floating_translate_timeout,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@withContext
+                    }
+                    currentSession = outcome.translation
+                    syncOverlaySession()
+                    finishEditSession(showToast = false)
+                    showProgressStatus(R.string.overlay_empty_bubble_translated, autoHide = true)
+                    Toast.makeText(
+                        this@FloatingBallOverlayService,
+                        R.string.overlay_empty_bubble_translated,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } finally {
+                bitmapSnapshot.recycle()
+            }
+        }
+    }
+
+    private fun appendManualBubble(rect: RectF) {
+        val session = currentSession ?: return
+        val nextId = (session.bubbles.maxOfOrNull { it.id } ?: -1) + 1
+        val bubble = BubbleTranslation(nextId, RectF(rect), "", BubbleSource.MANUAL)
+        currentSession = session.copy(bubbles = session.bubbles + bubble)
+        createBubbleModeEnabled = false
+        syncOverlaySession()
+        detectionOverlayView?.setCreateBubbleMode(false)
+        updateEditButtons()
+    }
+
+    private fun syncOverlaySession() {
+        val session = currentSession
+        if (session == null) {
+            detectionOverlayView?.clearDetections()
+            updateEditButtons()
+            return
+        }
+        detectionOverlayView?.setTranslationSession(
+            session.width,
+            session.height,
+            session.bubbles
+        )
+        updateEditButtons()
+    }
+
+    private fun refreshDetectionOverlayTouchability() {
+        val params = detectionLayoutParams ?: return
+        val newFlags = buildDetectionFlags()
+        if (params.flags == newFlags) return
+        params.flags = newFlags
+        try {
+            windowManager.updateViewLayout(detectionOverlayView, params)
+        } catch (_: Exception) {
+        }
+        ensureControllerOnTop()
+    }
+
+    private fun replaceCurrentSessionBitmap(bitmap: Bitmap?) {
+        currentSessionBitmap?.recycle()
+        currentSessionBitmap = bitmap
+    }
+
+    private fun clearCurrentSession() {
+        currentSession = null
+        editSessionSnapshot = null
+        editModeEnabled = false
+        createBubbleModeEnabled = false
+        editSessionDirty = false
+        detectionOverlayView?.setEditMode(false)
+        detectionOverlayView?.setCreateBubbleMode(false)
+        detectionOverlayView?.clearDetections()
+        replaceCurrentSessionBitmap(null)
+        refreshDetectionOverlayTouchability()
+        updateEditModeToggleButton()
+        updateEditButtons()
+    }
+
     private fun showUsageTip() {
         Toast.makeText(this, R.string.floating_usage_tip, Toast.LENGTH_LONG).show()
     }
@@ -481,6 +788,9 @@ class FloatingBallOverlayService : Service() {
 
     private fun runTextDetection() {
         if (detectJob?.isActive == true) return
+        if (editModeEnabled) {
+            finishEditSession(showToast = false)
+        }
         val projection = mediaProjection
         if (projection == null || imageReader == null) {
             AppLogger.log("FloatingOCR", "Run detection blocked: projection not ready")
@@ -629,7 +939,17 @@ class FloatingBallOverlayService : Service() {
                     return@launch
                 }
                 withContext(Dispatchers.Main) {
-                    detectionOverlayView?.setDetections(bitmap.width, bitmap.height, translatedBubbles)
+                    currentSession = TranslationResult(
+                        imageName = "",
+                        width = bitmap.width,
+                        height = bitmap.height,
+                        bubbles = translatedBubbles
+                    )
+                    editSessionSnapshot = null
+                    createBubbleModeEnabled = false
+                    syncOverlaySession()
+                    replaceCurrentSessionBitmap(bitmap)
+                    bitmap = null
                     showProgressStatus(
                         getString(R.string.floating_progress_done, translatedBubbles.size),
                         autoHide = true
@@ -911,7 +1231,7 @@ class FloatingBallOverlayService : Service() {
 
                 override fun onDoubleTap(e: MotionEvent): Boolean {
                     menuPanel.visibility = View.GONE
-                    detectionOverlayView?.clearDetections()
+                    clearCurrentSession()
                     if (bubbleDragEnabled) {
                         applyBubbleDragEnabled(false)
                     }
@@ -922,6 +1242,7 @@ class FloatingBallOverlayService : Service() {
                     menuPanel.visibility = if (menuPanel.visibility == View.VISIBLE) {
                         View.GONE
                     } else {
+                        updateEditButtons()
                         View.VISIBLE
                     }
                 }
@@ -989,9 +1310,14 @@ class FloatingBallOverlayService : Service() {
         }
         controllerRoot = null
         controllerLayoutParams = null
+        controllerMenuPanel = null
         detectionOverlayView = null
         detectionLayoutParams = null
         bubbleDragToggleButton = null
+        editModeToggleButton = null
+        addBubbleButton = null
+        confirmEditButton = null
+        cancelEditButton = null
         progressStatusView = null
     }
 
@@ -1018,6 +1344,14 @@ class FloatingBallOverlayService : Service() {
         virtualDisplay = null
         imageReader = null
         mediaProjection = null
+    }
+
+    private fun TranslationResult.deepCopy(): TranslationResult {
+        return copy(
+            bubbles = bubbles.map { bubble ->
+                bubble.copy(rect = RectF(bubble.rect))
+            }
+        )
     }
 
     private object ServiceInfoForegroundTypes {

@@ -139,8 +139,18 @@
     <string name="overlay_permission_failed_title">未获取到悬浮窗权限</string>
     <string name="overlay_permission_failed_message">未检测到悬浮窗权限，功能无法启动。</string>
     <string name="overlay_exit_button">退出</string>
+    <string name="overlay_edit_mode_option_format">编辑模式：%1$s</string>
+    <string name="overlay_add_bubble_button">新增气泡</string>
+    <string name="overlay_add_bubble_mode_active">正在框选气泡</string>
+    <string name="overlay_confirm_button">确认</string>
+    <string name="overlay_cancel_button">取消</string>
     <string name="overlay_drag_bubble_auto_disable_notice">拖动气泡已开启，10 秒后将自动关闭。</string>
     <string name="overlay_drag_bubble_auto_disabled">拖动气泡已自动关闭。</string>
+    <string name="overlay_edit_requires_detection">请先点击悬浮球识别当前屏幕。</string>
+    <string name="overlay_edit_mode_enabled">已进入悬浮窗编辑模式。</string>
+    <string name="overlay_edit_applied">悬浮窗编辑已应用。</string>
+    <string name="overlay_edit_canceled">已取消本次悬浮窗编辑。</string>
+    <string name="overlay_create_bubble_hint">拖动手指框选矩形区域，松开后新增空白气泡。</string>
     <string name="screen_capture_permission_required_title">需要屏幕捕获权限</string>
     <string name="screen_capture_permission_required_message">请授权屏幕捕获，用于识别当前屏幕文本区域。</string>
     <string name="screen_capture_permission_failed">未获取屏幕捕获权限，无法进行悬浮识别。</string>
@@ -154,6 +164,8 @@
     <string name="floating_progress_translating">悬浮翻译中：正在翻译文本…</string>
     <string name="floating_progress_done">悬浮翻译完成：共 %1$d 个文本区域</string>
     <string name="floating_detected_count">已识别 %1$d 个文本区域</string>
+    <string name="overlay_empty_bubble_translating">正在补充翻译新增气泡…</string>
+    <string name="overlay_empty_bubble_translated">新增气泡翻译完成</string>
     <string name="floating_capture_not_ready">屏幕捕获未就绪，请重新启动悬浮窗翻译。</string>
     <string name="floating_detect_failed">识别失败，请重试。</string>
     <string name="floating_translate_timeout">翻译超时，请重试。</string>
