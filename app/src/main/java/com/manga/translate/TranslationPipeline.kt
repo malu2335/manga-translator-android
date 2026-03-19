@@ -103,8 +103,12 @@ class TranslationPipeline(context: Context) {
         language: TranslationLanguage = TranslationLanguage.JA_TO_ZH,
         onProgress: (String) -> Unit
     ): PageOcrResult? = withContext(Dispatchers.Default) {
+        val cacheMode = buildOcrCacheMode(
+            settingsStore.loadOcrApiSettings().useLocalOcr,
+            language
+        )
         if (!forceOcr) {
-            val cached = ocrStore.load(imageFile)
+            val cached = ocrStore.load(imageFile, expectedCacheMode = cacheMode)
             if (cached != null) {
                 AppLogger.log("Pipeline", "Reuse OCR for ${imageFile.name}")
                 return@withContext cached
@@ -161,7 +165,7 @@ class TranslationPipeline(context: Context) {
                     bubbles.add(OcrBubble(bubbleId, rect, text, BubbleSource.BUBBLE_DETECTOR))
                 }
             }
-            val result = PageOcrResult(imageFile, bitmap.width, bitmap.height, bubbles)
+            val result = PageOcrResult(imageFile, bitmap.width, bitmap.height, bubbles, cacheMode)
             ocrStore.save(imageFile, result)
             return@withContext result
         }
@@ -172,7 +176,13 @@ class TranslationPipeline(context: Context) {
             RectGeometryDeduplicator.mergeSupplementRects(filtered, bitmap.width, bitmap.height)
         } ?: emptyList()
         if (bubbleRects.isEmpty() && textRects.isEmpty()) {
-            val emptyResult = PageOcrResult(imageFile, bitmap.width, bitmap.height, emptyList())
+            val emptyResult = PageOcrResult(
+                imageFile,
+                bitmap.width,
+                bitmap.height,
+                emptyList(),
+                cacheMode
+            )
             ocrStore.save(imageFile, emptyResult)
             return@withContext emptyResult
         }
@@ -201,7 +211,7 @@ class TranslationPipeline(context: Context) {
             }
             bubbles.add(OcrBubble(bubbleId, rect, text, source))
         }
-        val result = PageOcrResult(imageFile, bitmap.width, bitmap.height, bubbles)
+        val result = PageOcrResult(imageFile, bitmap.width, bitmap.height, bubbles, cacheMode)
         ocrStore.save(imageFile, result)
         result
     }
@@ -414,6 +424,20 @@ class TranslationPipeline(context: Context) {
         private const val MASK_EXPAND_RATIO = 0.1f
         private const val MASK_EXPAND_MIN = 4f
     }
+
+    private fun buildOcrCacheMode(
+        useLocalOcr: Boolean,
+        language: TranslationLanguage
+    ): String {
+        return if (!useLocalOcr) {
+            "api"
+        } else {
+            when (language) {
+                TranslationLanguage.JA_TO_ZH -> "local_ja"
+                TranslationLanguage.EN_TO_ZH -> "local_en"
+            }
+        }
+    }
 }
 
 data class OcrBubble(
@@ -427,5 +451,6 @@ data class PageOcrResult(
     val imageFile: File,
     val width: Int,
     val height: Int,
-    val bubbles: List<OcrBubble>
+    val bubbles: List<OcrBubble>,
+    val cacheMode: String = ""
 )

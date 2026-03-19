@@ -6,11 +6,15 @@ import org.json.JSONObject
 import java.io.File
 
 class OcrStore {
-    fun load(imageFile: File): PageOcrResult? {
+    fun load(imageFile: File, expectedCacheMode: String? = null): PageOcrResult? {
         val jsonFile = ocrFileFor(imageFile)
         if (!jsonFile.exists()) return null
         return try {
             val json = JSONObject(jsonFile.readText())
+            val cacheMode = json.optString("ocrCacheMode", "")
+            if (expectedCacheMode != null && cacheMode != expectedCacheMode) {
+                return null
+            }
             val bubblesJson = json.optJSONArray("bubbles") ?: JSONArray()
             val bubbles = ArrayList<OcrBubble>(bubblesJson.length())
             for (i in 0 until bubblesJson.length()) {
@@ -30,7 +34,8 @@ class OcrStore {
                 imageFile = imageFile,
                 width = json.optInt("width", 0),
                 height = json.optInt("height", 0),
-                bubbles = bubbles
+                bubbles = bubbles,
+                cacheMode = cacheMode
             )
         } catch (e: Exception) {
             AppLogger.log("OcrStore", "Failed to load ${jsonFile.name}", e)
@@ -44,6 +49,7 @@ class OcrStore {
             .put("image", result.imageFile.name)
             .put("width", result.width)
             .put("height", result.height)
+            .put("ocrCacheMode", result.cacheMode)
         val bubbles = JSONArray()
         for (bubble in result.bubbles) {
             val item = JSONObject()
