@@ -1,140 +1,149 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:clipToPadding="false"
-    android:fillViewport="true"
-    android:overScrollMode="ifContentScrolls">
+    android:orientation="vertical">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="8dp">
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:overScrollMode="ifContentScrolls">
 
         <LinearLayout
-            android:id="@+id/update_dialog_latest_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp">
+            android:padding="8dp">
 
-            <TextView
-                android:id="@+id/update_dialog_latest_label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/update_dialog_latest_label"
-                android:textAppearance="@style/Widget.MangaTranslator.SectionLabel" />
-
-            <TextView
-                android:id="@+id/update_dialog_latest_title"
+            <LinearLayout
+                android:id="@+id/update_dialog_latest_container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:textAppearance="@style/Widget.MangaTranslator.CardTitle"
-                android:textColor="?attr/dialogTextColor"
-                android:textSize="22sp" />
+                android:orientation="vertical"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp">
 
-            <TextView
-                android:id="@+id/update_dialog_latest_content"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:lineSpacingExtra="4dp"
-                android:textAppearance="@style/Widget.MangaTranslator.DialogBody" />
-        </LinearLayout>
+                <TextView
+                    android:id="@+id/update_dialog_latest_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/update_dialog_latest_label"
+                    android:textAppearance="@style/Widget.MangaTranslator.SectionLabel" />
 
-        <View
-            android:id="@+id/update_dialog_latest_divider"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="14dp"
-            android:background="@drawable/bg_dialog_divider" />
+                <TextView
+                    android:id="@+id/update_dialog_latest_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textAppearance="@style/Widget.MangaTranslator.CardTitle"
+                    android:textColor="?attr/dialogTextColor"
+                    android:textSize="22sp" />
 
-        <TextView
-            android:id="@+id/update_dialog_tip"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp"
-            android:text="@string/update_dialog_tutorial_tip"
-            android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
-
-        <LinearLayout
-            android:id="@+id/update_dialog_history_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:orientation="vertical"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp"
-            android:visibility="gone">
+                <TextView
+                    android:id="@+id/update_dialog_latest_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:lineSpacingExtra="4dp"
+                    android:textAppearance="@style/Widget.MangaTranslator.DialogBody" />
+            </LinearLayout>
 
             <View
+                android:id="@+id/update_dialog_latest_divider"
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginBottom="14dp"
+                android:layout_marginTop="14dp"
                 android:background="@drawable/bg_dialog_divider" />
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/update_dialog_history_header"
-                android:textAppearance="@style/Widget.MangaTranslator.CardTitle" />
-
-            <TextView
-                android:id="@+id/update_dialog_history_content"
+                android:id="@+id/update_dialog_tip"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:lineSpacingExtra="4dp"
-                android:textAppearance="@style/Widget.MangaTranslator.DialogBody" />
+                android:layout_marginTop="12dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:text="@string/update_dialog_tutorial_tip"
+                android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
+
+            <LinearLayout
+                android:id="@+id/update_dialog_history_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:orientation="vertical"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginBottom="14dp"
+                    android:background="@drawable/bg_dialog_divider" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/update_dialog_history_header"
+                    android:textAppearance="@style/Widget.MangaTranslator.CardTitle" />
+
+                <TextView
+                    android:id="@+id/update_dialog_history_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:lineSpacingExtra="4dp"
+                    android:textAppearance="@style/Widget.MangaTranslator.DialogBody" />
+            </LinearLayout>
         </LinearLayout>
+    </ScrollView>
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_dialog_divider" />
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_dialog_divider" />
 
-        <LinearLayout
-            android:id="@+id/update_dialog_actions"
-            android:layout_width="match_parent"
+    <LinearLayout
+        android:id="@+id/update_dialog_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:baselineAligned="false"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="8dp">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/update_dialog_negative_button"
+            style="@style/Widget.MangaTranslator.DialogActionButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:baselineAligned="false"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:text="@string/update_dialog_cancel" />
 
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/update_dialog_negative_button"
-                style="@style/Widget.MangaTranslator.DialogActionButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp"
-                android:layout_weight="1"
-                android:text="@string/update_dialog_cancel" />
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/update_dialog_neutral_button"
+            style="@style/Widget.MangaTranslator.DialogActionButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:text="@string/about_open_project" />
 
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/update_dialog_neutral_button"
-                style="@style/Widget.MangaTranslator.DialogActionButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:layout_marginEnd="6dp"
-                android:layout_weight="1"
-                android:text="@string/about_open_project" />
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/update_dialog_positive_button"
-                style="@style/Widget.MangaTranslator.DialogActionButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:layout_weight="1"
-                android:text="@string/update_dialog_download" />
-        </LinearLayout>
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/update_dialog_positive_button"
+            style="@style/Widget.MangaTranslator.DialogActionButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:text="@string/update_dialog_download" />
     </LinearLayout>
-</ScrollView>
+</LinearLayout>
