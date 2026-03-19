@@ -1,6 +1,7 @@
 package com.manga.translate
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.text.InputType
 import android.util.TypedValue
 import android.view.ViewGroup
@@ -11,6 +12,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
 import java.util.Locale
 
@@ -50,6 +52,7 @@ internal class LibraryDialogs {
                 setSelection(text.length)
             }
         }
+        applyDialogTextColors(context, input)
         AlertDialog.Builder(context)
             .setTitle(titleRes)
             .setView(input)
@@ -90,6 +93,34 @@ internal class LibraryDialogs {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
+    }
+
+    private fun resolveColorAttr(context: Context, attrRes: Int): Int {
+        val typedValue = TypedValue()
+        context.theme.resolveAttribute(attrRes, typedValue, true)
+        return if (typedValue.resourceId != 0) {
+            ContextCompat.getColor(context, typedValue.resourceId)
+        } else {
+            typedValue.data
+        }
+    }
+
+    private fun applyDialogTextColors(
+        context: Context,
+        textView: TextView,
+        useHintColor: Boolean = false
+    ) {
+        val textColorAttr = if (useHintColor) R.attr.dialogHintTextColor else R.attr.dialogTextColor
+        textView.setTextColor(resolveColorAttr(context, textColorAttr))
+        textView.compoundDrawableTintList =
+            ColorStateList.valueOf(resolveColorAttr(context, R.attr.dialogTextColor))
+        if (textView is EditText) {
+            textView.setHintTextColor(resolveColorAttr(context, R.attr.dialogHintTextColor))
+        }
+        if (textView is CheckBox) {
+            textView.buttonTintList =
+                ColorStateList.valueOf(resolveColorAttr(context, R.attr.dialogTextColor))
+        }
     }
 
     fun showCreateFolderDialog(context: Context, onConfirm: (String) -> Unit) {
@@ -227,10 +258,12 @@ internal class LibraryDialogs {
             inputType = InputType.TYPE_CLASS_NUMBER
             imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
         }
+        applyDialogTextColors(context, input)
         val cbzCheckBox = CheckBox(context).apply {
             text = context.getString(R.string.export_as_cbz_option)
             isChecked = defaultExportAsCbz
         }
+        applyDialogTextColors(context, cbzCheckBox)
         val embeddedCheckBox = CheckBox(context).apply {
             text = context.getString(R.string.export_embedded_images_option)
             isChecked = hasEmbeddedImages
@@ -239,10 +272,12 @@ internal class LibraryDialogs {
                 alpha = 0.5f
             }
         }
+        applyDialogTextColors(context, embeddedCheckBox)
         val pathHintView = TextView(context).apply {
             setPadding(0, dp(context, 8f), 0, 0)
             text = context.getString(R.string.export_path_hint_format, exportRootPathHint)
         }
+        applyDialogTextColors(context, pathHintView, useHintColor = true)
         val container = buildDialogContainer(context).apply {
             addView(input, matchWrapLayoutParams())
             addView(cbzCheckBox, matchWrapLayoutParams())
@@ -275,6 +310,7 @@ internal class LibraryDialogs {
         val note = TextView(context).apply {
             text = context.getString(R.string.embed_thread_note)
         }
+        applyDialogTextColors(context, note, useHintColor = true)
         val input = EditText(context).apply {
             hint = context.getString(R.string.embed_thread_hint)
             setText(formatInt(defaultThreads))
@@ -282,20 +318,24 @@ internal class LibraryDialogs {
             inputType = InputType.TYPE_CLASS_NUMBER
             imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
         }
+        applyDialogTextColors(context, input)
         val whiteCoverCheckBox = CheckBox(context).apply {
             text = context.getString(R.string.embed_white_cover_option)
             isChecked = defaultUseWhiteBubbleCover
         }
+        applyDialogTextColors(context, whiteCoverCheckBox)
         val ellipseLimitCheckBox = CheckBox(context).apply {
             text = context.getString(R.string.embed_ellipse_limit_option)
             isChecked = defaultUseEllipseLimit
             isEnabled = defaultUseWhiteBubbleCover
             alpha = if (defaultUseWhiteBubbleCover) 1f else 0.5f
         }
+        applyDialogTextColors(context, ellipseLimitCheckBox)
         val imageRepairCheckBox = CheckBox(context).apply {
             text = context.getString(R.string.embed_image_repair_option)
             isChecked = defaultUseImageRepair
         }
+        applyDialogTextColors(context, imageRepairCheckBox)
         whiteCoverCheckBox.setOnCheckedChangeListener { _, isChecked ->
             ellipseLimitCheckBox.isEnabled = isChecked
             ellipseLimitCheckBox.alpha = if (isChecked) 1f else 0.5f

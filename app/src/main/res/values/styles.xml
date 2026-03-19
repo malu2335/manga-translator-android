@@ -56,14 +56,14 @@
     </style>
 
     <style name="Widget.MangaTranslator.DialogEditText" parent="">
-        <item name="android:textColor">@color/light_button_text</item>
-        <item name="android:textColorHint">@color/light_muted_text</item>
+        <item name="android:textColor">?attr/dialogTextColor</item>
+        <item name="android:textColorHint">?attr/dialogHintTextColor</item>
     </style>
 
     <style name="Widget.MangaTranslator.DialogBody" parent="TextAppearance.AppCompat.Body1">
         <item name="android:textSize">15sp</item>
         <item name="android:lineSpacingExtra">4dp</item>
-        <item name="android:textColor">@color/light_button_text</item>
+        <item name="android:textColor">?attr/dialogTextColor</item>
     </style>
 
     <style name="Widget.MangaTranslator.DialogActionButton" parent="Widget.MangaTranslator.Button">
@@ -76,14 +76,14 @@
 
     <style name="ThemeOverlay.MangaTranslator.AlertDialog" parent="Theme.AppCompat.Dialog.Alert">
         <item name="android:windowBackground">@drawable/bg_dialog_surface</item>
-        <item name="android:textColor">@color/light_button_text</item>
-        <item name="android:textColorPrimary">@color/light_button_text</item>
-        <item name="android:textColorSecondary">@color/light_muted_text</item>
-        <item name="android:textColorHint">@color/light_muted_text</item>
-        <item name="textColorAlertDialogListItem">@color/light_button_text</item>
-        <item name="android:textColorAlertDialogListItem">@color/light_button_text</item>
-        <item name="editTextColor">@color/light_button_text</item>
-        <item name="colorControlNormal">@color/light_button_text</item>
+        <item name="android:textColor">?attr/dialogTextColor</item>
+        <item name="android:textColorPrimary">?attr/dialogTextColor</item>
+        <item name="android:textColorSecondary">?attr/dialogHintTextColor</item>
+        <item name="android:textColorHint">?attr/dialogHintTextColor</item>
+        <item name="textColorAlertDialogListItem">?attr/dialogTextColor</item>
+        <item name="android:textColorAlertDialogListItem">?attr/dialogTextColor</item>
+        <item name="editTextColor">?attr/dialogTextColor</item>
+        <item name="colorControlNormal">?attr/dialogTextColor</item>
         <item name="buttonBarButtonStyle">@style/Widget.MangaTranslator.Button</item>
         <item name="android:buttonBarButtonStyle">@style/Widget.MangaTranslator.Button</item>
         <item name="buttonBarPositiveButtonStyle">@style/Widget.MangaTranslator.Button</item>

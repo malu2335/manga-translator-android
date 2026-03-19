@@ -14,7 +14,9 @@ import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.view.isGone
 import androidx.core.content.FileProvider
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -54,6 +56,16 @@ class SettingsFragment : Fragment() {
             .split(",")
             .map { it.trim() }
             .filter { it.isNotBlank() }
+    }
+
+    private fun resolveColorAttr(attrRes: Int): Int {
+        val typedValue = android.util.TypedValue()
+        requireContext().theme.resolveAttribute(attrRes, typedValue, true)
+        return if (typedValue.resourceId != 0) {
+            ContextCompat.getColor(requireContext(), typedValue.resourceId)
+        } else {
+            typedValue.data
+        }
     }
 
     override fun onCreateView(
@@ -261,6 +273,7 @@ class SettingsFragment : Fragment() {
             text = logs
             setPadding(padding, padding, padding, padding)
             setTextIsSelectable(true)
+            setTextColor(resolveColorAttr(R.attr.dialogTextColor))
         }
         val scrollView = ScrollView(requireContext()).apply {
             addView(textView)
@@ -454,12 +467,20 @@ class SettingsFragment : Fragment() {
     private fun showLlmParamsDialog() {
         val currentParams = settingsStore.loadLlmParameters()
         val dialogBinding = DialogLlmParamsBinding.inflate(layoutInflater)
+        val supportsThinkingParams = supportsSiliconFlowThinkingParams()
         dialogBinding.temperatureInput.setText(formatNumberOrEmpty(currentParams.temperature))
         dialogBinding.topPInput.setText(formatNumberOrEmpty(currentParams.topP))
         dialogBinding.topKInput.setText(formatNumberOrEmpty(currentParams.topK))
         dialogBinding.maxOutputTokensInput.setText(formatNumberOrEmpty(currentParams.maxOutputTokens))
+        dialogBinding.enableThinkingSwitch.isChecked = currentParams.enableThinking
+        dialogBinding.thinkingBudgetInput.setText(formatNumberOrEmpty(currentParams.thinkingBudget))
         dialogBinding.frequencyPenaltyInput.setText(formatNumberOrEmpty(currentParams.frequencyPenalty))
         dialogBinding.presencePenaltyInput.setText(formatNumberOrEmpty(currentParams.presencePenalty))
+        dialogBinding.enableThinkingSwitch.isGone = !supportsThinkingParams
+        dialogBinding.thinkingBudgetInputLayout.isGone = !supportsThinkingParams
+        dialogBinding.llmParamsNote.setText(
+            if (supportsThinkingParams) R.string.llm_params_note_siliconflow else R.string.llm_params_note
+        )
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.llm_params_title)
             .setView(dialogBinding.root)
@@ -482,6 +503,8 @@ class SettingsFragment : Fragment() {
                         topP = null,
                         topK = null,
                         maxOutputTokens = null,
+                        enableThinking = false,
+                        thinkingBudget = null,
                         frequencyPenalty = null,
                         presencePenalty = null
                     )
@@ -595,6 +618,7 @@ class SettingsFragment : Fragment() {
         dialogBinding: DialogLlmParamsBinding
     ): ParsedLlmParams {
         var hasInvalid = false
+        val supportsThinkingParams = supportsSiliconFlowThinkingParams()
         fun parseDouble(text: String?): Double? {
             val trimmed = text?.trim().orEmpty()
             if (trimmed.isBlank()) return null
@@ -610,10 +634,28 @@ class SettingsFragment : Fragment() {
             topP = parseDouble(dialogBinding.topPInput.text?.toString()),
             topK = parseInt(dialogBinding.topKInput.text?.toString()),
             maxOutputTokens = parseInt(dialogBinding.maxOutputTokensInput.text?.toString()),
+            enableThinking = supportsThinkingParams && dialogBinding.enableThinkingSwitch.isChecked,
+            thinkingBudget = if (supportsThinkingParams) {
+                parseInt(dialogBinding.thinkingBudgetInput.text?.toString())
+            } else {
+                null
+            },
             frequencyPenalty = parseDouble(dialogBinding.frequencyPenaltyInput.text?.toString()),
             presencePenalty = parseDouble(dialogBinding.presencePenaltyInput.text?.toString())
         )
         return ParsedLlmParams(params, hasInvalid)
+    }
+
+    private fun supportsSiliconFlowThinkingParams(): Boolean {
+        if (currentApiFormat() != ApiFormat.OPENAI_COMPATIBLE) return false
+        return isSiliconFlowUrl(binding.apiUrlInput.text?.toString())
+    }
+
+    private fun isSiliconFlowUrl(url: String?): Boolean {
+        val normalized = url?.trim().orEmpty().lowercase(Locale.US)
+        if (normalized.isBlank()) return false
+        return normalized.startsWith("https://api.siliconflow.cn") ||
+            normalized.startsWith("http://api.siliconflow.cn")
     }
 
     private fun fetchModelList() {

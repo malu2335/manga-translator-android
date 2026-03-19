@@ -159,6 +159,7 @@ class LlmClient(context: Context) {
         val payload = buildPayload(
             text = text,
             glossary = glossary,
+            settings = settings,
             modelName = selectedModel,
             promptAsset = promptAsset,
             useJsonPayload = useJsonPayload,
@@ -251,6 +252,7 @@ class LlmClient(context: Context) {
         val selectedModel = selectModelForRequest(settings.modelName)
         val endpoint = buildEndpoint(settings, selectedModel)
         val payload = buildImageTranslationPayload(
+            settings = settings,
             modelName = selectedModel,
             image = image,
             promptAsset = promptAsset,
@@ -386,6 +388,7 @@ class LlmClient(context: Context) {
     private fun buildPayload(
         text: String,
         glossary: Map<String, String>,
+        settings: ApiSettings,
         modelName: String,
         promptAsset: String,
         useJsonPayload: Boolean,
@@ -396,6 +399,7 @@ class LlmClient(context: Context) {
             ApiFormat.OPENAI_COMPATIBLE -> buildOpenAiPayload(
                 text = text,
                 glossary = glossary,
+                settings = settings,
                 modelName = modelName,
                 config = config,
                 useJsonPayload = useJsonPayload
@@ -412,6 +416,7 @@ class LlmClient(context: Context) {
     private fun buildOpenAiPayload(
         text: String,
         glossary: Map<String, String>,
+        settings: ApiSettings,
         modelName: String,
         config: LlmPromptConfig,
         useJsonPayload: Boolean
@@ -451,6 +456,7 @@ class LlmClient(context: Context) {
         llmParams.maxOutputTokens?.let { payload.put("max_output_tokens", it) }
         llmParams.frequencyPenalty?.let { payload.put("frequency_penalty", it) }
         llmParams.presencePenalty?.let { payload.put("presence_penalty", it) }
+        applyOpenAiExtraBody(payload, llmParams, settings)
         return payload
     }
 
@@ -588,18 +594,25 @@ class LlmClient(context: Context) {
     }
 
     private fun buildImageTranslationPayload(
+        settings: ApiSettings,
         modelName: String,
         image: Bitmap,
         promptAsset: String,
         apiFormat: ApiFormat
     ): JSONObject {
         return when (apiFormat) {
-            ApiFormat.OPENAI_COMPATIBLE -> buildOpenAiImageTranslationPayload(modelName, image, promptAsset)
+            ApiFormat.OPENAI_COMPATIBLE -> buildOpenAiImageTranslationPayload(
+                settings = settings,
+                modelName = modelName,
+                image = image,
+                promptAsset = promptAsset
+            )
             ApiFormat.GEMINI -> buildGeminiImageTranslationPayload(image, promptAsset)
         }
     }
 
     private fun buildOpenAiImageTranslationPayload(
+        settings: ApiSettings,
         modelName: String,
         image: Bitmap,
         promptAsset: String
@@ -654,6 +667,7 @@ class LlmClient(context: Context) {
         llmParams.maxOutputTokens?.let { payload.put("max_output_tokens", it) }
         llmParams.frequencyPenalty?.let { payload.put("frequency_penalty", it) }
         llmParams.presencePenalty?.let { payload.put("presence_penalty", it) }
+        applyOpenAiExtraBody(payload, llmParams, settings)
         return payload
     }
 
@@ -682,6 +696,25 @@ class LlmClient(context: Context) {
             payload.put("generationConfig", it)
         }
         return payload
+    }
+
+    private fun applyOpenAiExtraBody(
+        payload: JSONObject,
+        llmParams: LlmParameterSettings,
+        settings: ApiSettings
+    ) {
+        if (!supportsSiliconFlowThinkingParams(settings)) return
+        val extraBody = JSONObject()
+            .put("enable_thinking", llmParams.enableThinking)
+        llmParams.thinkingBudget?.let { extraBody.put("thinking_budget", it) }
+        payload.put("extra_body", extraBody)
+    }
+
+    private fun supportsSiliconFlowThinkingParams(settings: ApiSettings): Boolean {
+        if (settings.apiFormat != ApiFormat.OPENAI_COMPATIBLE) return false
+        val normalized = settings.apiUrl.trim().lowercase()
+        return normalized.startsWith("https://api.siliconflow.cn") ||
+            normalized.startsWith("http://api.siliconflow.cn")
     }
 
     private fun encodeBitmapToBase64(image: Bitmap): String {

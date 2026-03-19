@@ -33,7 +33,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:textAppearance="@style/Widget.MangaTranslator.CardTitle"
-                android:textColor="@color/light_button_text"
+                android:textColor="?attr/dialogTextColor"
                 android:textSize="22sp" />
 
             <TextView

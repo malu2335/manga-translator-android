@@ -5,6 +5,8 @@
     <attr name="buttonFillColor" format="color" />
     <attr name="buttonFillPressedColor" format="color" />
     <attr name="buttonTextColor" format="color" />
+    <attr name="dialogTextColor" format="color" />
+    <attr name="dialogHintTextColor" format="color" />
     <attr name="outlineColor" format="color" />
     <attr name="mutedTextColor" format="color" />
     <attr name="heroStartColor" format="color" />

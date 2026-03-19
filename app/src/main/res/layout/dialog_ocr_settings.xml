@@ -15,6 +15,7 @@
             android:id="@+id/use_local_ocr_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:textColor="?attr/dialogTextColor"
             android:text="@string/ocr_use_local" />
 
         <TextView

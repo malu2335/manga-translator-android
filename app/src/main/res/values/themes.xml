@@ -9,6 +9,8 @@
         <item name="buttonFillColor">@color/light_button</item>
         <item name="buttonFillPressedColor">@color/light_accent</item>
         <item name="buttonTextColor">@color/light_button_text</item>
+        <item name="dialogTextColor">@color/light_accent</item>
+        <item name="dialogHintTextColor">@color/light_muted_text</item>
         <item name="outlineColor">@color/light_outline</item>
         <item name="mutedTextColor">@color/light_muted_text</item>
         <item name="heroStartColor">@color/light_hero_start</item>
@@ -32,6 +34,8 @@
         <item name="buttonFillColor">@color/pastel_decor</item>
         <item name="buttonFillPressedColor">@color/pastel_accent</item>
         <item name="buttonTextColor">@color/pastel_button_text</item>
+        <item name="dialogTextColor">@color/pastel_accent</item>
+        <item name="dialogHintTextColor">@color/pastel_button_text</item>
         <item name="outlineColor">@color/pastel_accent</item>
         <item name="mutedTextColor">@color/pastel_button_text</item>
         <item name="heroStartColor">@color/pastel_accent</item>
@@ -51,6 +55,8 @@
         <item name="buttonFillColor">@color/deep_sea_decor</item>
         <item name="buttonFillPressedColor">@color/deep_sea_accent</item>
         <item name="buttonTextColor">@color/deep_sea_button_text</item>
+        <item name="dialogTextColor">@color/deep_sea_accent</item>
+        <item name="dialogHintTextColor">@color/deep_sea_button_text</item>
         <item name="outlineColor">@color/deep_sea_accent</item>
         <item name="mutedTextColor">@color/deep_sea_button_text</item>
         <item name="heroStartColor">@color/deep_sea_surface</item>

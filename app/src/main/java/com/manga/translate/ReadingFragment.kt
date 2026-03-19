@@ -14,6 +14,7 @@ import android.widget.EditText
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.core.view.doOnLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -31,6 +32,16 @@ import java.util.Locale
 
 class ReadingFragment : Fragment() {
     private fun formatInt(value: Int): String = String.format(Locale.getDefault(), "%d", value)
+
+    private fun resolveColorAttr(attrRes: Int): Int {
+        val typedValue = android.util.TypedValue()
+        requireContext().theme.resolveAttribute(attrRes, typedValue, true)
+        return if (typedValue.resourceId != 0) {
+            ContextCompat.getColor(requireContext(), typedValue.resourceId)
+        } else {
+            typedValue.data
+        }
+    }
 
     private var _binding: FragmentReadingBinding? = null
     private val binding get() = _binding!!
@@ -759,6 +770,8 @@ class ReadingFragment : Fragment() {
             if (bubble.text.isBlank()) {
                 hint = getString(R.string.reading_empty_bubble_hint)
             }
+            setTextColor(resolveColorAttr(R.attr.dialogTextColor))
+            setHintTextColor(resolveColorAttr(R.attr.dialogHintTextColor))
         }
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.reading_edit_bubble_title)

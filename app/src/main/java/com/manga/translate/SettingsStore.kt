@@ -259,6 +259,8 @@ class SettingsStore(context: Context) {
                 KEY_LLM_MAX_OUTPUT_TOKENS,
                 DEFAULT_LLM_MAX_OUTPUT_TOKENS
             ),
+            enableThinking = prefs.getBoolean(KEY_LLM_ENABLE_THINKING, DEFAULT_LLM_ENABLE_THINKING),
+            thinkingBudget = readIntOptional(KEY_LLM_THINKING_BUDGET),
             frequencyPenalty = readDoubleWithDefault(
                 KEY_LLM_FREQUENCY_PENALTY,
                 DEFAULT_LLM_FREQUENCY_PENALTY
@@ -276,6 +278,8 @@ class SettingsStore(context: Context) {
                 .putOptionalString(KEY_LLM_TOP_P, settings.topP)
                 .putOptionalString(KEY_LLM_TOP_K, settings.topK)
                 .putOptionalString(KEY_LLM_MAX_OUTPUT_TOKENS, settings.maxOutputTokens)
+                .putBoolean(KEY_LLM_ENABLE_THINKING, settings.enableThinking)
+                .putOptionalString(KEY_LLM_THINKING_BUDGET, settings.thinkingBudget)
                 .putOptionalString(KEY_LLM_FREQUENCY_PENALTY, settings.frequencyPenalty)
                 .putOptionalString(KEY_LLM_PRESENCE_PENALTY, settings.presencePenalty)
             }
@@ -332,11 +336,14 @@ class SettingsStore(context: Context) {
         private const val KEY_LLM_TOP_P = "llm_top_p"
         private const val KEY_LLM_TOP_K = "llm_top_k"
         private const val KEY_LLM_MAX_OUTPUT_TOKENS = "llm_max_output_tokens"
+        private const val KEY_LLM_ENABLE_THINKING = "llm_enable_thinking"
+        private const val KEY_LLM_THINKING_BUDGET = "llm_thinking_budget"
         private const val KEY_LLM_FREQUENCY_PENALTY = "llm_frequency_penalty"
         private const val KEY_LLM_PRESENCE_PENALTY = "llm_presence_penalty"
         private const val DEFAULT_LLM_TEMPERATURE = 0.8
         private const val DEFAULT_LLM_TOP_P = 1.0
         private const val DEFAULT_LLM_MAX_OUTPUT_TOKENS = 8192
+        private const val DEFAULT_LLM_ENABLE_THINKING = false
         private const val DEFAULT_LLM_FREQUENCY_PENALTY = 0.4
         private const val DEFAULT_LLM_PRESENCE_PENALTY = 0.2
         private const val DEFAULT_API_URL = "https://api.siliconflow.cn/v1"
@@ -366,6 +373,8 @@ data class LlmParameterSettings(
     val topP: Double?,
     val topK: Int?,
     val maxOutputTokens: Int?,
+    val enableThinking: Boolean,
+    val thinkingBudget: Int?,
     val frequencyPenalty: Double?,
     val presencePenalty: Double?
 )

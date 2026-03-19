@@ -92,10 +92,13 @@
     <string name="llm_params_clear">全部留空</string>
     <string name="llm_params_invalid">参数格式有误，已忽略无效项</string>
     <string name="llm_params_note">留空将不发送该字段</string>
+    <string name="llm_params_note_siliconflow">留空将不发送该字段；当前 API 地址识别为硅基流动，已显示 `enable_thinking` 与 `thinking_budget` 扩展参数</string>
     <string name="llm_param_temperature">temperature</string>
     <string name="llm_param_top_p">top_p</string>
     <string name="llm_param_top_k">top_k</string>
     <string name="llm_param_max_output_tokens">max_output_tokens</string>
+    <string name="llm_param_enable_thinking">enable_thinking</string>
+    <string name="llm_param_thinking_budget">thinking_budget</string>
     <string name="llm_param_frequency_penalty">frequency_penalty</string>
     <string name="llm_param_presence_penalty">presence_penalty</string>
 
