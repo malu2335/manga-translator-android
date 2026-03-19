@@ -216,7 +216,10 @@
             android:layout_marginTop="14dp"
             android:clipChildren="false"
             android:clipToPadding="false"
+            android:descendantFocusability="beforeDescendants"
             android:layout_weight="1"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
             android:fillViewport="true"
             android:overScrollMode="ifContentScrolls">
 
@@ -225,6 +228,8 @@
                 android:layout_height="wrap_content"
                 android:clipChildren="false"
                 android:clipToPadding="false"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
                 android:orientation="vertical"
                 android:paddingBottom="8dp">
 
@@ -511,6 +516,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
+                        android:focusable="false"
+                        android:focusableInTouchMode="false"
                         android:nestedScrollingEnabled="false" />
 
                     <TextView
