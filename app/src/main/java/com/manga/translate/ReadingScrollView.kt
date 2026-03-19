@@ -17,6 +17,15 @@ class ReadingScrollView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(ev: MotionEvent): Boolean {
-        return scrollEnabled && super.onTouchEvent(ev)
+        if (!scrollEnabled) return false
+        val handled = super.onTouchEvent(ev)
+        if (ev.actionMasked == MotionEvent.ACTION_UP && !handled) {
+            performClick()
+        }
+        return handled
+    }
+
+    override fun performClick(): Boolean {
+        return super.performClick()
     }
 }

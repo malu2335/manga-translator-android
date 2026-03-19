@@ -13,6 +13,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import androidx.core.widget.TextViewCompat
 import androidx.documentfile.provider.DocumentFile
 import java.util.Locale
 
@@ -112,8 +113,10 @@ internal class LibraryDialogs {
     ) {
         val textColorAttr = if (useHintColor) R.attr.dialogHintTextColor else R.attr.dialogTextColor
         textView.setTextColor(resolveColorAttr(context, textColorAttr))
-        textView.compoundDrawableTintList =
+        TextViewCompat.setCompoundDrawableTintList(
+            textView,
             ColorStateList.valueOf(resolveColorAttr(context, R.attr.dialogTextColor))
+        )
         if (textView is EditText) {
             textView.setHintTextColor(resolveColorAttr(context, R.attr.dialogHintTextColor))
         }

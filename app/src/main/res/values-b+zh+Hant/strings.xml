@@ -69,7 +69,6 @@
     <string name="fetch_models">取得模型列表</string>
     <string name="fetch_models_title">模型列表</string>
     <string name="fetch_models_loading">正在取得模型列表…</string>
-    <string name="fetch_models_multi_select_hint">可多選，確認後會用英文逗號寫入模型名稱</string>
     <string name="fetch_models_failed_title">取得模型列表失敗</string>
     <string name="fetch_models_failed_message">取得失敗：
 %1$s</string>
@@ -98,10 +97,13 @@
     <string name="llm_params_clear">全部留空</string>
     <string name="llm_params_invalid">參數格式有誤，已忽略無效項</string>
     <string name="llm_params_note">留空將不傳送該欄位</string>
+    <string name="llm_params_note_siliconflow">留空將不傳送該欄位；目前 API 位址識別為矽基流動，已顯示 `enable_thinking` 與 `thinking_budget` 擴充參數</string>
     <string name="llm_param_temperature">temperature</string>
     <string name="llm_param_top_p">top_p</string>
     <string name="llm_param_top_k">top_k</string>
     <string name="llm_param_max_output_tokens">max_output_tokens</string>
+    <string name="llm_param_enable_thinking">enable_thinking</string>
+    <string name="llm_param_thinking_budget">thinking_budget</string>
     <string name="llm_param_frequency_penalty">frequency_penalty</string>
     <string name="llm_param_presence_penalty">presence_penalty</string>
 

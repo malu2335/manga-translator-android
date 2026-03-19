@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.doOnLayout
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.manga.translate.databinding.ItemReadingWebtoonPageBinding
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +22,15 @@ class WebtoonReadingAdapter(
     private val scope: CoroutineScope,
     private val translationStore: TranslationStore
 ) : RecyclerView.Adapter<WebtoonReadingAdapter.WebtoonPageViewHolder>() {
+    private data class PresentationConfig(
+        val embeddedMode: Boolean,
+        val verticalLayoutEnabled: Boolean,
+        val bubbleOpacity: Float
+    )
+
+    private companion object {
+        const val PAYLOAD_PRESENTATION_ONLY = "presentation_only"
+    }
 
     private var items: List<File> = emptyList()
     private var isEmbeddedMode: Boolean = false
@@ -33,11 +43,50 @@ class WebtoonReadingAdapter(
         verticalLayoutEnabled: Boolean,
         bubbleOpacity: Float
     ) {
+        val previousItems = items
+        val previousConfig = PresentationConfig(
+            embeddedMode = isEmbeddedMode,
+            verticalLayoutEnabled = this.verticalLayoutEnabled,
+            bubbleOpacity = this.bubbleOpacity
+        )
+        val newConfig = PresentationConfig(
+            embeddedMode = embeddedMode,
+            verticalLayoutEnabled = verticalLayoutEnabled,
+            bubbleOpacity = bubbleOpacity
+        )
+        val diffResult = DiffUtil.calculateDiff(
+            object : DiffUtil.Callback() {
+                override fun getOldListSize(): Int = previousItems.size
+
+                override fun getNewListSize(): Int = images.size
+
+                override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                    return previousItems[oldItemPosition].absolutePath == images[newItemPosition].absolutePath
+                }
+
+                override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                    return areItemsTheSame(oldItemPosition, newItemPosition) && previousConfig == newConfig
+                }
+
+                override fun getChangePayload(oldItemPosition: Int, newItemPosition: Int): Any? {
+                    if (!areItemsTheSame(oldItemPosition, newItemPosition)) return null
+                    return if (
+                        previousConfig.embeddedMode == newConfig.embeddedMode &&
+                        (previousConfig.verticalLayoutEnabled != newConfig.verticalLayoutEnabled ||
+                            previousConfig.bubbleOpacity != newConfig.bubbleOpacity)
+                    ) {
+                        PAYLOAD_PRESENTATION_ONLY
+                    } else {
+                        null
+                    }
+                }
+            }
+        )
         items = images
         isEmbeddedMode = embeddedMode
         this.verticalLayoutEnabled = verticalLayoutEnabled
         this.bubbleOpacity = bubbleOpacity
-        notifyDataSetChanged()
+        diffResult.dispatchUpdatesTo(this)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): WebtoonPageViewHolder {
@@ -58,6 +107,21 @@ class WebtoonReadingAdapter(
             verticalLayoutEnabled = verticalLayoutEnabled,
             bubbleOpacity = bubbleOpacity
         )
+    }
+
+    override fun onBindViewHolder(
+        holder: WebtoonPageViewHolder,
+        position: Int,
+        payloads: MutableList<Any>
+    ) {
+        if (payloads.contains(PAYLOAD_PRESENTATION_ONLY)) {
+            holder.updatePresentation(
+                verticalLayoutEnabled = verticalLayoutEnabled,
+                bubbleOpacity = bubbleOpacity
+            )
+            return
+        }
+        super.onBindViewHolder(holder, position, payloads)
     }
 
     override fun onViewRecycled(holder: WebtoonPageViewHolder) {
@@ -110,6 +174,11 @@ class WebtoonReadingAdapter(
                 if (boundPath != imageFile.absolutePath) return@doOnLayout
                 loadPage(imageFile, embeddedMode)
             }
+        }
+
+        fun updatePresentation(verticalLayoutEnabled: Boolean, bubbleOpacity: Float) {
+            binding.readingPageOverlay.setVerticalLayoutEnabled(verticalLayoutEnabled)
+            binding.readingPageOverlay.setBubbleOpacity(bubbleOpacity)
         }
 
         fun resumeWatching() {

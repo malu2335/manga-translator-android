@@ -12,6 +12,7 @@ import android.media.projection.MediaProjectionManager
 import android.os.Handler
 import android.os.Looper
 import android.util.DisplayMetrics
+import androidx.core.graphics.createBitmap
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
@@ -141,7 +142,7 @@ internal class ProjectionCaptureSession(
         val rowStride = plane.rowStride
         val rowPadding = rowStride - pixelStride * width
         val fullWidth = width + rowPadding / pixelStride
-        val fullBitmap = Bitmap.createBitmap(fullWidth, height, Bitmap.Config.ARGB_8888)
+        val fullBitmap = createBitmap(fullWidth, height, Bitmap.Config.ARGB_8888)
         fullBitmap.copyPixelsFromBuffer(plane.buffer)
         return Bitmap.createBitmap(fullBitmap, 0, 0, width, height).also {
             fullBitmap.recycleSafely()

@@ -27,34 +27,28 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <FrameLayout
-                android:id="@+id/reading_image_frame"
+            <ImageView
+                android:id="@+id/reading_image"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent">
+                android:layout_height="match_parent"
+                android:adjustViewBounds="true"
+                android:contentDescription="@string/preview_image"
+                android:scaleType="fitCenter" />
 
-                <ImageView
-                    android:id="@+id/reading_image"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:adjustViewBounds="true"
-                    android:contentDescription="@string/preview_image"
-                    android:scaleType="fitCenter" />
+            <ImageView
+                android:id="@+id/reading_transition_image"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:adjustViewBounds="true"
+                android:contentDescription="@string/preview_image"
+                android:scaleType="fitCenter"
+                android:visibility="gone" />
 
-                <ImageView
-                    android:id="@+id/reading_transition_image"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:adjustViewBounds="true"
-                    android:contentDescription="@string/preview_image"
-                    android:scaleType="fitCenter"
-                    android:visibility="gone" />
-
-                <com.manga.translate.FloatingTranslationView
-                    android:id="@+id/translation_overlay"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:visibility="gone" />
-            </FrameLayout>
+            <com.manga.translate.FloatingTranslationView
+                android:id="@+id/translation_overlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone" />
         </FrameLayout>
     </com.manga.translate.ReadingScrollView>
 

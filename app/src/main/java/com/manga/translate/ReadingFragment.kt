@@ -450,7 +450,7 @@ class ReadingFragment : Fragment() {
             finishPageTransitionImmediately()
             return
         }
-        val width = binding.readingImageFrame.width
+        val width = binding.readingContentContainer.width
         if (width <= 0) {
             finishPageTransitionImmediately()
             return
@@ -659,13 +659,11 @@ class ReadingFragment : Fragment() {
 
     private fun updateReadingContentLayout(bitmap: Bitmap?) {
         val contentParams = binding.readingContentContainer.layoutParams as FrameLayout.LayoutParams
-        val frameParams = binding.readingImageFrame.layoutParams as FrameLayout.LayoutParams
         val imageParams = binding.readingImage.layoutParams as FrameLayout.LayoutParams
         val transitionImageParams = binding.readingTransitionImage.layoutParams as FrameLayout.LayoutParams
         val overlayParams = binding.translationOverlay.layoutParams as FrameLayout.LayoutParams
         if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL && bitmap != null) {
             contentParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
-            frameParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
             imageParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
             transitionImageParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
             overlayParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
@@ -674,7 +672,6 @@ class ReadingFragment : Fragment() {
             binding.readingImage.adjustViewBounds = true
             binding.readingTransitionImage.adjustViewBounds = true
             binding.readingContentContainer.layoutParams = contentParams
-            binding.readingImageFrame.layoutParams = frameParams
             binding.readingImage.layoutParams = imageParams
             binding.readingTransitionImage.layoutParams = transitionImageParams
             binding.translationOverlay.layoutParams = overlayParams
@@ -682,7 +679,7 @@ class ReadingFragment : Fragment() {
             binding.readingImage.doOnLayout {
                 val imageHeight = binding.readingImage.height
                 if (imageHeight > 0) {
-                    updateWebtoonChildHeight(binding.readingImageFrame, imageHeight)
+                    updateWebtoonChildHeight(binding.readingContentContainer, imageHeight)
                     updateWebtoonChildHeight(binding.readingTransitionImage, imageHeight)
                     updateWebtoonChildHeight(binding.translationOverlay, imageHeight)
                     updateOverlay(currentTranslation, bitmap)
@@ -690,7 +687,6 @@ class ReadingFragment : Fragment() {
             }
         } else {
             contentParams.height = ViewGroup.LayoutParams.MATCH_PARENT
-            frameParams.height = ViewGroup.LayoutParams.MATCH_PARENT
             imageParams.height = ViewGroup.LayoutParams.MATCH_PARENT
             transitionImageParams.height = ViewGroup.LayoutParams.MATCH_PARENT
             overlayParams.height = ViewGroup.LayoutParams.MATCH_PARENT
@@ -699,7 +695,6 @@ class ReadingFragment : Fragment() {
             binding.readingImage.adjustViewBounds = true
             binding.readingTransitionImage.adjustViewBounds = true
             binding.readingContentContainer.layoutParams = contentParams
-            binding.readingImageFrame.layoutParams = frameParams
             binding.readingImage.layoutParams = imageParams
             binding.readingTransitionImage.layoutParams = transitionImageParams
             binding.translationOverlay.layoutParams = overlayParams

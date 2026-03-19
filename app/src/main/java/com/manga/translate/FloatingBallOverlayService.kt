@@ -25,8 +25,10 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.widget.AppCompatButton
+import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.app.NotificationCompat
 import androidx.core.content.getSystemService
+import androidx.core.view.isVisible
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -36,6 +38,15 @@ import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
 class FloatingBallOverlayService : Service() {
+    private class FloatingBallTextView(context: android.content.Context) : AppCompatTextView(context) {
+        var onPerformClick: (() -> Unit)? = null
+
+        override fun performClick(): Boolean {
+            onPerformClick?.invoke()
+            return super.performClick()
+        }
+    }
+
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private val settingsStore by lazy { SettingsStore(applicationContext) }
     private val floatingTranslationCacheStore by lazy {
@@ -212,7 +223,7 @@ class FloatingBallOverlayService : Service() {
             }
             visibility = View.GONE
         }
-        val floatingBall = TextView(this).apply {
+        val floatingBall = FloatingBallTextView(this).apply {
             text = "译"
             gravity = Gravity.CENTER
             textSize = 18f
@@ -959,7 +970,7 @@ class FloatingBallOverlayService : Service() {
 
 
     private fun attachBallGesture(
-        target: TextView,
+        target: FloatingBallTextView,
         menuPanel: View,
         params: WindowManager.LayoutParams
     ) {
@@ -969,14 +980,14 @@ class FloatingBallOverlayService : Service() {
         var downX = 0
         var downY = 0
         var dragging = false
+        var suppressPerformClickAction = false
         val gestureDetector = GestureDetector(
             this,
             object : GestureDetector.SimpleOnGestureListener() {
                 override fun onDown(e: MotionEvent): Boolean = true
 
                 override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                    menuPanel.visibility = View.GONE
-                    runTextDetection()
+                    target.performClick()
                     return true
                 }
 
@@ -990,15 +1001,19 @@ class FloatingBallOverlayService : Service() {
                 }
 
                 override fun onLongPress(e: MotionEvent) {
-                    menuPanel.visibility = if (menuPanel.visibility == View.VISIBLE) {
-                        View.GONE
-                    } else {
+                    menuPanel.isVisible = !menuPanel.isVisible
+                    if (menuPanel.isVisible) {
                         updateEditButtons()
-                        View.VISIBLE
                     }
                 }
             }
         )
+        target.onPerformClick = {
+            if (!suppressPerformClickAction) {
+                menuPanel.visibility = View.GONE
+                runTextDetection()
+            }
+        }
         target.setOnTouchListener { _, event ->
             gestureDetector.onTouchEvent(event)
             when (event.actionMasked) {
@@ -1029,7 +1044,9 @@ class FloatingBallOverlayService : Service() {
 
                 MotionEvent.ACTION_UP -> {
                     if (!dragging) {
+                        suppressPerformClickAction = true
                         target.performClick()
+                        suppressPerformClickAction = false
                     }
                     dragging
                 }

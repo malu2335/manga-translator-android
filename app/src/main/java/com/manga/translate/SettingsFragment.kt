@@ -555,7 +555,9 @@ class SettingsFragment : Fragment() {
         dialogBinding.ocrApiUrlInput.setText(currentSettings.apiUrl)
         dialogBinding.ocrApiKeyInput.setText(currentSettings.apiKey)
         dialogBinding.ocrModelNameInput.setText(currentSettings.modelName)
-        dialogBinding.ocrApiTimeoutInput.setText(currentSettings.timeoutSeconds.toString())
+        dialogBinding.ocrApiTimeoutInput.setText(
+            String.format(Locale.getDefault(), "%d", currentSettings.timeoutSeconds)
+        )
 
         fun updateInputsEnabled(useLocalOcr: Boolean) {
             val enabled = !useLocalOcr

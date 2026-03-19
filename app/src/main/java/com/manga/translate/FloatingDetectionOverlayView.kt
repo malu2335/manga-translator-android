@@ -155,11 +155,15 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        return when {
+        val handled = when {
             editMode -> handleEditTouch(event)
             bubbleDragEnabled && bubbles.isNotEmpty() -> handleDragTouch(event)
             else -> false
         }
+        if (handled && event.actionMasked == MotionEvent.ACTION_UP && !isDragging) {
+            performClick()
+        }
+        return handled
     }
 
     override fun performClick(): Boolean {
@@ -213,7 +217,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                 }
                 draggingBubbleId = null
                 isDragging = false
-                performClick()
                 return true
             }
 
@@ -259,7 +262,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                     onManualBubbleCreated?.invoke(created)
                     setDirty(true)
                 }
-                performClick()
                 return true
             }
 
@@ -312,9 +314,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                 val hadTarget = draggingBubbleId != null
                 draggingBubbleId = null
                 isDragging = false
-                if (event.actionMasked == MotionEvent.ACTION_UP && hadTarget) {
-                    performClick()
-                }
                 return hadTarget
             }
         }

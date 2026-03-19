@@ -15,17 +15,6 @@
         <item name="android:textColor">?attr/colorAccent</item>
     </style>
 
-    <style name="Widget.MangaTranslator.HeroTitle" parent="TextAppearance.AppCompat.Large">
-        <item name="android:textSize">30sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:textColor">@android:color/white</item>
-    </style>
-
-    <style name="Widget.MangaTranslator.HeroSubtitle" parent="TextAppearance.AppCompat.Body1">
-        <item name="android:textSize">14sp</item>
-        <item name="android:textColor">@color/white_85</item>
-    </style>
-
     <style name="Widget.MangaTranslator.SectionLabel" parent="TextAppearance.AppCompat.Caption">
         <item name="android:textStyle">bold</item>
         <item name="android:textSize">12sp</item>

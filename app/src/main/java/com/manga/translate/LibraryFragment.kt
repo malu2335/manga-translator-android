@@ -352,7 +352,7 @@ class LibraryFragment : Fragment() {
     private fun openOverlayPermissionSettings() {
         val intent = Intent(
             Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.parse("package:${requireContext().packageName}")
+            "package:${requireContext().packageName}".toUri()
         )
         requestOverlayPermission.launch(intent)
     }
