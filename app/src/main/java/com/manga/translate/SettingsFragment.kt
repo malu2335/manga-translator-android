@@ -99,6 +99,7 @@ class SettingsFragment : Fragment() {
         updateThemeButton(themeMode)
         val readingMode = settingsStore.loadReadingDisplayMode()
         updateReadingDisplayButton(readingMode)
+        updateReadingPageAnimationButton(settingsStore.loadReadingPageAnimationMode())
         val linkSource = settingsStore.loadLinkSource()
         updateLinkSourceButton(linkSource)
         binding.textLayoutSwitch.setOnCheckedChangeListener { _, isChecked ->
@@ -120,6 +121,9 @@ class SettingsFragment : Fragment() {
         }
         binding.readingDisplayButton.setOnClickListener {
             showReadingDisplayDialog()
+        }
+        binding.readingPageAnimationButton.setOnClickListener {
+            showReadingPageAnimationDialog()
         }
         binding.linkSourceButton.setOnClickListener {
             showLinkSourceDialog()
@@ -383,6 +387,28 @@ class SettingsFragment : Fragment() {
 
     private fun updateReadingDisplayButton(mode: ReadingDisplayMode) {
         updateLabeledButton(binding.readingDisplayButton, R.string.reading_display_format, mode.labelRes)
+    }
+
+    private fun showReadingPageAnimationDialog() {
+        showSingleChoiceSettingDialog(
+            titleRes = R.string.reading_page_animation_title,
+            options = ReadingPageAnimationMode.entries,
+            current = settingsStore.loadReadingPageAnimationMode(),
+            labelRes = { it.labelRes }
+        ) { dialog, selected ->
+            settingsStore.saveReadingPageAnimationMode(selected)
+            updateReadingPageAnimationButton(selected)
+            AppLogger.log("Settings", "Reading page animation mode set to ${selected.prefValue}")
+            dialog.dismiss()
+        }
+    }
+
+    private fun updateReadingPageAnimationButton(mode: ReadingPageAnimationMode) {
+        updateLabeledButton(
+            binding.readingPageAnimationButton,
+            R.string.reading_page_animation_format,
+            mode.labelRes
+        )
     }
 
     private fun showLinkSourceDialog() {

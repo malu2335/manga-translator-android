@@ -1,5 +1,7 @@
 package com.manga.translate
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.RectF
@@ -76,6 +78,9 @@ class ReadingFragment : Fragment() {
     private lateinit var webtoonAdapter: WebtoonReadingAdapter
     private lateinit var webtoonLayoutManager: LinearLayoutManager
     private var webtoonProgrammaticScroll = false
+    private var displayedPageIndex: Int? = null
+    private var displayedImagePath: String? = null
+    private var pageTransitionGeneration: Int = 0
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -228,6 +233,7 @@ class ReadingFragment : Fragment() {
         super.onDestroyView()
         translationWatchJob?.cancel()
         emptyBubbleJob?.cancel()
+        cancelPageTransition()
         binding.readingWebtoonList.adapter = null
         _binding = null
     }
@@ -252,16 +258,22 @@ class ReadingFragment : Fragment() {
             binding.readingEditControls.visibility = View.GONE
             hideResizePanel()
             binding.readingImage.setImageDrawable(null)
+            displayedImagePath = null
+            displayedPageIndex = null
             currentBitmap = null
             currentImageWidth = 0
             currentImageHeight = 0
             imageTransformController.setCurrentBitmap(null)
+            finishPageTransitionImmediately()
             binding.readingScrollContainer.scrollTo(0, 0)
             return
         }
         val index = (readingSessionViewModel.index.value ?: 0).coerceIn(0, images.lastIndex)
         val imageFile = images[index]
         currentImageFile = imageFile
+        val previousBitmap = currentBitmap
+        val previousDisplayedPath = displayedImagePath
+        val previousDisplayedIndex = displayedPageIndex
         binding.readingEmptyHint.visibility = View.GONE
         binding.readingPageInfo.visibility = View.VISIBLE
         binding.readingEditControls.visibility = if (isEmbeddedMode) View.GONE else View.VISIBLE
@@ -305,12 +317,16 @@ class ReadingFragment : Fragment() {
                 currentImageWidth = decoded.sourceWidth
                 currentImageHeight = decoded.sourceHeight
                 imageTransformController.setCurrentBitmap(bitmap)
+                displayedImagePath = targetPath
+                displayedPageIndex = targetIndex
             } else {
                 binding.readingImage.setImageDrawable(null)
                 currentBitmap = null
                 currentImageWidth = 0
                 currentImageHeight = 0
                 imageTransformController.setCurrentBitmap(null)
+                displayedImagePath = null
+                displayedPageIndex = null
             }
             binding.readingScrollContainer.scrollTo(0, 0)
             binding.readingImage.post {
@@ -322,6 +338,17 @@ class ReadingFragment : Fragment() {
                     }
                 }
                 updateOverlay(translation, bitmap)
+                val shouldAnimate = bitmap != null &&
+                    previousBitmap != null &&
+                    previousDisplayedPath != null &&
+                    previousDisplayedPath != targetPath &&
+                    folderReadingMode != FolderReadingMode.WEBTOON_SCROLL
+                if (shouldAnimate) {
+                    val direction = if ((previousDisplayedIndex ?: targetIndex) < targetIndex) -1 else 1
+                    startPageTransition(previousBitmap, direction)
+                } else {
+                    finishPageTransitionImmediately()
+                }
             }
             if (!targetEmbeddedMode && translation == null && bitmap != null) {
                 startTranslationWatcher(imageFile)
@@ -344,7 +371,10 @@ class ReadingFragment : Fragment() {
         currentBitmap = null
         currentImageWidth = 0
         currentImageHeight = 0
+        displayedPageIndex = null
+        displayedImagePath = null
         imageTransformController.setCurrentBitmap(null)
+        finishPageTransitionImmediately()
         if (images.isEmpty() || folder == null) {
             binding.readingEmptyHint.visibility = View.VISIBLE
             binding.readingPageInfo.visibility = View.GONE
@@ -409,6 +439,72 @@ class ReadingFragment : Fragment() {
         binding.translationOverlay.setOffsets(emptyMap())
         binding.translationOverlay.setEditMode(isEditMode && !isEmbeddedMode)
         binding.translationOverlay.visibility = View.VISIBLE
+    }
+
+    private fun currentReadingPageAnimationMode(): ReadingPageAnimationMode {
+        return settingsStore.loadReadingPageAnimationMode()
+    }
+
+    private fun startPageTransition(previousBitmap: Bitmap, direction: Int) {
+        if (currentReadingPageAnimationMode() != ReadingPageAnimationMode.HORIZONTAL_SLIDE) {
+            finishPageTransitionImmediately()
+            return
+        }
+        val width = binding.readingImageFrame.width
+        if (width <= 0) {
+            finishPageTransitionImmediately()
+            return
+        }
+        cancelPageTransition()
+        val generation = ++pageTransitionGeneration
+        binding.readingTransitionImage.setImageBitmap(previousBitmap)
+        binding.readingTransitionImage.visibility = View.VISIBLE
+        binding.readingTransitionImage.translationX = 0f
+        binding.readingImage.translationX = direction * width.toFloat()
+        binding.translationOverlay.visibility = View.INVISIBLE
+        binding.readingImage.animate()
+            .translationX(0f)
+            .setDuration(220L)
+            .setListener(null)
+            .start()
+        binding.readingTransitionImage.animate()
+            .translationX((-direction) * width.toFloat())
+            .setDuration(220L)
+            .setListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    completePageTransition(generation)
+                }
+
+                override fun onAnimationCancel(animation: Animator) {
+                    completePageTransition(generation)
+                }
+            })
+            .start()
+    }
+
+    private fun completePageTransition(generation: Int) {
+        if (_binding == null || generation != pageTransitionGeneration) return
+        finishPageTransitionImmediately()
+        if (currentBitmap != null) {
+            updateOverlay(currentTranslation, currentBitmap)
+        }
+    }
+
+    private fun cancelPageTransition() {
+        pageTransitionGeneration += 1
+        if (_binding == null) return
+        binding.readingImage.animate().cancel()
+        binding.readingTransitionImage.animate().cancel()
+    }
+
+    private fun finishPageTransitionImmediately() {
+        if (_binding == null) return
+        binding.readingImage.animate().setListener(null)
+        binding.readingTransitionImage.animate().setListener(null)
+        binding.readingImage.translationX = 0f
+        binding.readingTransitionImage.translationX = 0f
+        binding.readingTransitionImage.setImageDrawable(null)
+        binding.readingTransitionImage.visibility = View.GONE
     }
 
     private fun updateOverlayDisplayRect() {
@@ -565,23 +661,29 @@ class ReadingFragment : Fragment() {
         val contentParams = binding.readingContentContainer.layoutParams as FrameLayout.LayoutParams
         val frameParams = binding.readingImageFrame.layoutParams as FrameLayout.LayoutParams
         val imageParams = binding.readingImage.layoutParams as FrameLayout.LayoutParams
+        val transitionImageParams = binding.readingTransitionImage.layoutParams as FrameLayout.LayoutParams
         val overlayParams = binding.translationOverlay.layoutParams as FrameLayout.LayoutParams
         if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL && bitmap != null) {
             contentParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
             frameParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
             imageParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
+            transitionImageParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
             overlayParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
             binding.readingImage.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            binding.readingTransitionImage.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
             binding.readingImage.adjustViewBounds = true
+            binding.readingTransitionImage.adjustViewBounds = true
             binding.readingContentContainer.layoutParams = contentParams
             binding.readingImageFrame.layoutParams = frameParams
             binding.readingImage.layoutParams = imageParams
+            binding.readingTransitionImage.layoutParams = transitionImageParams
             binding.translationOverlay.layoutParams = overlayParams
             binding.readingImage.requestLayout()
             binding.readingImage.doOnLayout {
                 val imageHeight = binding.readingImage.height
                 if (imageHeight > 0) {
                     updateWebtoonChildHeight(binding.readingImageFrame, imageHeight)
+                    updateWebtoonChildHeight(binding.readingTransitionImage, imageHeight)
                     updateWebtoonChildHeight(binding.translationOverlay, imageHeight)
                     updateOverlay(currentTranslation, bitmap)
                 }
@@ -590,12 +692,16 @@ class ReadingFragment : Fragment() {
             contentParams.height = ViewGroup.LayoutParams.MATCH_PARENT
             frameParams.height = ViewGroup.LayoutParams.MATCH_PARENT
             imageParams.height = ViewGroup.LayoutParams.MATCH_PARENT
+            transitionImageParams.height = ViewGroup.LayoutParams.MATCH_PARENT
             overlayParams.height = ViewGroup.LayoutParams.MATCH_PARENT
             binding.readingImage.scaleType = android.widget.ImageView.ScaleType.MATRIX
+            binding.readingTransitionImage.scaleType = android.widget.ImageView.ScaleType.MATRIX
             binding.readingImage.adjustViewBounds = true
+            binding.readingTransitionImage.adjustViewBounds = true
             binding.readingContentContainer.layoutParams = contentParams
             binding.readingImageFrame.layoutParams = frameParams
             binding.readingImage.layoutParams = imageParams
+            binding.readingTransitionImage.layoutParams = transitionImageParams
             binding.translationOverlay.layoutParams = overlayParams
         }
     }

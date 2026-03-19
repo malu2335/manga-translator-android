@@ -275,6 +275,15 @@
                 android:text="@string/reading_display_button" />
 
             <Button
+                android:id="@+id/reading_page_animation_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:layout_marginStart="2dp"
+                android:layout_marginEnd="2dp"
+                android:text="@string/reading_page_animation_button" />
+
+            <Button
                 android:id="@+id/link_source_button"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

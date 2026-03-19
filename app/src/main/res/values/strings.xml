@@ -49,11 +49,16 @@
     <string name="reading_display_button">阅读设置</string>
     <string name="reading_display_title">阅读显示</string>
     <string name="reading_display_format">阅读显示：%1$s</string>
+    <string name="reading_page_animation_button">翻页动画</string>
+    <string name="reading_page_animation_title">翻页动画</string>
+    <string name="reading_page_animation_format">翻页动画：%1$s</string>
     <string name="link_source_button">更新链接来源</string>
     <string name="link_source_title">更新链接来源</string>
     <string name="link_source_format">更新链接来源：%1$s</string>
     <string name="reading_display_fit_width">等宽显示</string>
     <string name="reading_display_fit_height">等高显示</string>
+    <string name="reading_page_animation_none">无动画</string>
+    <string name="reading_page_animation_horizontal_slide">水平平移</string>
     <string name="theme_follow_system">跟随系统</string>
     <string name="theme_dark">暗色</string>
     <string name="theme_light">白色</string>

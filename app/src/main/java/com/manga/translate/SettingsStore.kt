@@ -214,6 +214,20 @@ class SettingsStore(context: Context) {
             }
     }
 
+    fun loadReadingPageAnimationMode(): ReadingPageAnimationMode {
+        val saved = prefs.getString(
+            KEY_READING_PAGE_ANIMATION_MODE,
+            ReadingPageAnimationMode.HORIZONTAL_SLIDE.prefValue
+        )
+        return ReadingPageAnimationMode.fromPref(saved)
+    }
+
+    fun saveReadingPageAnimationMode(mode: ReadingPageAnimationMode) {
+        prefs.edit() {
+                putString(KEY_READING_PAGE_ANIMATION_MODE, mode.prefValue)
+            }
+    }
+
     fun loadTranslationBubbleOpacityPercent(): Int {
         val saved = prefs.getInt(
             KEY_TRANSLATION_BUBBLE_OPACITY_PERCENT,
@@ -330,6 +344,7 @@ class SettingsStore(context: Context) {
         private const val KEY_APP_LANGUAGE = "app_language"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_READING_DISPLAY_MODE = "reading_display_mode"
+        private const val KEY_READING_PAGE_ANIMATION_MODE = "reading_page_animation_mode"
         private const val KEY_TRANSLATION_BUBBLE_OPACITY_PERCENT = "translation_bubble_opacity_percent"
         private const val KEY_LINK_SOURCE = "link_source"
         private const val KEY_LLM_TEMPERATURE = "llm_temperature"
