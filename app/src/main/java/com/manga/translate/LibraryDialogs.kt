@@ -35,7 +35,7 @@ internal class LibraryDialogs {
             .setTitle(titleRes)
             .setMessage(message)
             .setPositiveButton(positiveRes) { _, _ -> onPositive?.invoke() }
-            .show()
+            .showWithScrollableMessage()
     }
 
     private fun showTextInputDialog(
@@ -133,7 +133,7 @@ internal class LibraryDialogs {
             .setMessage(context.getString(R.string.folder_delete_confirm, folderName))
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(R.string.folder_delete) { _, _ -> onConfirm() }
-            .show()
+            .showWithScrollableMessage()
     }
 
     fun showRenameFolderDialog(
@@ -187,20 +187,34 @@ internal class LibraryDialogs {
         }
     }
 
-    fun showApiErrorDialog(context: Context, errorCode: String) {
+    fun showApiErrorDialog(context: Context, errorCode: String, detail: String? = null) {
         showMessageDialog(
             context,
             R.string.api_request_failed_title,
-            context.getString(R.string.api_request_failed_message, errorCode)
+            context.getString(
+                R.string.api_request_failed_message,
+                ErrorDialogFormatter.formatApiErrorMessage(context, errorCode, detail)
+            )
         )
     }
 
-    fun showModelErrorDialog(context: Context, responseContent: String) {
-        showMessageDialog(
-            context,
-            R.string.model_response_failed_title,
-            context.getString(R.string.model_response_failed_message, responseContent)
-        )
+    fun showModelErrorDialog(
+        context: Context,
+        responseContent: String,
+        onContinue: (() -> Unit)? = null
+    ) {
+        AlertDialog.Builder(context)
+            .setTitle(R.string.model_response_failed_title)
+            .setMessage(ErrorDialogFormatter.formatModelErrorMessage(context, responseContent))
+            .setNegativeButton(android.R.string.cancel, null)
+            .apply {
+                if (onContinue != null) {
+                    setPositiveButton(R.string.translation_continue) { _, _ -> onContinue.invoke() }
+                } else {
+                    setPositiveButton(android.R.string.ok, null)
+                }
+            }
+            .showWithScrollableMessage()
     }
 
     fun showEhViewerSubfolderPicker(
@@ -390,6 +404,6 @@ internal class LibraryDialogs {
             .setMessage(context.getString(R.string.delete_images_confirm, selectedCount))
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(R.string.delete_selected) { _, _ -> onConfirm() }
-            .show()
+            .showWithScrollableMessage()
     }
 }

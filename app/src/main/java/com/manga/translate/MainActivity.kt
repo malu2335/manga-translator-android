@@ -213,7 +213,7 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(R.string.crash_dialog_share) { _, _ ->
                 shareLatestLog()
             }
-            .show()
+            .showWithScrollableMessage()
     }
 
     override fun onDestroy() {
@@ -330,7 +330,7 @@ class MainActivity : AppCompatActivity() {
                 .setPositiveButton(android.R.string.ok) { _, _ ->
                     notificationPermissionLauncher.launch(permission)
                 }
-                .show()
+                .showWithScrollableMessage()
         } else {
             notificationPermissionLauncher.launch(permission)
         }

@@ -95,14 +95,14 @@ class LibraryFragment : Fragment() {
             Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
         }
 
-        override fun showApiError(code: String) {
+        override fun showApiError(code: String, detail: String?) {
             if (!isAdded) return
-            dialogs.showApiErrorDialog(requireContext(), code)
+            dialogs.showApiErrorDialog(requireContext(), code, detail)
         }
 
-        override fun showModelError(content: String) {
+        override fun showModelError(content: String, onContinue: (() -> Unit)?) {
             if (!isAdded) return
-            dialogs.showModelErrorDialog(requireContext(), content)
+            dialogs.showModelErrorDialog(requireContext(), content, onContinue)
         }
 
         override fun refreshFolders() {
@@ -346,7 +346,7 @@ class LibraryFragment : Fragment() {
             .setMessage(getString(R.string.overlay_permission_required_message))
             .setPositiveButton(android.R.string.ok) { _, _ -> openOverlayPermissionSettings() }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .showWithScrollableMessage()
     }
 
     private fun openOverlayPermissionSettings() {
@@ -370,7 +370,7 @@ class LibraryFragment : Fragment() {
                 requestScreenCapturePermissionLauncher.launch(manager.createScreenCaptureIntent())
             }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .showWithScrollableMessage()
     }
 
     private fun showOverlayPermissionFailedDialog() {
@@ -379,7 +379,7 @@ class LibraryFragment : Fragment() {
             .setTitle(getString(R.string.overlay_permission_failed_title))
             .setMessage(getString(R.string.overlay_permission_failed_message))
             .setPositiveButton(android.R.string.ok, null)
-            .show()
+            .showWithScrollableMessage()
     }
 
     private fun showScreenCapturePermissionFailedDialog() {
@@ -388,7 +388,7 @@ class LibraryFragment : Fragment() {
             .setTitle(getString(R.string.screen_capture_permission_required_title))
             .setMessage(getString(R.string.screen_capture_permission_failed))
             .setPositiveButton(android.R.string.ok, null)
-            .show()
+            .showWithScrollableMessage()
     }
 
     private fun startFloatingTranslateEntry(resultCode: Int, resultData: Intent) {
@@ -594,7 +594,7 @@ class LibraryFragment : Fragment() {
                 openUrlOrToast(tutorialUrlGithub)
             }
             .setNeutralButton(android.R.string.cancel, null)
-            .show()
+            .showWithScrollableMessage()
     }
 
     private fun openUrlOrToast(url: String) {

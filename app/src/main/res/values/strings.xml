@@ -66,7 +66,8 @@
     <string name="fetch_models_loading">正在获取模型列表…</string>
     <string name="fetch_models_multi_select_hint">可多选，确认后会用英文逗号写入模型名称</string>
     <string name="fetch_models_failed_title">获取模型列表失败</string>
-    <string name="fetch_models_failed_message">请求失败（%1$s）</string>
+    <string name="fetch_models_failed_message">获取失败：
+%1$s</string>
     <string name="llm_params_button">AI 参数设置</string>
     <string name="llm_params_title">AI 参数设置</string>
     <string name="ocr_settings_button">OCR 设置</string>
@@ -275,10 +276,17 @@
 
     <!-- Error Dialogs -->
     <string name="api_request_failed_title">API 调用失败</string>
-    <string name="api_request_failed_message">请求失败（%1$s），翻译已终止。</string>
+    <string name="api_request_failed_message">请求失败，翻译已终止：
+%1$s</string>
+    <string name="api_request_error_timeout">请求超时，请检查网络连接或适当调大超时设置。</string>
+    <string name="api_request_error_network">网络请求失败，请检查 API 地址、网络连接和代理设置。</string>
+    <string name="api_request_error_missing_url">API 地址未配置或格式无效，请检查设置。</string>
+    <string name="api_request_error_empty_response">接口返回为空或未返回可用结果，请检查接口格式和权限设置。</string>
     <string name="model_response_failed_title">模型返回异常</string>
     <string name="model_response_failed_message">模型返回有问题的结果，翻译已终止：
 %1$s</string>
+    <string name="translation_continue">继续翻译</string>
+    <string name="error_code_with_label">错误码：%1$s</string>
 
     <!-- Foreground Notifications -->
     <string name="translation_keepalive_channel">后台翻译</string>

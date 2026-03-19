@@ -683,7 +683,7 @@ class SettingsFragment : Fragment() {
                     showModelSelectionDialog(models)
                 }
             } catch (e: LlmRequestException) {
-                showModelFetchError(e.errorCode)
+                showModelFetchError(e.errorCode, e.responseBody)
             } finally {
                 loadingDialog.dismiss()
                 binding.fetchModelsButton.isEnabled = true
@@ -711,12 +711,17 @@ class SettingsFragment : Fragment() {
             .show()
     }
 
-    private fun showModelFetchError(code: String) {
+    private fun showModelFetchError(code: String, detail: String? = null) {
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.fetch_models_failed_title)
-            .setMessage(getString(R.string.fetch_models_failed_message, code))
+            .setMessage(
+                getString(
+                    R.string.fetch_models_failed_message,
+                    ErrorDialogFormatter.formatApiErrorMessage(requireContext(), code, detail)
+                )
+            )
             .setPositiveButton(android.R.string.ok, null)
-            .show()
+            .showWithScrollableMessage()
     }
 
     private fun resolveVersionName(): String {

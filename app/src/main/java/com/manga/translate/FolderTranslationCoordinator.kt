@@ -23,8 +23,19 @@ internal class FolderTranslationCoordinator(
     private val settingsStore: SettingsStore,
     private val ui: LibraryUiCallbacks
 ) {
+    private data class ResumeTranslationTask(
+        val folder: File,
+        val images: List<File>,
+        val force: Boolean,
+        val fullTranslate: Boolean,
+        val language: TranslationLanguage,
+        val onTranslateEnabled: (Boolean) -> Unit
+    )
+
     private val appContext = context.applicationContext
     private val translationRunning = AtomicBoolean(false)
+    @Volatile
+    private var resumableTask: ResumeTranslationTask? = null
 
     fun translateFolder(
         scope: CoroutineScope,
@@ -35,11 +46,33 @@ internal class FolderTranslationCoordinator(
         language: TranslationLanguage,
         onTranslateEnabled: (Boolean) -> Unit
     ) {
+        resumableTask = ResumeTranslationTask(
+            folder = folder,
+            images = images.toList(),
+            force = force,
+            fullTranslate = fullTranslate,
+            language = language,
+            onTranslateEnabled = onTranslateEnabled
+        )
         if (fullTranslate) {
             translateFolderFull(scope, folder, images, force, language, onTranslateEnabled)
         } else {
             translateFolderStandard(scope, folder, images, force, language, onTranslateEnabled)
         }
+    }
+
+    fun resumeFailedTranslation(scope: CoroutineScope): Boolean {
+        val task = resumableTask ?: return false
+        translateFolder(
+            scope = scope,
+            folder = task.folder,
+            images = task.images,
+            force = task.force,
+            fullTranslate = task.fullTranslate,
+            language = task.language,
+            onTranslateEnabled = task.onTranslateEnabled
+        )
+        return true
     }
 
     private fun translateFolderStandard(
@@ -92,12 +125,14 @@ internal class FolderTranslationCoordinator(
                             translationPipeline.translateImage(image, glossary, force, language) { }
                         } catch (e: LlmRequestException) {
                             AppLogger.log("Library", "Translation aborted for ${image.name}", e)
-                            ui.showApiError(e.errorCode)
+                            ui.showApiError(e.errorCode, e.responseBody)
                             failed = true
                             break
                         } catch (e: LlmResponseException) {
                             AppLogger.log("Library", "Invalid model response for ${image.name}", e)
-                            ui.showModelError(e.responseContent)
+                            ui.showModelError(e.responseContent) {
+                                resumeFailedTranslation(scope)
+                            }
                             failed = true
                             break
                         } catch (e: Exception) {
@@ -147,6 +182,9 @@ internal class FolderTranslationCoordinator(
                         "Library",
                         "Folder translation ${if (failed) "completed with failures" else "completed"}: ${folder.name}"
                     )
+                    if (!failed) {
+                        resumableTask = null
+                    }
                     ui.refreshImages(folder)
                 } finally {
                     onTranslateEnabled(true)
@@ -313,7 +351,9 @@ internal class FolderTranslationCoordinator(
                                         hasFailures.set(true)
                                         if (reportedModelError.compareAndSet(false, true)) {
                                             withContext(Dispatchers.Main) {
-                                                ui.showModelError(e.responseContent)
+                                                ui.showModelError(e.responseContent) {
+                                                    resumeFailedTranslation(scope)
+                                                }
                                             }
                                         }
                                         null
@@ -379,10 +419,13 @@ internal class FolderTranslationCoordinator(
                         "Library",
                         "Full-page translation ${if (failed) "completed with failures" else "completed"}: ${folder.name}"
                     )
+                    if (!failed) {
+                        resumableTask = null
+                    }
                     ui.refreshImages(folder)
                 } catch (e: LlmRequestException) {
                     AppLogger.log("Library", "Full-page translation aborted", e)
-                    ui.showApiError(e.errorCode)
+                    ui.showApiError(e.errorCode, e.responseBody)
                     ui.setFolderStatus(appContext.getString(R.string.translation_failed))
                     GlobalTaskProgressStore.fail(
                         appContext.getString(R.string.translation_keepalive_title),

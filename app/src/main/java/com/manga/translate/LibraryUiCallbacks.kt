@@ -7,8 +7,8 @@ internal interface LibraryUiCallbacks {
     fun clearFolderStatus()
     fun showToast(resId: Int)
     fun showToastMessage(message: String)
-    fun showApiError(code: String)
-    fun showModelError(content: String)
+    fun showApiError(code: String, detail: String? = null)
+    fun showModelError(content: String, onContinue: (() -> Unit)?)
     fun refreshFolders()
     fun refreshImages(folder: File)
     fun isFragmentActive(): Boolean
