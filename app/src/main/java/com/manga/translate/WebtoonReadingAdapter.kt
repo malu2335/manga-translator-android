@@ -2,7 +2,6 @@ package com.manga.translate
 
 import android.graphics.Bitmap
 import android.graphics.RectF
-import android.graphics.BitmapFactory
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -82,6 +81,8 @@ class WebtoonReadingAdapter(
         private var boundFile: File? = null
         private var boundEmbeddedMode: Boolean = false
         private var currentBitmap: Bitmap? = null
+        private var currentImageWidth: Int = 0
+        private var currentImageHeight: Int = 0
         private var lastTranslationModified: Long = Long.MIN_VALUE
 
         fun bind(
@@ -94,6 +95,8 @@ class WebtoonReadingAdapter(
             boundFile = imageFile
             boundEmbeddedMode = embeddedMode
             currentBitmap = null
+            currentImageWidth = 0
+            currentImageHeight = 0
             lastTranslationModified = Long.MIN_VALUE
             bindJob?.cancel()
             watchJob?.cancel()
@@ -125,7 +128,11 @@ class WebtoonReadingAdapter(
             bindJob?.cancel()
             bindJob = scope.launch {
                 val targetWidth = resolveTargetWidth()
-                val bitmap = withContext(Dispatchers.IO) { decodeSampledBitmap(imageFile, targetWidth) }
+                val targetHeight = resolveTargetHeight()
+                val decoded = withContext(Dispatchers.IO) {
+                    ReadingBitmapDecoder.decode(imageFile, targetWidth, targetHeight)
+                }
+                val bitmap = decoded?.bitmap
                 val translation = if (embeddedMode) {
                     null
                 } else {
@@ -138,6 +145,8 @@ class WebtoonReadingAdapter(
                     return@launch
                 }
                 currentBitmap = bitmap
+                currentImageWidth = decoded.sourceWidth
+                currentImageHeight = decoded.sourceHeight
                 binding.readingPageImage.setImageBitmap(bitmap)
                 binding.readingPageImage.doOnLayout {
                     if (boundPath != imageFile.absolutePath) return@doOnLayout
@@ -155,6 +164,8 @@ class WebtoonReadingAdapter(
             boundPath = null
             boundFile = null
             currentBitmap = null
+            currentImageWidth = 0
+            currentImageHeight = 0
             binding.readingPageImage.setImageDrawable(null)
             binding.readingPageOverlay.visibility = View.GONE
         }
@@ -167,9 +178,9 @@ class WebtoonReadingAdapter(
                 return
             }
             val resolved = when {
-                translation == null -> TranslationResult("", bitmap.width, bitmap.height, emptyList())
-                translation.width == bitmap.width && translation.height == bitmap.height -> translation
-                else -> translation.copy(width = bitmap.width, height = bitmap.height)
+                translation == null -> TranslationResult("", currentImageWidth, currentImageHeight, emptyList())
+                translation.width == currentImageWidth && translation.height == currentImageHeight -> translation
+                else -> translation.copy(width = currentImageWidth, height = currentImageHeight)
             }
             binding.readingPageOverlay.setDisplayRect(RectF(0f, 0f, width, height))
             binding.readingPageOverlay.setOffsets(emptyMap())
@@ -206,27 +217,11 @@ class WebtoonReadingAdapter(
                 ?: binding.root.resources.displayMetrics.widthPixels
         }
 
-        private fun decodeSampledBitmap(imageFile: File, targetWidth: Int): Bitmap? {
-            val safeTargetWidth = targetWidth.coerceAtLeast(1)
-            val bounds = BitmapFactory.Options().apply {
-                inJustDecodeBounds = true
-            }
-            BitmapFactory.decodeFile(imageFile.absolutePath, bounds)
-            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-            val sampleSize = calculateInSampleSize(bounds.outWidth, safeTargetWidth)
-            val options = BitmapFactory.Options().apply {
-                inSampleSize = sampleSize
-                inPreferredConfig = Bitmap.Config.RGB_565
-            }
-            return BitmapFactory.decodeFile(imageFile.absolutePath, options)
-        }
-
-        private fun calculateInSampleSize(sourceWidth: Int, targetWidth: Int): Int {
-            var sample = 1
-            while (sourceWidth / (sample * 2) >= targetWidth) {
-                sample *= 2
-            }
-            return sample.coerceAtLeast(1)
+        private fun resolveTargetHeight(): Int {
+            return binding.readingPageImage.height
+                .takeIf { it > 0 }
+                ?: binding.root.height.takeIf { it > 0 }
+                ?: binding.root.resources.displayMetrics.heightPixels
         }
     }
 }

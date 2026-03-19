@@ -53,6 +53,8 @@ class ReadingFragment : Fragment() {
     private var currentTranslation: TranslationResult? = null
     private var translationWatchJob: Job? = null
     private var currentBitmap: Bitmap? = null
+    private var currentImageWidth: Int = 0
+    private var currentImageHeight: Int = 0
     private lateinit var imageTransformController: ReadingImageTransformController
     private var readingDisplayMode = ReadingDisplayMode.FIT_WIDTH
     private var folderReadingMode = FolderReadingMode.STANDARD
@@ -251,6 +253,8 @@ class ReadingFragment : Fragment() {
             hideResizePanel()
             binding.readingImage.setImageDrawable(null)
             currentBitmap = null
+            currentImageWidth = 0
+            currentImageHeight = 0
             imageTransformController.setCurrentBitmap(null)
             binding.readingScrollContainer.scrollTo(0, 0)
             return
@@ -276,7 +280,8 @@ class ReadingFragment : Fragment() {
         val targetIndex = index
         val targetEmbeddedMode = isEmbeddedMode
         viewLifecycleOwner.lifecycleScope.launch {
-            val bitmap = loadBitmap(imageFile.absolutePath)
+            val decoded = loadBitmap(imageFile)
+            val bitmap = decoded?.bitmap
             val translation = if (targetEmbeddedMode) {
                 null
             } else {
@@ -297,10 +302,14 @@ class ReadingFragment : Fragment() {
             if (bitmap != null) {
                 binding.readingImage.setImageBitmap(bitmap)
                 currentBitmap = bitmap
+                currentImageWidth = decoded.sourceWidth
+                currentImageHeight = decoded.sourceHeight
                 imageTransformController.setCurrentBitmap(bitmap)
             } else {
                 binding.readingImage.setImageDrawable(null)
                 currentBitmap = null
+                currentImageWidth = 0
+                currentImageHeight = 0
                 imageTransformController.setCurrentBitmap(null)
             }
             binding.readingScrollContainer.scrollTo(0, 0)
@@ -333,6 +342,8 @@ class ReadingFragment : Fragment() {
         currentImageFile = null
         currentTranslation = null
         currentBitmap = null
+        currentImageWidth = 0
+        currentImageHeight = 0
         imageTransformController.setCurrentBitmap(null)
         if (images.isEmpty() || folder == null) {
             binding.readingEmptyHint.visibility = View.VISIBLE
@@ -373,16 +384,24 @@ class ReadingFragment : Fragment() {
             binding.translationOverlay.visibility = View.GONE
             return
         }
-        val width = translation?.width ?: bitmap?.width ?: 0
-        val height = translation?.height ?: bitmap?.height ?: 0
-        if (width <= 0 || height <= 0) {
+        val resolvedWidth = when {
+            translation != null && translation.width > 0 -> translation.width
+            currentImageWidth > 0 -> currentImageWidth
+            else -> bitmap?.width ?: 0
+        }
+        val resolvedHeight = when {
+            translation != null && translation.height > 0 -> translation.height
+            currentImageHeight > 0 -> currentImageHeight
+            else -> bitmap?.height ?: 0
+        }
+        if (resolvedWidth <= 0 || resolvedHeight <= 0) {
             binding.translationOverlay.visibility = View.GONE
             return
         }
         val normalized = when {
-            translation == null -> TranslationResult("", width, height, emptyList())
-            translation.width == width && translation.height == height -> translation
-            else -> translation.copy(width = width, height = height)
+            translation == null -> TranslationResult("", resolvedWidth, resolvedHeight, emptyList())
+            translation.width == resolvedWidth && translation.height == resolvedHeight -> translation
+            else -> translation.copy(width = resolvedWidth, height = resolvedHeight)
         }
         currentTranslation = normalized
         binding.translationOverlay.setDisplayRect(rect)
@@ -408,8 +427,16 @@ class ReadingFragment : Fragment() {
         updateOverlay(currentTranslation, bitmap)
     }
 
-    private suspend fun loadBitmap(path: String): Bitmap? = withContext(Dispatchers.IO) {
-        android.graphics.BitmapFactory.decodeFile(path)
+    private suspend fun loadBitmap(imageFile: java.io.File): DecodedReadingBitmap? = withContext(Dispatchers.IO) {
+        val width = binding.readingImage.width
+            .takeIf { it > 0 }
+            ?: binding.readingRoot.width.takeIf { it > 0 }
+            ?: resources.displayMetrics.widthPixels
+        val height = binding.readingImage.height
+            .takeIf { it > 0 }
+            ?: binding.readingRoot.height.takeIf { it > 0 }
+            ?: resources.displayMetrics.heightPixels
+        ReadingBitmapDecoder.decode(imageFile, width, height)
     }
 
     private fun handleTap(x: Float) {
@@ -667,12 +694,15 @@ class ReadingFragment : Fragment() {
                         translationStore.load(imageFile)
                     }
                     if (currentImageFile?.absolutePath != imageFile.absolutePath) return@launch
-                    val bitmap = binding.readingImage.drawable?.let { _ ->
-                        loadBitmap(imageFile.absolutePath)
+                    val decoded = binding.readingImage.drawable?.let { _ ->
+                        loadBitmap(imageFile)
                     }
+                    val bitmap = decoded?.bitmap
                     if (bitmap != null) {
                         binding.readingImage.setImageBitmap(bitmap)
                         currentBitmap = bitmap
+                        currentImageWidth = decoded.sourceWidth
+                        currentImageHeight = decoded.sourceHeight
                         imageTransformController.setCurrentBitmap(bitmap)
                     }
                     binding.readingImage.post {
