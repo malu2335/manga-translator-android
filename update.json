@@ -1,15 +1,15 @@
 {
-  "versionCode": 31,
-  "versionName": "2.3.7",
-  "releasedAt": "2026-03-19",
-  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.7/app-release.apk",
-  "changelog": "新增翻页动画、悬浮窗气泡编辑功能，优化UI，提升软件稳定性，修复了一些bug，将EhViewer导入改为通用导入",
+  "versionCode": 32,
+  "versionName": "2.3.8",
+  "releasedAt": "2026-03-20",
+  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.8/app-release.apk",
+  "changelog": "优化UI，优化动画，添加自定义AI参数功能",
   "history": [
     {
-      "versionName": "2.3.6",
-      "releasedAt": "2026-03-18",
-      "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.6/app-release.apk",
-      "changelog": "修复模型列表不显示，新增条漫阅读"
+      "versionName": "2.3.7",
+      "releasedAt": "2026-03-19",
+      "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.7/app-release.apk",
+      "changelog": "新增翻页动画、悬浮窗气泡编辑功能，优化UI，提升软件稳定性，修复了一些bug，将EhViewer导入改为通用导入"
     },
     {
       "versionName": "2.3.5",
