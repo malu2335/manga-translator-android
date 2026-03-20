@@ -27,7 +27,7 @@ android {
 
     val releaseSigning = if (hasSigning) {
         signingConfigs.create("release") {
-            storeFile = file(storeFilePath!!)
+            storeFile = rootProject.file(storeFilePath!!)
             storePassword = storePasswordProp
             keyAlias = keyAliasProp
             keyPassword = keyPasswordProp
