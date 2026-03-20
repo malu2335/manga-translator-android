@@ -2,6 +2,8 @@ package com.manga.translate
 
 import android.content.Context
 import androidx.core.content.edit
+import org.json.JSONArray
+import org.json.JSONObject
 
 data class ApiSettings(
     val apiUrl: String,
@@ -32,6 +34,12 @@ data class FloatingTranslateApiSettings(
     val modelName: String,
     val useVlDirectTranslate: Boolean,
     val vlTranslateConcurrency: Int
+)
+
+data class CustomRequestParameter(
+    val key: String,
+    val value: String,
+    val enabled: Boolean = true
 )
 
 class SettingsStore(context: Context) {
@@ -290,6 +298,42 @@ class SettingsStore(context: Context) {
             }
     }
 
+    fun loadCustomRequestParameters(): List<CustomRequestParameter> {
+        val raw = prefs.getString(KEY_CUSTOM_REQUEST_PARAMETERS, null).orEmpty()
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    val key = item.optString("key").trim()
+                    val value = item.optString("value")
+                    val enabled = item.optBoolean("enabled", true)
+                    if (key.isBlank() && value.isBlank()) continue
+                    add(CustomRequestParameter(key = key, value = value, enabled = enabled))
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun saveCustomRequestParameters(parameters: List<CustomRequestParameter>) {
+        val array = JSONArray()
+        parameters.forEach { parameter ->
+            val key = parameter.key.trim()
+            val value = parameter.value
+            if (key.isBlank() && value.isBlank()) return@forEach
+            array.put(
+                JSONObject()
+                    .put("key", key)
+                    .put("value", value)
+                    .put("enabled", parameter.enabled)
+            )
+        }
+        prefs.edit() {
+            putString(KEY_CUSTOM_REQUEST_PARAMETERS, array.toString())
+        }
+    }
+
     private fun readDoubleWithDefault(key: String, defaultValue: Double): Double? {
         if (!prefs.contains(key)) return defaultValue
         val value = prefs.getString(key, null)
@@ -346,6 +390,7 @@ class SettingsStore(context: Context) {
         private const val KEY_LLM_THINKING_BUDGET = "llm_thinking_budget"
         private const val KEY_LLM_FREQUENCY_PENALTY = "llm_frequency_penalty"
         private const val KEY_LLM_PRESENCE_PENALTY = "llm_presence_penalty"
+        private const val KEY_CUSTOM_REQUEST_PARAMETERS = "custom_request_parameters"
         private const val DEFAULT_LLM_TEMPERATURE = 0.8
         private const val DEFAULT_LLM_TOP_P = 1.0
         private const val DEFAULT_LLM_ENABLE_THINKING = false

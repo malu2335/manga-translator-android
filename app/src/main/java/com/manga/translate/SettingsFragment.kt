@@ -20,10 +20,12 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import com.manga.translate.databinding.DialogCustomRequestParamsBinding
 import com.manga.translate.databinding.DialogLlmParamsBinding
 import com.manga.translate.databinding.DialogOcrSettingsBinding
 import com.manga.translate.databinding.DialogFloatingTranslateSettingsBinding
 import com.manga.translate.databinding.FragmentSettingsBinding
+import com.manga.translate.databinding.ItemCustomRequestParamBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -104,6 +106,7 @@ class SettingsFragment : Fragment() {
         updateReadingPageAnimationButton(settingsStore.loadReadingPageAnimationMode())
         val linkSource = settingsStore.loadLinkSource()
         updateLinkSourceButton(linkSource)
+        updateCustomRequestParamsButton(settingsStore.loadCustomRequestParameters())
         binding.textLayoutSwitch.setOnCheckedChangeListener { _, isChecked ->
             settingsStore.saveUseHorizontalText(isChecked)
             AppLogger.log("Settings", "Text layout set to ${if (isChecked) "horizontal" else "vertical"}")
@@ -140,6 +143,10 @@ class SettingsFragment : Fragment() {
 
         binding.llmParamsButton.setOnClickListener {
             showLlmParamsDialog()
+        }
+
+        binding.customRequestParamsButton.setOnClickListener {
+            showCustomRequestParamsDialog()
         }
 
         binding.ocrSettingsButton.setOnClickListener {
@@ -436,6 +443,13 @@ class SettingsFragment : Fragment() {
         updateLabeledButton(binding.linkSourceButton, R.string.link_source_format, source.labelRes)
     }
 
+    private fun updateCustomRequestParamsButton(parameters: List<CustomRequestParameter>) {
+        binding.customRequestParamsButton.text = getString(
+            R.string.custom_request_params_button_format,
+            parameters.count { it.key.isNotBlank() }
+        )
+    }
+
     private fun showAboutDialog() {
         val versionName = resolveVersionName()
         val dialogView = layoutInflater.inflate(R.layout.dialog_about, null)
@@ -546,6 +560,68 @@ class SettingsFragment : Fragment() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun showCustomRequestParamsDialog() {
+        val dialogBinding = DialogCustomRequestParamsBinding.inflate(layoutInflater)
+        val existing = settingsStore.loadCustomRequestParameters()
+
+        fun addRow(parameter: CustomRequestParameter = CustomRequestParameter("", "")) {
+            val rowBinding = ItemCustomRequestParamBinding.inflate(
+                layoutInflater,
+                dialogBinding.customRequestParamsContainer,
+                false
+            )
+            rowBinding.customRequestParamEnabledSwitch.isChecked = parameter.enabled
+            rowBinding.customRequestParamKeyInput.setText(parameter.key)
+            rowBinding.customRequestParamValueInput.setText(parameter.value)
+            rowBinding.customRequestParamDeleteButton.setOnClickListener {
+                dialogBinding.customRequestParamsContainer.removeView(rowBinding.root)
+                if (dialogBinding.customRequestParamsContainer.childCount == 0) {
+                    addRow()
+                }
+            }
+            dialogBinding.customRequestParamsContainer.addView(rowBinding.root)
+        }
+
+        if (existing.isEmpty()) {
+            addRow()
+        } else {
+            existing.forEach(::addRow)
+        }
+        dialogBinding.customRequestParamsAddButton.setOnClickListener {
+            addRow()
+        }
+
+        val dialog = AlertDialog.Builder(requireContext())
+            .setTitle(R.string.custom_request_params_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(R.string.llm_params_clear, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val parameters = collectCustomRequestParameters(dialogBinding)
+                val validationError = validateCustomRequestParameters(parameters)
+                if (validationError != null) {
+                    Toast.makeText(requireContext(), validationError, Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                settingsStore.saveCustomRequestParameters(parameters)
+                updateCustomRequestParamsButton(parameters)
+                Toast.makeText(requireContext(), R.string.custom_request_params_saved, Toast.LENGTH_SHORT).show()
+                AppLogger.log("Settings", "Custom request params updated")
+                dialog.dismiss()
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                settingsStore.saveCustomRequestParameters(emptyList())
+                updateCustomRequestParamsButton(emptyList())
+                AppLogger.log("Settings", "Custom request params cleared")
+                dialog.dismiss()
+            }
+        }
+        dialog.show()
     }
 
     private fun showOcrSettingsDialog() {
@@ -679,6 +755,44 @@ class SettingsFragment : Fragment() {
             presencePenalty = parseDouble(dialogBinding.presencePenaltyInput.text?.toString())
         )
         return ParsedLlmParams(params, hasInvalid)
+    }
+
+    private fun collectCustomRequestParameters(
+        dialogBinding: DialogCustomRequestParamsBinding
+    ): List<CustomRequestParameter> {
+        val collected = mutableListOf<CustomRequestParameter>()
+        for (index in 0 until dialogBinding.customRequestParamsContainer.childCount) {
+            val child = dialogBinding.customRequestParamsContainer.getChildAt(index)
+            val rowBinding = ItemCustomRequestParamBinding.bind(child)
+            collected += CustomRequestParameter(
+                key = rowBinding.customRequestParamKeyInput.text?.toString()?.trim().orEmpty(),
+                value = rowBinding.customRequestParamValueInput.text?.toString().orEmpty(),
+                enabled = rowBinding.customRequestParamEnabledSwitch.isChecked
+            )
+        }
+        return collected
+    }
+
+    private fun validateCustomRequestParameters(parameters: List<CustomRequestParameter>): String? {
+        val activeKeys = LinkedHashSet<String>()
+        parameters.forEach { parameter ->
+            val key = parameter.key.trim()
+            val value = parameter.value.trim()
+            if (key.isBlank() && value.isBlank()) return@forEach
+            if (key.isBlank()) {
+                return getString(R.string.custom_request_params_empty_row_error)
+            }
+            if (!parameter.enabled) return@forEach
+            if (!activeKeys.add(key)) {
+                return getString(R.string.custom_request_params_duplicate_error, key)
+            }
+        }
+        val conflict = activeKeys.firstOrNull { it in LlmClient.reservedRequestKeys(currentApiFormat()) }
+        return if (conflict != null) {
+            getString(R.string.custom_request_params_conflict_error, conflict)
+        } else {
+            null
+        }
     }
 
     private fun supportsSiliconFlowThinkingParams(): Boolean {

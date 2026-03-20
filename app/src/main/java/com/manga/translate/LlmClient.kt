@@ -6,6 +6,7 @@ import android.util.Base64
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -123,6 +124,7 @@ class LlmClient(context: Context) {
                 }
                 return@withContext null
             }
+            maybeBackoffBeforeRetry(attempt, RETRY_COUNT, lastErrorCode)
         }
         null
     }
@@ -236,6 +238,7 @@ class LlmClient(context: Context) {
                 }
                 return null
             }
+            maybeBackoffBeforeRetry(attempt, retries, lastErrorCode)
         }
         return null
     }
@@ -322,6 +325,7 @@ class LlmClient(context: Context) {
                 }
                 return null
             }
+            maybeBackoffBeforeRetry(attempt, retries, lastErrorCode)
         }
         return null
     }
@@ -452,6 +456,7 @@ class LlmClient(context: Context) {
             .put("messages", messages)
         applyOpenAiSamplingParams(payload, llmParams, settings)
         applyOpenAiExtraBody(payload, llmParams, settings)
+        applyCustomRequestParameters(payload, settings.apiFormat)
         return payload
     }
 
@@ -472,6 +477,7 @@ class LlmClient(context: Context) {
             payload.put("systemInstruction", buildGeminiSystemInstruction(config.systemPrompt))
         }
         buildGeminiGenerationConfig(useJsonPayload)?.let { payload.put("generationConfig", it) }
+        applyCustomRequestParameters(payload, ApiFormat.GEMINI)
         return payload
     }
 
@@ -658,6 +664,7 @@ class LlmClient(context: Context) {
             .put("messages", messages)
         applyOpenAiSamplingParams(payload, llmParams, settings)
         applyOpenAiExtraBody(payload, llmParams, settings)
+        applyCustomRequestParameters(payload, settings.apiFormat)
         return payload
     }
 
@@ -698,7 +705,49 @@ class LlmClient(context: Context) {
         buildGeminiGenerationConfig(useJsonPayload = false)?.let {
             payload.put("generationConfig", it)
         }
+        applyCustomRequestParameters(payload, ApiFormat.GEMINI)
         return payload
+    }
+
+    private fun applyCustomRequestParameters(payload: JSONObject, apiFormat: ApiFormat) {
+        val parameters = settingsStore.loadCustomRequestParameters()
+        if (parameters.isEmpty()) return
+        val reservedKeys = reservedRequestKeys(apiFormat)
+        val seenKeys = LinkedHashSet<String>()
+        parameters.forEach { parameter ->
+            if (!parameter.enabled) return@forEach
+            val key = parameter.key.trim()
+            val value = parameter.value.trim()
+            if (key.isBlank() && value.isBlank()) return@forEach
+            if (key.isBlank()) {
+                throw LlmRequestException("CUSTOM_PARAM_CONFLICT", "blank key")
+            }
+            if (!seenKeys.add(key)) {
+                throw LlmRequestException("CUSTOM_PARAM_CONFLICT", key)
+            }
+            if (key in reservedKeys || payload.has(key)) {
+                throw LlmRequestException("CUSTOM_PARAM_CONFLICT", key)
+            }
+            payload.put(key, parseCustomRequestParameterValue(key, parameter.value))
+        }
+    }
+
+    private fun parseCustomRequestParameterValue(key: String, rawValue: String): Any {
+        val trimmed = rawValue.trim()
+        if (trimmed.equals("true", ignoreCase = true)) return true
+        if (trimmed.equals("false", ignoreCase = true)) return false
+        if (trimmed.equals("null", ignoreCase = true)) return JSONObject.NULL
+        trimmed.toLongOrNull()?.let { return it }
+        trimmed.toDoubleOrNull()?.let { return it }
+        if (trimmed.startsWith("{")) {
+            return runCatching { JSONObject(trimmed) }
+                .getOrElse { throw LlmRequestException("CUSTOM_PARAM_INVALID_VALUE", key) }
+        }
+        if (trimmed.startsWith("[")) {
+            return runCatching { JSONArray(trimmed) }
+                .getOrElse { throw LlmRequestException("CUSTOM_PARAM_INVALID_VALUE", key) }
+        }
+        return rawValue
     }
 
     private fun applyOpenAiExtraBody(
@@ -853,8 +902,37 @@ class LlmClient(context: Context) {
                 }
                 return emptyList()
             }
+            maybeBackoffBeforeRetry(attempt, RETRY_COUNT, lastErrorCode)
         }
         return emptyList()
+    }
+
+    private suspend fun maybeBackoffBeforeRetry(
+        attempt: Int,
+        maxAttempts: Int,
+        errorCode: String?
+    ) {
+        if (attempt >= maxAttempts || !shouldRetryWithBackoff(errorCode)) {
+            return
+        }
+        val delayMs = (RETRY_BASE_DELAY_MS shl (attempt - 1)).coerceAtMost(RETRY_MAX_DELAY_MS)
+        AppLogger.log(
+            "LlmClient",
+            "Retrying request after ${delayMs}ms backoff (attempt ${attempt + 1}/$maxAttempts, error=$errorCode)"
+        )
+        delay(delayMs.toLong())
+    }
+
+    private fun shouldRetryWithBackoff(errorCode: String?): Boolean {
+        if (errorCode == null) return false
+        if (errorCode == "TIMEOUT" || errorCode == "NETWORK_ERROR" || errorCode == "HTTP 408" || errorCode == "HTTP 429") {
+            return true
+        }
+        if (!errorCode.startsWith("HTTP ")) {
+            return false
+        }
+        val status = errorCode.removePrefix("HTTP ").toIntOrNull() ?: return false
+        return status >= 500
     }
 
     private fun parseModelList(body: String, apiFormat: ApiFormat): List<String> {
@@ -1042,7 +1120,30 @@ class LlmClient(context: Context) {
         private const val DEFAULT_IMAGE_TRANSLATION_USER_PROMPT =
             "Translate only the text visible in this manga bubble into Simplified Chinese. Output only the translated text."
         private const val RETRY_COUNT = 3
+        private const val RETRY_BASE_DELAY_MS = 750
+        private const val RETRY_MAX_DELAY_MS = 4_000
         private val requestCounter = AtomicLong(0)
+
+        fun reservedRequestKeys(apiFormat: ApiFormat): Set<String> {
+            return when (apiFormat) {
+                ApiFormat.OPENAI_COMPATIBLE -> setOf(
+                    "model",
+                    "messages",
+                    "temperature",
+                    "top_p",
+                    "top_k",
+                    "max_output_tokens",
+                    "frequency_penalty",
+                    "presence_penalty",
+                    "extra_body"
+                )
+                ApiFormat.GEMINI -> setOf(
+                    "contents",
+                    "systemInstruction",
+                    "generationConfig"
+                )
+            }
+        }
     }
 }
 

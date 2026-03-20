@@ -59,6 +59,7 @@
     <string name="reading_display_fit_height">等高显示</string>
     <string name="reading_page_animation_none">无动画</string>
     <string name="reading_page_animation_horizontal_slide">水平平移</string>
+    <string name="reading_page_loading_placeholder">此页未加载</string>
     <string name="theme_follow_system">跟随系统</string>
     <string name="theme_dark">暗色</string>
     <string name="theme_light">白色</string>
@@ -74,6 +75,19 @@
 %1$s</string>
     <string name="llm_params_button">AI 参数设置</string>
     <string name="llm_params_title">AI 参数设置</string>
+    <string name="custom_request_params_button">自定义请求参数</string>
+    <string name="custom_request_params_button_format">自定义请求参数：%1$d 项</string>
+    <string name="custom_request_params_title">自定义请求参数</string>
+    <string name="custom_request_params_note">将以顶层字段附加到 AI 请求体。支持多个键值对，自动识别布尔值、数字、null，以及合法 JSON 对象/数组。不能覆盖现有内置参数，冲突会被拦截。</string>
+    <string name="custom_request_params_add">新增参数</string>
+    <string name="custom_request_params_delete">删除此行</string>
+    <string name="custom_request_params_enabled">启用此参数</string>
+    <string name="custom_request_param_key_hint">参数键名</string>
+    <string name="custom_request_param_value_hint">参数值</string>
+    <string name="custom_request_params_empty_row_error">参数键名不能为空</string>
+    <string name="custom_request_params_duplicate_error">存在重复的自定义参数键：%1$s</string>
+    <string name="custom_request_params_conflict_error">自定义参数不能覆盖内置字段：%1$s</string>
+    <string name="custom_request_params_saved">自定义请求参数已保存</string>
     <string name="ocr_settings_button">OCR 设置</string>
     <string name="ocr_settings_title">OCR 设置</string>
     <string name="floating_translate_settings_button">悬浮窗翻译设置</string>
@@ -98,6 +112,7 @@
     <string name="llm_params_invalid">参数格式有误，已忽略无效项</string>
     <string name="llm_params_note">留空将不发送该字段</string>
     <string name="llm_params_note_siliconflow">留空将不发送该字段；当前 API 地址识别为硅基流动，已显示 `enable_thinking` 与 `thinking_budget` 扩展参数</string>
+    <string name="custom_request_params_invalid_value">自定义参数值格式无效：%1$s</string>
     <string name="llm_param_temperature">temperature</string>
     <string name="llm_param_top_p">top_p</string>
     <string name="llm_param_top_k">top_k</string>

@@ -12,6 +12,8 @@ internal object ErrorDialogFormatter {
                 "NETWORK_ERROR" -> context.getString(R.string.api_request_error_network)
                 "MISSING_URL" -> context.getString(R.string.api_request_error_missing_url)
                 "EMPTY_RESPONSE" -> context.getString(R.string.api_request_error_empty_response)
+                "CUSTOM_PARAM_CONFLICT" -> context.getString(R.string.custom_request_params_conflict_error, detail.orEmpty())
+                "CUSTOM_PARAM_INVALID_VALUE" -> context.getString(R.string.custom_request_params_invalid_value, detail.orEmpty())
                 else -> errorCode
             }
         }

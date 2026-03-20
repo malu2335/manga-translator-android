@@ -103,9 +103,11 @@ class ReadingFragment : Fragment() {
             libraryPrefs = requireContext().getSharedPreferences("library_prefs", android.content.Context.MODE_PRIVATE)
         )
         webtoonLayoutManager = LinearLayoutManager(requireContext())
+        webtoonLayoutManager.initialPrefetchItemCount = 3
         webtoonAdapter = WebtoonReadingAdapter(viewLifecycleOwner.lifecycleScope, translationStore)
         binding.readingWebtoonList.layoutManager = webtoonLayoutManager
         binding.readingWebtoonList.adapter = webtoonAdapter
+        binding.readingWebtoonList.setItemViewCacheSize(4)
         binding.readingWebtoonList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 if (folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) return
@@ -460,7 +462,9 @@ class ReadingFragment : Fragment() {
         binding.readingTransitionImage.setImageBitmap(previousBitmap)
         binding.readingTransitionImage.visibility = View.VISIBLE
         binding.readingTransitionImage.translationX = 0f
-        binding.readingImage.translationX = direction * width.toFloat()
+        // Keep the transition direction aligned with the swipe/navigation direction:
+        // next page enters from the right while the current page exits to the left, and vice versa.
+        binding.readingImage.translationX = (-direction) * width.toFloat()
         binding.translationOverlay.visibility = View.INVISIBLE
         binding.readingImage.animate()
             .translationX(0f)
@@ -468,7 +472,7 @@ class ReadingFragment : Fragment() {
             .setListener(null)
             .start()
         binding.readingTransitionImage.animate()
-            .translationX((-direction) * width.toFloat())
+            .translationX(direction * width.toFloat())
             .setDuration(220L)
             .setListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {

@@ -2,9 +2,9 @@ package com.manga.translate
 
 import android.graphics.Bitmap
 import android.graphics.RectF
+import android.view.ViewGroup
 import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import androidx.core.view.doOnLayout
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
@@ -30,12 +30,14 @@ class WebtoonReadingAdapter(
 
     private companion object {
         const val PAYLOAD_PRESENTATION_ONLY = "presentation_only"
+        const val DEFAULT_PLACEHOLDER_HEIGHT_RATIO = 1.4f
     }
 
     private var items: List<File> = emptyList()
     private var isEmbeddedMode: Boolean = false
     private var verticalLayoutEnabled: Boolean = true
     private var bubbleOpacity: Float = 1f
+    private val rememberedPageHeights = mutableMapOf<String, Int>()
 
     fun submit(
         images: List<File>,
@@ -169,6 +171,7 @@ class WebtoonReadingAdapter(
             binding.readingPageOverlay.setVerticalLayoutEnabled(verticalLayoutEnabled)
             binding.readingPageOverlay.setBubbleOpacity(bubbleOpacity)
             binding.readingPageOverlay.visibility = View.GONE
+            applyPlaceholder(imageFile)
             binding.readingPageImage.setImageDrawable(null)
             binding.root.doOnLayout {
                 if (boundPath != imageFile.absolutePath) return@doOnLayout
@@ -211,6 +214,7 @@ class WebtoonReadingAdapter(
                 if (bitmap == null) {
                     binding.readingPageImage.setImageDrawable(null)
                     binding.readingPageOverlay.visibility = View.GONE
+                    showPlaceholder(imageFile.absolutePath)
                     return@launch
                 }
                 currentBitmap = bitmap
@@ -219,6 +223,8 @@ class WebtoonReadingAdapter(
                 binding.readingPageImage.setImageBitmap(bitmap)
                 binding.readingPageImage.doOnLayout {
                     if (boundPath != imageFile.absolutePath) return@doOnLayout
+                    rememberedPageHeights[imageFile.absolutePath] = binding.readingPageImage.height
+                    binding.readingPagePlaceholder.visibility = View.GONE
                     bindOverlay(bitmap, translation)
                     if (!embeddedMode) {
                         startWatchingTranslations(imageFile)
@@ -237,6 +243,32 @@ class WebtoonReadingAdapter(
             currentImageHeight = 0
             binding.readingPageImage.setImageDrawable(null)
             binding.readingPageOverlay.visibility = View.GONE
+            binding.readingPagePlaceholder.visibility = View.VISIBLE
+        }
+
+        private fun applyPlaceholder(imageFile: File) {
+            showPlaceholder(imageFile.absolutePath)
+        }
+
+        private fun showPlaceholder(path: String) {
+            val targetHeight = rememberedPageHeights[path] ?: estimatePlaceholderHeight()
+            updatePlaceholderHeight(targetHeight)
+            binding.readingPagePlaceholder.visibility = View.VISIBLE
+        }
+
+        private fun estimatePlaceholderHeight(): Int {
+            val metrics = binding.root.resources.displayMetrics
+            val width = binding.root.width.takeIf { it > 0 } ?: metrics.widthPixels
+            val estimated = (width * DEFAULT_PLACEHOLDER_HEIGHT_RATIO).toInt()
+            val minHeight = (metrics.density * 240f).toInt()
+            return estimated.coerceAtLeast(minHeight)
+        }
+
+        private fun updatePlaceholderHeight(height: Int) {
+            val params = binding.readingPagePlaceholder.layoutParams
+            if (params.height == height) return
+            params.height = height
+            binding.readingPagePlaceholder.layoutParams = params
         }
 
         private fun bindOverlay(bitmap: Bitmap, translation: TranslationResult?) {

@@ -1,7 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/reading_page_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
+
+    <FrameLayout
+        android:id="@+id/reading_page_placeholder"
+        android:layout_width="match_parent"
+        android:layout_height="360dp"
+        android:background="#12000000">
+
+        <TextView
+            android:id="@+id/reading_page_placeholder_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/reading_page_loading_placeholder"
+            android:textColor="#66000000"
+            android:textSize="13sp" />
+    </FrameLayout>
 
     <ImageView
         android:id="@+id/reading_page_image"

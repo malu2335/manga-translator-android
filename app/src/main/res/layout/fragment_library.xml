@@ -216,7 +216,7 @@
                 android:textAppearance="@style/Widget.MangaTranslator.Title" />
         </LinearLayout>
 
-        <androidx.core.widget.NestedScrollView
+        <com.manga.translate.SafeNestedScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_marginTop="14dp"
@@ -537,7 +537,7 @@
                         android:visibility="gone" />
                 </LinearLayout>
             </LinearLayout>
-        </androidx.core.widget.NestedScrollView>
+        </com.manga.translate.SafeNestedScrollView>
     </LinearLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
