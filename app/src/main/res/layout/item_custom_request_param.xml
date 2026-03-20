@@ -1,56 +1,89 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="12dp"
-    android:background="@drawable/bg_dialog_surface"
+    android:layout_marginBottom="10dp"
+    android:background="@drawable/bg_dialog_card"
     android:orientation="vertical"
-    android:padding="12dp">
+    android:padding="14dp">
 
-    <androidx.appcompat.widget.SwitchCompat
-        android:id="@+id/custom_request_param_enabled_switch"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/custom_request_params_enabled"
-        android:textColor="?attr/dialogTextColor" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-    <com.google.android.material.textfield.TextInputLayout
-        style="@style/Widget.MangaTranslator.Input"
+        <TextView
+            android:id="@+id/custom_request_param_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textAppearance="@style/Widget.MangaTranslator.SectionLabel"
+            android:textColor="?attr/colorAccent" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/custom_request_param_enabled_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/custom_request_params_enabled"
+            android:textColor="?attr/dialogTextColor" />
+
+        <TextView
+            android:id="@+id/custom_request_param_delete_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:minHeight="40dp"
+            android:gravity="center"
+            android:paddingStart="10dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="8dp"
+            android:text="@string/custom_request_params_delete_action"
+            android:textColor="?attr/colorAccent"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/custom_request_param_fields_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:hint="@string/custom_request_param_key_hint">
+        android:layout_marginTop="12dp"
+        android:orientation="vertical">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/custom_request_param_key_input"
-            style="@style/Widget.MangaTranslator.DialogEditText"
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.MangaTranslator.Input"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="text" />
-    </com.google.android.material.textfield.TextInputLayout>
+            android:hint="@string/custom_request_param_key_hint">
 
-    <com.google.android.material.textfield.TextInputLayout
-        style="@style/Widget.MangaTranslator.Input"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:hint="@string/custom_request_param_value_hint">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/custom_request_param_key_input"
+                style="@style/Widget.MangaTranslator.DialogEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text" />
+        </com.google.android.material.textfield.TextInputLayout>
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/custom_request_param_value_input"
-            style="@style/Widget.MangaTranslator.DialogEditText"
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.MangaTranslator.Input"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textMultiLine"
-            android:maxLines="4"
-            android:minLines="2" />
-    </com.google.android.material.textfield.TextInputLayout>
+            android:layout_marginTop="10dp"
+            android:hint="@string/custom_request_param_value_hint">
 
-    <Button
-        android:id="@+id/custom_request_param_delete_button"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:text="@string/custom_request_params_delete" />
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/custom_request_param_value_input"
+                style="@style/Widget.MangaTranslator.DialogEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="top|start"
+                android:inputType="textMultiLine"
+                android:maxLines="3"
+                android:minLines="2" />
+        </com.google.android.material.textfield.TextInputLayout>
+    </LinearLayout>
 </LinearLayout>

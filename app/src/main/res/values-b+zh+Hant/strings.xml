@@ -79,11 +79,14 @@
     <string name="custom_request_params_button_format">自訂請求參數：%1$d 項</string>
     <string name="custom_request_params_title">自訂請求參數</string>
     <string name="custom_request_params_note">會以頂層欄位附加到 AI 請求本體。支援多組鍵值對，自動辨識布林值、數字、null，以及合法 JSON 物件或陣列。不能覆蓋既有內建參數，衝突會被攔截。</string>
-    <string name="custom_request_params_add">新增參數</string>
-    <string name="custom_request_params_delete">刪除此列</string>
-    <string name="custom_request_params_enabled">啟用此參數</string>
+    <string name="custom_request_params_add">新增一項參數</string>
+    <string name="custom_request_params_delete">刪除此參數</string>
+    <string name="custom_request_params_enabled">啟用</string>
     <string name="custom_request_param_key_hint">參數鍵名</string>
     <string name="custom_request_param_value_hint">參數值</string>
+    <string name="custom_request_params_section_label">請求本體附加欄位</string>
+    <string name="custom_request_params_row_title">參數 %1$d</string>
+    <string name="custom_request_params_delete_action">刪除</string>
     <string name="custom_request_params_empty_row_error">參數鍵名不能為空</string>
     <string name="custom_request_params_duplicate_error">存在重複的自訂參數鍵：%1$s</string>
     <string name="custom_request_params_conflict_error">自訂參數不能覆蓋內建欄位：%1$s</string>

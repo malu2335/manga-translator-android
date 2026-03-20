@@ -566,6 +566,23 @@ class SettingsFragment : Fragment() {
         val dialogBinding = DialogCustomRequestParamsBinding.inflate(layoutInflater)
         val existing = settingsStore.loadCustomRequestParameters()
 
+        fun updateRowVisualState(rowBinding: ItemCustomRequestParamBinding) {
+            val enabled = rowBinding.customRequestParamEnabledSwitch.isChecked
+            rowBinding.customRequestParamFieldsContainer.alpha = if (enabled) 1f else 0.58f
+            rowBinding.customRequestParamTitle.alpha = if (enabled) 1f else 0.72f
+        }
+
+        fun refreshRowTitles() {
+            for (index in 0 until dialogBinding.customRequestParamsContainer.childCount) {
+                val child = dialogBinding.customRequestParamsContainer.getChildAt(index)
+                val rowBinding = ItemCustomRequestParamBinding.bind(child)
+                rowBinding.customRequestParamTitle.text = getString(
+                    R.string.custom_request_params_row_title,
+                    index + 1
+                )
+            }
+        }
+
         fun addRow(parameter: CustomRequestParameter = CustomRequestParameter("", "")) {
             val rowBinding = ItemCustomRequestParamBinding.inflate(
                 layoutInflater,
@@ -575,13 +592,20 @@ class SettingsFragment : Fragment() {
             rowBinding.customRequestParamEnabledSwitch.isChecked = parameter.enabled
             rowBinding.customRequestParamKeyInput.setText(parameter.key)
             rowBinding.customRequestParamValueInput.setText(parameter.value)
+            rowBinding.customRequestParamEnabledSwitch.setOnCheckedChangeListener { _, _ ->
+                updateRowVisualState(rowBinding)
+            }
             rowBinding.customRequestParamDeleteButton.setOnClickListener {
                 dialogBinding.customRequestParamsContainer.removeView(rowBinding.root)
                 if (dialogBinding.customRequestParamsContainer.childCount == 0) {
                     addRow()
+                } else {
+                    refreshRowTitles()
                 }
             }
             dialogBinding.customRequestParamsContainer.addView(rowBinding.root)
+            updateRowVisualState(rowBinding)
+            refreshRowTitles()
         }
 
         if (existing.isEmpty()) {

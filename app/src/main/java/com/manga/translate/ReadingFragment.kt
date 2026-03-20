@@ -4,6 +4,7 @@ import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.RectF
 import android.os.Bundle
 import android.text.Editable
@@ -20,6 +21,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.doOnLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -81,6 +83,7 @@ class ReadingFragment : Fragment() {
     private var displayedPageIndex: Int? = null
     private var displayedImagePath: String? = null
     private var pageTransitionGeneration: Int = 0
+    private val pageTransitionInterpolator = FastOutSlowInInterpolator()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -276,6 +279,7 @@ class ReadingFragment : Fragment() {
         val previousBitmap = currentBitmap
         val previousDisplayedPath = displayedImagePath
         val previousDisplayedIndex = displayedPageIndex
+        val previousImageMatrix = captureReadingImageMatrix()
         binding.readingEmptyHint.visibility = View.GONE
         binding.readingPageInfo.visibility = View.VISIBLE
         binding.readingEditControls.visibility = if (isEmbeddedMode) View.GONE else View.VISIBLE
@@ -347,7 +351,7 @@ class ReadingFragment : Fragment() {
                     folderReadingMode != FolderReadingMode.WEBTOON_SCROLL
                 if (shouldAnimate) {
                     val direction = if ((previousDisplayedIndex ?: targetIndex) < targetIndex) -1 else 1
-                    startPageTransition(previousBitmap, direction)
+                    startPageTransition(previousBitmap, previousImageMatrix, direction)
                 } else {
                     finishPageTransitionImmediately()
                 }
@@ -447,7 +451,7 @@ class ReadingFragment : Fragment() {
         return settingsStore.loadReadingPageAnimationMode()
     }
 
-    private fun startPageTransition(previousBitmap: Bitmap, direction: Int) {
+    private fun startPageTransition(previousBitmap: Bitmap, previousImageMatrix: Matrix?, direction: Int) {
         if (currentReadingPageAnimationMode() != ReadingPageAnimationMode.HORIZONTAL_SLIDE) {
             finishPageTransitionImmediately()
             return
@@ -460,20 +464,29 @@ class ReadingFragment : Fragment() {
         cancelPageTransition()
         val generation = ++pageTransitionGeneration
         binding.readingTransitionImage.setImageBitmap(previousBitmap)
+        binding.readingTransitionImage.imageMatrix = previousImageMatrix ?: Matrix()
         binding.readingTransitionImage.visibility = View.VISIBLE
         binding.readingTransitionImage.translationX = 0f
+        binding.readingTransitionImage.alpha = 1f
         // Keep the transition direction aligned with the swipe/navigation direction:
         // next page enters from the right while the current page exits to the left, and vice versa.
         binding.readingImage.translationX = (-direction) * width.toFloat()
+        binding.readingImage.alpha = 0.9f
         binding.translationOverlay.visibility = View.INVISIBLE
+        binding.readingImage.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        binding.readingTransitionImage.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         binding.readingImage.animate()
             .translationX(0f)
-            .setDuration(220L)
+            .alpha(1f)
+            .setDuration(260L)
+            .setInterpolator(pageTransitionInterpolator)
             .setListener(null)
             .start()
         binding.readingTransitionImage.animate()
             .translationX(direction * width.toFloat())
-            .setDuration(220L)
+            .alpha(0.7f)
+            .setDuration(260L)
+            .setInterpolator(pageTransitionInterpolator)
             .setListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
                     completePageTransition(generation)
@@ -506,9 +519,19 @@ class ReadingFragment : Fragment() {
         binding.readingImage.animate().setListener(null)
         binding.readingTransitionImage.animate().setListener(null)
         binding.readingImage.translationX = 0f
+        binding.readingImage.alpha = 1f
         binding.readingTransitionImage.translationX = 0f
+        binding.readingTransitionImage.alpha = 1f
         binding.readingTransitionImage.setImageDrawable(null)
         binding.readingTransitionImage.visibility = View.GONE
+        binding.readingImage.setLayerType(View.LAYER_TYPE_NONE, null)
+        binding.readingTransitionImage.setLayerType(View.LAYER_TYPE_NONE, null)
+    }
+
+    private fun captureReadingImageMatrix(): Matrix? {
+        val drawable = binding.readingImage.drawable ?: return null
+        if (drawable.intrinsicWidth <= 0 || drawable.intrinsicHeight <= 0) return null
+        return Matrix(binding.readingImage.imageMatrix)
     }
 
     private fun updateOverlayDisplayRect() {
