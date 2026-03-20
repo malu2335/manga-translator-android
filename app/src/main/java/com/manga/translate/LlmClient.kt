@@ -331,7 +331,7 @@ class LlmClient(context: Context) {
     }
 
     private fun buildOpenAiEndpoint(baseUrl: String): String {
-        val trimmed = baseUrl.trimEnd('/')
+        val trimmed = normalizeOpenAiBaseUrl(baseUrl)
         return when {
             trimmed.endsWith("/v1/chat/completions") -> trimmed
             trimmed.endsWith("/v1") -> "$trimmed/chat/completions"
@@ -340,12 +340,17 @@ class LlmClient(context: Context) {
     }
 
     private fun buildOpenAiModelsEndpoint(baseUrl: String): String {
-        val trimmed = baseUrl.trimEnd('/')
+        val trimmed = normalizeOpenAiBaseUrl(baseUrl)
         return when {
+            trimmed.endsWith("/v1/chat/completions") -> trimmed.removeSuffix("/chat/completions") + "/models"
             trimmed.endsWith("/v1/models") -> trimmed
             trimmed.endsWith("/v1") -> "$trimmed/models"
             else -> "$trimmed/v1/models"
         }
+    }
+
+    private fun normalizeOpenAiBaseUrl(baseUrl: String): String {
+        return baseUrl.trim().trimEnd('/').removeSuffix("/models")
     }
 
     private fun buildEndpoint(settings: ApiSettings, modelName: String): String {

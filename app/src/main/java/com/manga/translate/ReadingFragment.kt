@@ -3,6 +3,7 @@ package com.manga.translate
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.RectF
@@ -12,6 +13,7 @@ import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.util.TypedValue
 import android.widget.FrameLayout
 import android.widget.EditText
 import android.widget.SeekBar
@@ -84,6 +86,7 @@ class ReadingFragment : Fragment() {
     private var displayedImagePath: String? = null
     private var pageTransitionGeneration: Int = 0
     private val pageTransitionInterpolator = FastOutSlowInInterpolator()
+    private val incomingPageParallaxDp = 28f
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -279,7 +282,7 @@ class ReadingFragment : Fragment() {
         val previousBitmap = currentBitmap
         val previousDisplayedPath = displayedImagePath
         val previousDisplayedIndex = displayedPageIndex
-        val previousImageMatrix = captureReadingImageMatrix()
+        val previousPageSnapshot = captureCurrentPageSnapshot()
         binding.readingEmptyHint.visibility = View.GONE
         binding.readingPageInfo.visibility = View.VISIBLE
         binding.readingEditControls.visibility = if (isEmbeddedMode) View.GONE else View.VISIBLE
@@ -317,6 +320,14 @@ class ReadingFragment : Fragment() {
             ) {
                 return@launch
             }
+            val shouldAnimate = bitmap != null &&
+                previousBitmap != null &&
+                previousPageSnapshot != null &&
+                previousDisplayedPath != null &&
+                previousDisplayedPath != targetPath &&
+                folderReadingMode != FolderReadingMode.WEBTOON_SCROLL
+            val direction = if ((previousDisplayedIndex ?: targetIndex) < targetIndex) -1 else 1
+            binding.readingImage.translationX = 0f
             if (bitmap != null) {
                 binding.readingImage.setImageBitmap(bitmap)
                 currentBitmap = bitmap
@@ -344,14 +355,8 @@ class ReadingFragment : Fragment() {
                     }
                 }
                 updateOverlay(translation, bitmap)
-                val shouldAnimate = bitmap != null &&
-                    previousBitmap != null &&
-                    previousDisplayedPath != null &&
-                    previousDisplayedPath != targetPath &&
-                    folderReadingMode != FolderReadingMode.WEBTOON_SCROLL
                 if (shouldAnimate) {
-                    val direction = if ((previousDisplayedIndex ?: targetIndex) < targetIndex) -1 else 1
-                    startPageTransition(previousBitmap, previousImageMatrix, direction)
+                    startPageTransition(previousPageSnapshot, direction)
                 } else {
                     finishPageTransitionImmediately()
                 }
@@ -451,7 +456,7 @@ class ReadingFragment : Fragment() {
         return settingsStore.loadReadingPageAnimationMode()
     }
 
-    private fun startPageTransition(previousBitmap: Bitmap, previousImageMatrix: Matrix?, direction: Int) {
+    private fun startPageTransition(previousSnapshot: Bitmap, direction: Int) {
         if (currentReadingPageAnimationMode() != ReadingPageAnimationMode.HORIZONTAL_SLIDE) {
             finishPageTransitionImmediately()
             return
@@ -463,28 +468,25 @@ class ReadingFragment : Fragment() {
         }
         cancelPageTransition()
         val generation = ++pageTransitionGeneration
-        binding.readingTransitionImage.setImageBitmap(previousBitmap)
-        binding.readingTransitionImage.imageMatrix = previousImageMatrix ?: Matrix()
+        val parallaxOffset = resolveIncomingPageParallaxOffset(direction)
+        binding.readingTransitionImage.setImageBitmap(previousSnapshot)
+        binding.readingTransitionImage.scaleType = android.widget.ImageView.ScaleType.FIT_XY
+        binding.readingTransitionImage.imageMatrix = Matrix()
         binding.readingTransitionImage.visibility = View.VISIBLE
         binding.readingTransitionImage.translationX = 0f
         binding.readingTransitionImage.alpha = 1f
-        // Keep the transition direction aligned with the swipe/navigation direction:
-        // next page enters from the right while the current page exits to the left, and vice versa.
-        binding.readingImage.translationX = (-direction) * width.toFloat()
-        binding.readingImage.alpha = 0.9f
         binding.translationOverlay.visibility = View.INVISIBLE
+        binding.readingImage.translationX = parallaxOffset
         binding.readingImage.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         binding.readingTransitionImage.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         binding.readingImage.animate()
             .translationX(0f)
-            .alpha(1f)
             .setDuration(260L)
             .setInterpolator(pageTransitionInterpolator)
             .setListener(null)
             .start()
         binding.readingTransitionImage.animate()
             .translationX(direction * width.toFloat())
-            .alpha(0.7f)
             .setDuration(260L)
             .setInterpolator(pageTransitionInterpolator)
             .setListener(object : AnimatorListenerAdapter() {
@@ -522,16 +524,46 @@ class ReadingFragment : Fragment() {
         binding.readingImage.alpha = 1f
         binding.readingTransitionImage.translationX = 0f
         binding.readingTransitionImage.alpha = 1f
-        binding.readingTransitionImage.setImageDrawable(null)
         binding.readingTransitionImage.visibility = View.GONE
         binding.readingImage.setLayerType(View.LAYER_TYPE_NONE, null)
         binding.readingTransitionImage.setLayerType(View.LAYER_TYPE_NONE, null)
+        binding.readingTransitionImage.post {
+            if (_binding == null) return@post
+            if (binding.readingTransitionImage.visibility == View.GONE) {
+                binding.readingTransitionImage.setImageDrawable(null)
+            }
+        }
+    }
+
+    private fun resolveIncomingPageParallaxOffset(direction: Int): Float {
+        val px = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            incomingPageParallaxDp,
+            resources.displayMetrics
+        )
+        return (-direction) * px
     }
 
     private fun captureReadingImageMatrix(): Matrix? {
         val drawable = binding.readingImage.drawable ?: return null
         if (drawable.intrinsicWidth <= 0 || drawable.intrinsicHeight <= 0) return null
         return Matrix(binding.readingImage.imageMatrix)
+    }
+
+    private fun captureCurrentPageSnapshot(): Bitmap? {
+        val width = binding.readingContentContainer.width
+        val height = binding.readingContentContainer.height
+        if (width <= 0 || height <= 0) return null
+        return try {
+            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
+                val canvas = Canvas(bitmap)
+                binding.readingImage.draw(canvas)
+            }
+        } catch (_: IllegalArgumentException) {
+            null
+        } catch (_: OutOfMemoryError) {
+            null
+        }
     }
 
     private fun updateOverlayDisplayRect() {

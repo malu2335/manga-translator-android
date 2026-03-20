@@ -20,7 +20,18 @@ open class SafeNestedScrollView @JvmOverloads constructor(
                 throw e
             }
             disableScrollBarsAfterCrash(e)
-            super.draw(canvas)
+            try {
+                super.draw(canvas)
+            } catch (retryError: NullPointerException) {
+                if (!isFrameworkScrollBarCrash(retryError)) {
+                    throw retryError
+                }
+                AppLogger.log(
+                    "SafeNestedScrollView",
+                    "Skipped redraw after repeated framework scrollbar crash",
+                    retryError
+                )
+            }
         }
     }
 

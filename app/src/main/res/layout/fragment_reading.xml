@@ -11,7 +11,7 @@
         android:layout_height="match_parent"
         android:clipToPadding="false"
         android:paddingBottom="16dp"
-        android:scrollbars="vertical"
+        android:scrollbars="none"
         android:visibility="gone" />
 
     <com.manga.translate.ReadingScrollView
@@ -20,7 +20,7 @@
         android:layout_height="match_parent"
         android:fillViewport="true"
         android:overScrollMode="ifContentScrolls"
-        android:scrollbars="vertical">
+        android:scrollbars="none">
 
         <FrameLayout
             android:id="@+id/reading_content_container"
@@ -41,7 +41,7 @@
                 android:layout_height="match_parent"
                 android:adjustViewBounds="true"
                 android:contentDescription="@string/preview_image"
-                android:scaleType="fitCenter"
+                android:scaleType="matrix"
                 android:visibility="gone" />
 
             <com.manga.translate.FloatingTranslationView
