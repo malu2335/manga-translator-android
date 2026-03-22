@@ -49,17 +49,34 @@ internal class ProjectionCaptureSession(
         val height = metrics.heightPixels.coerceAtLeast(1)
         val densityDpi = metrics.densityDpi.coerceAtLeast(1)
         val reader = ImageReader.newInstance(width, height, pixelFormat, 2)
-        val display = projection.createVirtualDisplay(
-            "floating-ocr-capture",
-            width,
-            height,
-            densityDpi,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            reader.surface,
-            null,
-            null
-        )
         projection.registerCallback(projectionCallback, mainHandler)
+        val display = try {
+            projection.createVirtualDisplay(
+                "floating-ocr-capture",
+                width,
+                height,
+                densityDpi,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                reader.surface,
+                null,
+                null
+            )
+        } catch (error: Exception) {
+            try {
+                projection.unregisterCallback(projectionCallback)
+            } catch (_: Exception) {
+            }
+            try {
+                reader.close()
+            } catch (_: Exception) {
+            }
+            try {
+                projection.stop()
+            } catch (_: Exception) {
+            }
+            AppLogger.log("FloatingOCR", "Projection virtual display creation failed", error)
+            return false
+        }
         mediaProjection = projection
         imageReader = reader
         virtualDisplay = display
