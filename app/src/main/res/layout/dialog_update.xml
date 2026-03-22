@@ -4,13 +4,15 @@
     android:layout_height="wrap_content"
     android:orientation="vertical">
 
-    <ScrollView
+    <com.manga.translate.SafeNestedScrollView
         android:id="@+id/update_dialog_scroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:clipToPadding="false"
         android:fillViewport="true"
-        android:overScrollMode="ifContentScrolls">
+        android:overScrollMode="ifContentScrolls"
+        android:scrollbars="none"
+        android:fadeScrollbars="false">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -99,7 +101,7 @@
                     android:textAppearance="@style/Widget.MangaTranslator.DialogBody" />
             </LinearLayout>
         </LinearLayout>
-    </ScrollView>
+    </com.manga.translate.SafeNestedScrollView>
 
     <View
         android:layout_width="match_parent"

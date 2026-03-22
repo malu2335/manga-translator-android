@@ -10,7 +10,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ScrollView
 import android.widget.Toast
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,6 +19,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Job
 import com.google.android.material.tabs.TabLayoutMediator
@@ -117,7 +117,7 @@ class MainActivity : AppCompatActivity() {
     ) {
         val versionLabel = buildVersionLabel(updateInfo)
         val dialogView = layoutInflater.inflate(R.layout.dialog_update, null)
-        val contentScrollView = dialogView.findViewById<ScrollView>(R.id.update_dialog_scroll)
+        val contentScrollView = dialogView.findViewById<NestedScrollView>(R.id.update_dialog_scroll)
         val latestTitleView = dialogView.findViewById<TextView>(R.id.update_dialog_latest_title)
         val latestContentView = dialogView.findViewById<TextView>(R.id.update_dialog_latest_content)
         val historyContainer = dialogView.findViewById<android.view.View>(R.id.update_dialog_history_container)
