@@ -7,12 +7,14 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 internal class FolderTranslationCoordinator(
     context: Context,
@@ -325,9 +327,10 @@ internal class FolderTranslationCoordinator(
                     val hasFailures = AtomicBoolean(false)
                     val requestFailed = AtomicBoolean(false)
                     val reportedModelError = AtomicBoolean(false)
+                    val requestException = AtomicReference<LlmRequestException?>(null)
                     ui.setFolderStatus(appContext.getString(R.string.translation_preparing))
 
-                    coroutineScope {
+                    supervisorScope {
                         val tasks = ocrResults.map { page ->
                             async {
                                 semaphore.withPermit {
@@ -359,7 +362,13 @@ internal class FolderTranslationCoordinator(
                                         null
                                     } catch (e: LlmRequestException) {
                                         requestFailed.set(true)
-                                        throw e
+                                        requestException.compareAndSet(null, e)
+                                        AppLogger.log(
+                                            "Library",
+                                            "Full-page translation aborted for ${page.imageFile.name}",
+                                            e
+                                        )
+                                        null
                                     } catch (e: Exception) {
                                         AppLogger.log(
                                             "Library",
@@ -397,6 +406,8 @@ internal class FolderTranslationCoordinator(
                         }
                         tasks.awaitAll()
                     }
+
+                    requestException.get()?.let { throw it }
 
                     failed = failed || hasFailures.get()
                     ui.setFolderStatus(

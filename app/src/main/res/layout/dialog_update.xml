@@ -5,6 +5,7 @@
     android:orientation="vertical">
 
     <ScrollView
+        android:id="@+id/update_dialog_scroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:clipToPadding="false"

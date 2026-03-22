@@ -9,10 +9,13 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.ViewGroup
+import android.widget.ScrollView
 import android.widget.Toast
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.AppCompatButton
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -114,13 +117,15 @@ class MainActivity : AppCompatActivity() {
     ) {
         val versionLabel = buildVersionLabel(updateInfo)
         val dialogView = layoutInflater.inflate(R.layout.dialog_update, null)
+        val contentScrollView = dialogView.findViewById<ScrollView>(R.id.update_dialog_scroll)
         val latestTitleView = dialogView.findViewById<TextView>(R.id.update_dialog_latest_title)
         val latestContentView = dialogView.findViewById<TextView>(R.id.update_dialog_latest_content)
         val historyContainer = dialogView.findViewById<android.view.View>(R.id.update_dialog_history_container)
         val historyContentView = dialogView.findViewById<TextView>(R.id.update_dialog_history_content)
-        val negativeButton = dialogView.findViewById<androidx.appcompat.widget.AppCompatButton>(R.id.update_dialog_negative_button)
-        val neutralButton = dialogView.findViewById<androidx.appcompat.widget.AppCompatButton>(R.id.update_dialog_neutral_button)
-        val positiveButton = dialogView.findViewById<androidx.appcompat.widget.AppCompatButton>(R.id.update_dialog_positive_button)
+        val actionsContainer = dialogView.findViewById<View>(R.id.update_dialog_actions)
+        val negativeButton = dialogView.findViewById<AppCompatButton>(R.id.update_dialog_negative_button)
+        val neutralButton = dialogView.findViewById<AppCompatButton>(R.id.update_dialog_neutral_button)
+        val positiveButton = dialogView.findViewById<AppCompatButton>(R.id.update_dialog_positive_button)
         latestTitleView.text = getString(R.string.update_dialog_latest_header, versionLabel)
         latestContentView.text = buildLatestUpdateDialogMessage(updateInfo)
         val historyMessage = buildHistoryUpdateDialogMessage(updateInfo, versionLabel)
@@ -130,6 +135,10 @@ class MainActivity : AppCompatActivity() {
             .setTitle(titleOverride ?: getString(R.string.update_dialog_title, versionLabel))
             .setView(dialogView)
             .create()
+        styleUpdateDialogButton(negativeButton)
+        styleUpdateDialogButton(neutralButton)
+        styleUpdateDialogButton(positiveButton)
+        actionsContainer.visibility = View.VISIBLE
         negativeButton.text = getString(
             if (showIgnoreButton) R.string.update_dialog_ignore else R.string.update_dialog_cancel
         )
@@ -148,6 +157,38 @@ class MainActivity : AppCompatActivity() {
             startDownload(updateInfo)
         }
         dialog.show()
+        val screenHeight = resources.displayMetrics.heightPixels
+        val maxContentHeight = (screenHeight * 0.5f).toInt()
+        contentScrollView.post {
+            val measuredHeight = contentScrollView.getChildAt(0)?.measuredHeight ?: 0
+            val targetHeight = measuredHeight.coerceAtMost(maxContentHeight)
+            contentScrollView.layoutParams = contentScrollView.layoutParams.apply {
+                height = targetHeight
+            }
+            contentScrollView.requestLayout()
+            actionsContainer.requestLayout()
+        }
+    }
+
+    private fun styleUpdateDialogButton(button: AppCompatButton) {
+        button.background = ContextCompat.getDrawable(this, R.drawable.bg_button_rounded)
+        button.setTextColor(ContextCompat.getColor(this, resolveThemeButtonTextColor()))
+        button.isAllCaps = false
+        button.visibility = View.VISIBLE
+    }
+
+    private fun resolveThemeButtonTextColor(): Int {
+        return when (SettingsStore(this).loadThemeMode()) {
+            ThemeMode.PASTEL -> R.color.pastel_button_text
+            ThemeMode.DEEP_SEA -> R.color.deep_sea_button_text
+            else -> if (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES
+            ) {
+                R.color.dark_button_text
+            } else {
+                R.color.light_button_text
+            }
+        }
     }
 
     private fun startDownload(updateInfo: UpdateInfo) {
