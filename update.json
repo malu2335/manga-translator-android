@@ -1,10 +1,16 @@
 {
-  "versionCode": 32,
-  "versionName": "2.3.8",
-  "releasedAt": "2026-03-20",
-  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.8/app-release.apk",
-  "changelog": "优化UI，优化动画，添加自定义AI参数功能",
+  "versionCode": 33,
+  "versionName": "2.3.9",
+  "releasedAt": "2026-03-22",
+  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.9/app-release.apk",
+  "changelog": "修复错误弹窗导致的反复崩溃，优化多线程嵌字，修复悬浮窗翻译闪退。修复下载更新按钮不出现的问题（旧版本请前往 https://github.com/jedzqer/manga-translator-android/releases 手动更新）",
   "history": [
+    {
+      "versionName": "2.3.8",
+      "releasedAt": "2026-03-20",
+      "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.8/app-release.apk",
+      "changelog": "优化UI，优化动画，添加自定义AI参数功能"
+    },
     {
       "versionName": "2.3.7",
       "releasedAt": "2026-03-19",
