@@ -5,11 +5,8 @@ import android.graphics.RectF
 import androidx.core.graphics.get
 import androidx.core.graphics.scale
 import ai.onnxruntime.OnnxTensor
-import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
-import java.io.File
-import java.io.FileOutputStream
 import java.nio.FloatBuffer
 import kotlin.math.max
 import kotlin.math.min
@@ -22,9 +19,10 @@ data class BubbleDetection(
 
 class BubbleDetector(
     private val context: Context,
-    private val modelAssetName: String = "comic-speech-bubble-detector.onnx"
+    private val modelAssetName: String = "comic-speech-bubble-detector.onnx",
+    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT
 ) {
-    private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
+    private val env = OnnxRuntimeSupport.environment()
     private val session: OrtSession = createSession()
     private val inputName: String
     private val inputShape: LongArray
@@ -224,15 +222,12 @@ class BubbleDetector(
     }
 
     private fun createSession(): OrtSession {
-        val modelFile = File(context.cacheDir, modelAssetName)
-        if (!modelFile.exists()) {
-            context.assets.open(modelAssetName).use { input ->
-                FileOutputStream(modelFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
-        }
-        return env.createSession(modelFile.absolutePath, OrtSession.SessionOptions())
+        return OnnxRuntimeSupport.getOrCreateSession(
+            cacheDir = context.cacheDir,
+            assetProvider = context.assets::open,
+            assetName = modelAssetName,
+            threadProfile = threadProfile
+        )
     }
 
     private fun describeDetections(detections: List<BubbleDetection>, limit: Int = 3): String {

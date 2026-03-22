@@ -9,11 +9,8 @@ import androidx.core.graphics.createBitmap
 import androidx.core.graphics.get
 import androidx.core.graphics.scale
 import ai.onnxruntime.OnnxTensor
-import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
-import java.io.File
-import java.io.FileOutputStream
 import java.nio.FloatBuffer
 import kotlin.math.cos
 import kotlin.math.max
@@ -29,9 +26,10 @@ data class TextDetection(
 
 class YsgYoloTextDetector(
     private val context: Context,
-    private val modelAssetName: String = "ysgyolo_1.2_OS1.0.onnx"
+    private val modelAssetName: String = "ysgyolo_1.2_OS1.0.onnx",
+    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT
 ) {
-    private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
+    private val env = OnnxRuntimeSupport.environment()
     private val session: OrtSession = createSession()
     private val inputName: String
     private val inputWidth: Int
@@ -277,15 +275,12 @@ class YsgYoloTextDetector(
     }
 
     private fun createSession(): OrtSession {
-        val modelFile = File(context.cacheDir, modelAssetName)
-        if (!modelFile.exists()) {
-            context.assets.open(modelAssetName).use { input ->
-                FileOutputStream(modelFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
-        }
-        return env.createSession(modelFile.absolutePath, OrtSession.SessionOptions())
+        return OnnxRuntimeSupport.getOrCreateSession(
+            cacheDir = context.cacheDir,
+            assetProvider = context.assets::open,
+            assetName = modelAssetName,
+            threadProfile = threadProfile
+        )
     }
 
     private data class PreprocessResult(

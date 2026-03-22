@@ -5,19 +5,19 @@ import android.graphics.Bitmap
 import androidx.core.graphics.get
 import androidx.core.graphics.scale
 import ai.onnxruntime.OnnxTensor
-import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
-import java.io.File
-import java.io.FileOutputStream
 import java.nio.FloatBuffer
 
 /**
  * 英文OCR识别器，基于PP-OCRv5识别模型
  * 需要配合EnglishLineDetector使用Multilingual_PP-OCRv3_det_infer.onnx进行英文行检测
  */
-class EnglishOcr(private val context: Context) : OcrEngine {
-    private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
+class EnglishOcr(
+    private val context: Context,
+    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT
+) : OcrEngine {
+    private val env = OnnxRuntimeSupport.environment()
     private val session: OrtSession = createSession("en_PP-OCRv5_rec_mobile_infer.onnx")
     private val charset: List<String> = readCharset()
     private val inputName: String = session.inputInfo.keys.first()
@@ -264,15 +264,12 @@ class EnglishOcr(private val context: Context) : OcrEngine {
     }
 
     private fun createSession(assetName: String): OrtSession {
-        val modelFile = File(context.cacheDir, assetName)
-        if (!modelFile.exists()) {
-            context.assets.open(assetName).use { input ->
-                FileOutputStream(modelFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
-        }
-        return env.createSession(modelFile.absolutePath, OrtSession.SessionOptions())
+        return OnnxRuntimeSupport.getOrCreateSession(
+            cacheDir = context.cacheDir,
+            assetProvider = context.assets::open,
+            assetName = assetName,
+            threadProfile = threadProfile
+        )
     }
 
     data class OcrResult(

@@ -336,6 +336,8 @@ internal class LibraryDialogs {
             imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
         }
         applyDialogTextColors(context, input)
+        val recommendationView = TextView(context)
+        applyDialogTextColors(context, recommendationView, useHintColor = true)
         val whiteCoverCheckBox = CheckBox(context).apply {
             text = context.getString(R.string.embed_white_cover_option)
             isChecked = defaultUseWhiteBubbleCover
@@ -353,6 +355,15 @@ internal class LibraryDialogs {
             isChecked = defaultUseImageRepair
         }
         applyDialogTextColors(context, imageRepairCheckBox)
+        fun currentAdvice(): ThreadAdvice {
+            return DeviceThreadAdvisor.adviseEmbed(
+                context = context,
+                imageRepairEnabled = imageRepairCheckBox.isChecked
+            )
+        }
+        fun refreshRecommendation() {
+            recommendationView.text = currentAdvice().summary
+        }
         whiteCoverCheckBox.setOnCheckedChangeListener { _, isChecked ->
             ellipseLimitCheckBox.isEnabled = isChecked
             ellipseLimitCheckBox.alpha = if (isChecked) 1f else 0.5f
@@ -360,6 +371,10 @@ internal class LibraryDialogs {
                 ellipseLimitCheckBox.isChecked = false
             }
         }
+        imageRepairCheckBox.setOnCheckedChangeListener { _, _ ->
+            refreshRecommendation()
+        }
+        refreshRecommendation()
         val container = buildDialogContainer(context).apply {
             addView(
                 note,
@@ -369,6 +384,13 @@ internal class LibraryDialogs {
             )
             addView(input, matchWrapLayoutParams())
             addView(
+                recommendationView,
+                matchWrapLayoutParams().apply {
+                    topMargin = dp(context, 6f)
+                    bottomMargin = dp(context, 2f)
+                }
+            )
+            addView(
                 whiteCoverCheckBox,
                 matchWrapLayoutParams().apply {
                     topMargin = dp(context, 10f)
@@ -377,24 +399,51 @@ internal class LibraryDialogs {
             addView(ellipseLimitCheckBox, matchWrapLayoutParams())
             addView(imageRepairCheckBox, matchWrapLayoutParams())
         }
-        AlertDialog.Builder(context)
+        val dialog = AlertDialog.Builder(context)
             .setTitle(R.string.embed_options_title)
             .setView(container)
             .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
+            .setPositiveButton(android.R.string.ok, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val threadCount = input.text?.toString()?.toIntOrNull()
                 if (threadCount == null || threadCount !in 1..16) {
                     Toast.makeText(context, R.string.embed_thread_invalid, Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
+                    return@setOnClickListener
                 }
-                onConfirm(
-                    threadCount,
-                    whiteCoverCheckBox.isChecked,
-                    ellipseLimitCheckBox.isChecked,
-                    imageRepairCheckBox.isChecked
-                )
+                val advice = currentAdvice()
+                val continueAction = {
+                    onConfirm(
+                        threadCount,
+                        whiteCoverCheckBox.isChecked,
+                        ellipseLimitCheckBox.isChecked,
+                        imageRepairCheckBox.isChecked
+                    )
+                    dialog.dismiss()
+                }
+                if (threadCount > advice.warningThreshold) {
+                    AlertDialog.Builder(context)
+                        .setTitle(R.string.embed_thread_warning_title)
+                        .setMessage(
+                            context.getString(
+                                R.string.embed_thread_warning_message,
+                                threadCount,
+                                advice.warningThreshold,
+                                advice.recommendedThreads
+                            )
+                        )
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .setPositiveButton(R.string.translation_continue) { _, _ ->
+                            continueAction()
+                        }
+                        .showWithScrollableMessage()
+                    return@setOnClickListener
+                }
+                continueAction()
             }
-            .show()
+        }
+        dialog.show()
     }
 
     fun confirmDeleteSelectedImages(

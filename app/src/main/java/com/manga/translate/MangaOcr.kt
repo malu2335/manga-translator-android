@@ -5,18 +5,18 @@ import android.graphics.Bitmap
 import androidx.core.graphics.get
 import androidx.core.graphics.scale
 import ai.onnxruntime.OnnxTensor
-import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
 import org.json.JSONObject
-import java.io.File
-import java.io.FileOutputStream
 import java.nio.FloatBuffer
 import java.nio.LongBuffer
 import kotlin.math.max
 
-class MangaOcr(private val context: Context) : OcrEngine {
-    private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
+class MangaOcr(
+    private val context: Context,
+    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT
+) : OcrEngine {
+    private val env = OnnxRuntimeSupport.environment()
     private val encoderSession: OrtSession = createSession("encoder_model.onnx")
     private val decoderSession: OrtSession = createSession("decoder_model.onnx")
     private val generationConfig = loadGenerationConfig()
@@ -153,15 +153,12 @@ class MangaOcr(private val context: Context) : OcrEngine {
     }
 
     private fun createSession(assetName: String): OrtSession {
-        val modelFile = File(context.cacheDir, assetName)
-        if (!modelFile.exists()) {
-            context.assets.open(assetName).use { input ->
-                FileOutputStream(modelFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
-        }
-        return env.createSession(modelFile.absolutePath, OrtSession.SessionOptions())
+        return OnnxRuntimeSupport.getOrCreateSession(
+            cacheDir = context.cacheDir,
+            assetProvider = context.assets::open,
+            assetName = assetName,
+            threadProfile = threadProfile
+        )
     }
 
     private fun loadGenerationConfig(): GenerationConfig {

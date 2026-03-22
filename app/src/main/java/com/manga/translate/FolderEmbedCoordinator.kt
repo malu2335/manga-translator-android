@@ -15,12 +15,14 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.Executors
 
 internal class FolderEmbedCoordinator(
     context: Context,
@@ -210,67 +212,82 @@ internal class FolderEmbedCoordinator(
         val failed = AtomicBoolean(false)
         val failedImage = AtomicReference<File?>(null)
         val initFailed = AtomicBoolean(false)
+        val onnxThreadProfile = OnnxThreadProfile.forCpuBoundWork(workerCount)
+        val workerDispatcher = Executors.newFixedThreadPool(workerCount) { runnable ->
+            Thread(runnable, "embed-worker").apply {
+                isDaemon = true
+                priority = Thread.NORM_PRIORITY - 1
+            }
+        }.asCoroutineDispatcher()
 
-        coroutineScope {
-            val workers = List(workerCount) {
-                async(Dispatchers.IO) {
-                    val detector = try {
-                        TextMaskDetector(appContext)
-                    } catch (e: Exception) {
-                        AppLogger.log("Embed", "Failed to init text mask detector", e)
-                        initFailed.set(true)
-                        failed.set(true)
-                        return@async
-                    }
-                    val inpainter = try {
-                        MiganInpainter(appContext)
-                    } catch (e: Exception) {
-                        AppLogger.log("Embed", "Failed to init migan inpainter", e)
-                        initFailed.set(true)
-                        failed.set(true)
-                        return@async
-                    }
-                    val renderer = EmbeddedTextRenderer()
+        try {
+            val detector = try {
+                TextMaskDetector(appContext, threadProfile = onnxThreadProfile)
+            } catch (e: Exception) {
+                AppLogger.log("Embed", "Failed to init text mask detector", e)
+                initFailed.set(true)
+                failed.set(true)
+                null
+            }
+            val inpainter = try {
+                MiganInpainter(appContext, threadProfile = onnxThreadProfile)
+            } catch (e: Exception) {
+                AppLogger.log("Embed", "Failed to init migan inpainter", e)
+                initFailed.set(true)
+                failed.set(true)
+                null
+            }
+            if (detector == null || inpainter == null) {
+                return@withContext EmbedResult.Failure(appContext.getString(R.string.folder_embed_failed))
+            }
 
-                    while (!failed.get()) {
-                        val index = nextIndex.getAndIncrement()
-                        if (index >= pending.size) {
-                            return@async
-                        }
-                        val item = pending[index]
-                        val image = item.first
-                        val translation = item.second
-                        val result = runCatching {
-                            processSingleImage(
-                                sourceImage = image,
-                                translation = translation,
-                                detector = detector,
-                                inpainter = inpainter,
-                                renderer = renderer,
-                                verticalLayoutEnabled = verticalLayoutEnabled,
-                                useWhiteBubbleCover = useWhiteBubbleCover,
-                                useBubbleEllipseLimit = useBubbleEllipseLimit,
-                                useImageRepair = useImageRepair,
-                                outputDir = embeddedDir
-                            )
-                        }
-                        if (result.isFailure || result.getOrNull() != true) {
-                            val throwable = result.exceptionOrNull()
-                            if (throwable != null) {
-                                AppLogger.log("Embed", "Embed failed for ${image.name}", throwable)
-                            } else {
-                                AppLogger.log("Embed", "Embed failed for ${image.name}")
+            coroutineScope {
+                val workers = List(workerCount) {
+                    async(workerDispatcher) {
+                        val renderer = EmbeddedTextRenderer()
+
+                        while (!failed.get()) {
+                            val index = nextIndex.getAndIncrement()
+                            if (index >= pending.size) {
+                                return@async
                             }
-                            failedImage.compareAndSet(null, image)
-                            failed.set(true)
-                            return@async
+                            val item = pending[index]
+                            val image = item.first
+                            val translation = item.second
+                            val result = runCatching {
+                                processSingleImage(
+                                    sourceImage = image,
+                                    translation = translation,
+                                    detector = detector,
+                                    inpainter = inpainter,
+                                    renderer = renderer,
+                                    verticalLayoutEnabled = verticalLayoutEnabled,
+                                    useWhiteBubbleCover = useWhiteBubbleCover,
+                                    useBubbleEllipseLimit = useBubbleEllipseLimit,
+                                    useImageRepair = useImageRepair,
+                                    outputDir = embeddedDir
+                                )
+                            }
+                            if (result.isFailure || result.getOrNull() != true) {
+                                val throwable = result.exceptionOrNull()
+                                if (throwable != null) {
+                                    AppLogger.log("Embed", "Embed failed for ${image.name}", throwable)
+                                } else {
+                                    AppLogger.log("Embed", "Embed failed for ${image.name}")
+                                }
+                                failedImage.compareAndSet(null, image)
+                                failed.set(true)
+                                return@async
+                            }
+                            val done = doneCount.incrementAndGet()
+                            onProgress(done, pending.size)
                         }
-                        val done = doneCount.incrementAndGet()
-                        onProgress(done, pending.size)
                     }
                 }
+                workers.awaitAll()
             }
-            workers.awaitAll()
+        } finally {
+            workerDispatcher.close()
         }
 
         if (failed.get()) {

@@ -302,6 +302,8 @@
     <string name="embed_thread_note">该参数用于调整嵌字线程数。</string>
     <string name="embed_thread_hint">嵌字线程数 (1–16)</string>
     <string name="embed_thread_invalid">线程数无效，请输入 1–16</string>
+    <string name="embed_thread_warning_title">线程数偏高</string>
+    <string name="embed_thread_warning_message">当前设置为 %1$d 线程，已超过设备建议警戒值 %2$d；推荐线程数为 %3$d。继续使用更高线程数可能导致明显卡顿、发热或系统界面失去响应。是否仍要继续？</string>
     <string name="embed_white_cover_option">使用白色覆盖气泡内文字</string>
     <string name="embed_ellipse_limit_option">限制白色覆盖在气泡椭圆内</string>
     <string name="embed_image_repair_option">启用图像修复（非气泡）</string>

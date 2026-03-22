@@ -7,7 +7,6 @@ import androidx.core.graphics.get
 import androidx.core.graphics.scale
 import androidx.core.graphics.set
 import ai.onnxruntime.OnnxTensor
-import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import java.io.File
 import java.io.FileOutputStream
@@ -18,9 +17,10 @@ class MiganInpainter(
     private val context: Context,
     private val modelAssetName: String = "migan_512.onnx",
     private val externalDataAssetName: String = "migan_512.onnx.data",
-    private val legacyExternalDataName: String = "migan_512_full_precision.onnx.data"
+    private val legacyExternalDataName: String = "migan_512_full_precision.onnx.data",
+    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT
 ) {
-    private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
+    private val env = OnnxRuntimeSupport.environment()
     private val session: OrtSession = createSession()
     private val inputName: String = session.inputInfo.keys.first()
 
@@ -182,12 +182,17 @@ class MiganInpainter(
     }
 
     private fun createSession(): OrtSession {
-        val modelFile = copyAssetToCacheIfMissing(
+        copyAssetToCacheIfMissing(
             assetName = modelAssetName,
             minBytes = MIN_MODEL_FILE_BYTES
         )
         ensureExternalDataFiles()
-        return env.createSession(modelFile.absolutePath, OrtSession.SessionOptions())
+        return OnnxRuntimeSupport.getOrCreateSession(
+            cacheDir = context.cacheDir,
+            assetProvider = context.assets::open,
+            assetName = modelAssetName,
+            threadProfile = threadProfile
+        )
     }
 
     private fun ensureExternalDataFiles() {

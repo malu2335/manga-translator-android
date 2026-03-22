@@ -14,9 +14,10 @@ import kotlin.math.sqrt
 
 class TextMaskDetector(
     context: Context,
-    modelAssetName: String = "ysgyolo_1.2_OS1.0.onnx"
+    modelAssetName: String = "ysgyolo_1.2_OS1.0.onnx",
+    threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT
 ) {
-    private val detector = YsgYoloTextDetector(context, modelAssetName)
+    private val detector = YsgYoloTextDetector(context, modelAssetName, threadProfile)
 
     fun detectMask(bitmap: Bitmap): BooleanArray {
         if (bitmap.width <= 1 || bitmap.height <= 1) {
