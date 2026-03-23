@@ -712,6 +712,8 @@ class SettingsFragment : Fragment() {
         dialogBinding.floatingModelNameInput.setText(currentSettings.modelName)
         dialogBinding.floatingUseVlDirectTranslateSwitch.isChecked =
             currentSettings.useVlDirectTranslate
+        dialogBinding.floatingProofreadingModeSwitch.isChecked =
+            currentSettings.proofreadingModeEnabled
         dialogBinding.floatingVlTranslateConcurrencyInput.setText(
             formatNumber(currentSettings.vlTranslateConcurrency)
         )
@@ -740,7 +742,9 @@ class SettingsFragment : Fragment() {
                         modelName = dialogBinding.floatingModelNameInput.text?.toString()?.trim().orEmpty(),
                         useVlDirectTranslate =
                             dialogBinding.floatingUseVlDirectTranslateSwitch.isChecked,
-                        vlTranslateConcurrency = vlTranslateConcurrency
+                        vlTranslateConcurrency = vlTranslateConcurrency,
+                        proofreadingModeEnabled =
+                            dialogBinding.floatingProofreadingModeSwitch.isChecked
                     )
                 )
                 AppLogger.log("Settings", "Floating translate API settings updated")

@@ -91,9 +91,8 @@ class FloatingBallOverlayService : Service() {
     private var mangaOcr: MangaOcr? = null
     private var llmClient: LlmClient? = null
     private var detectJob: Job? = null
-    private var bubbleDragEnabled = false
-    private var bubbleDragToggleButton: AppCompatButton? = null
     private var editModeToggleButton: AppCompatButton? = null
+    private var swipeTranslateButton: AppCompatButton? = null
     private var addBubbleButton: AppCompatButton? = null
     private var confirmEditButton: AppCompatButton? = null
     private var cancelEditButton: AppCompatButton? = null
@@ -106,15 +105,6 @@ class FloatingBallOverlayService : Service() {
     private var editSessionDirty = false
     private val hideProgressStatusRunnable = Runnable {
         progressStatusView?.visibility = View.GONE
-    }
-    private val bubbleDragAutoDisableRunnable = Runnable {
-        if (!bubbleDragEnabled) return@Runnable
-        applyBubbleDragEnabled(false)
-        Toast.makeText(
-            this,
-            R.string.overlay_drag_bubble_auto_disabled,
-            Toast.LENGTH_SHORT
-        ).show()
     }
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -132,8 +122,6 @@ class FloatingBallOverlayService : Service() {
         }
         ensureForeground()
         ensureWindowManager()
-        bubbleDragEnabled = settingsStore.loadFloatingBubbleDragEnabled()
-        AppLogger.log("FloatingOCR", "Loaded bubbleDragEnabled=$bubbleDragEnabled")
         if (detectionOverlayView == null) {
             showDetectionOverlay()
         }
@@ -156,7 +144,6 @@ class FloatingBallOverlayService : Service() {
 
     override fun onDestroy() {
         detectJob?.cancel()
-        cancelBubbleDragAutoDisable()
         clearCurrentSession()
         releaseProjection()
         removeOverlay()
@@ -199,8 +186,9 @@ class FloatingBallOverlayService : Service() {
     private fun showControllerOverlay() {
         ensureWindowManager()
         val density = resources.displayMetrics.density
-        val ballSize = (56f * density).toInt()
+        val ballSize = (52f * density).toInt()
         val margin = (8f * density).toInt()
+        val menuButtonWidth = (156f * density).toInt()
         val screenWidth = resources.displayMetrics.widthPixels
 
         val root = LinearLayout(this).apply {
@@ -245,24 +233,18 @@ class FloatingBallOverlayService : Service() {
         )
         val menuPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(
-                (8f * density).toInt(),
-                (8f * density).toInt(),
-                (8f * density).toInt(),
-                (8f * density).toInt()
-            )
-            background = GradientDrawable().apply {
-                cornerRadius = 8f * density
-                setColor(0xF5FFFFFF.toInt())
-                setStroke((1f * density).toInt(), 0x33222222)
-            }
+            gravity = Gravity.CENTER_HORIZONTAL
             visibility = View.GONE
-        }
-        val bubbleDragButton = createMenuButton().apply {
-            setOnClickListener { applyBubbleDragEnabled(!bubbleDragEnabled) }
         }
         val editButton = createMenuButton().apply {
             setOnClickListener { toggleEditMode() }
+        }
+        val swipeTranslateMenuButton = createMenuButton().apply {
+            text = getString(R.string.overlay_swipe_translate_button)
+            setOnClickListener {
+                controllerMenuPanel?.visibility = View.GONE
+                startSwipeTranslateMode()
+            }
         }
         val addButton = createMenuButton().apply {
             text = getString(R.string.overlay_add_bubble_button)
@@ -286,65 +268,36 @@ class FloatingBallOverlayService : Service() {
             text = getString(R.string.overlay_exit_button)
             setOnClickListener { stopSelf() }
         }
-        bubbleDragToggleButton = bubbleDragButton
         editModeToggleButton = editButton
+        swipeTranslateButton = swipeTranslateMenuButton
         addBubbleButton = addButton
         confirmEditButton = confirmButton
         cancelEditButton = cancelButton
-        updateBubbleDragToggleButton()
         updateEditModeToggleButton()
         updateEditButtons()
         menuPanel.addView(
-            bubbleDragButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+            editButton,
+            createMenuButtonLayoutParams(menuButtonWidth)
         )
         menuPanel.addView(
-            editButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = (6f * density).toInt()
-            }
+            swipeTranslateMenuButton,
+            createMenuButtonLayoutParams(menuButtonWidth, topMargin = 6f * density)
         )
         menuPanel.addView(
             addButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = (6f * density).toInt()
-            }
+            createMenuButtonLayoutParams(menuButtonWidth, topMargin = 6f * density)
         )
         menuPanel.addView(
             confirmButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = (6f * density).toInt()
-            }
+            createMenuButtonLayoutParams(menuButtonWidth, topMargin = 6f * density)
         )
         menuPanel.addView(
             cancelButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = (6f * density).toInt()
-            }
+            createMenuButtonLayoutParams(menuButtonWidth, topMargin = 6f * density)
         )
         menuPanel.addView(
             exitButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = (6f * density).toInt()
-            }
+            createMenuButtonLayoutParams(menuButtonWidth, topMargin = 6f * density)
         )
 
         root.addView(
@@ -410,7 +363,6 @@ class FloatingBallOverlayService : Service() {
             x = 0
             y = 0
         }
-        overlay.setBubbleDragEnabled(bubbleDragEnabled)
         overlay.setBubbleOpacity(settingsStore.loadTranslationBubbleOpacity())
         overlay.setEditMode(editModeEnabled)
         overlay.setCreateBubbleMode(createBubbleModeEnabled)
@@ -435,7 +387,7 @@ class FloatingBallOverlayService : Service() {
             updateEditButtons()
         }
         windowManager.addView(overlay, params)
-        AppLogger.log("FloatingOCR", "Detection overlay added dragEnabled=$bubbleDragEnabled")
+        AppLogger.log("FloatingOCR", "Detection overlay added")
         detectionOverlayView = overlay
         detectionLayoutParams = params
         syncOverlaySession()
@@ -450,43 +402,10 @@ class FloatingBallOverlayService : Service() {
     private fun buildDetectionFlags(): Int {
         var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-        if (!bubbleDragEnabled && !editModeEnabled) {
+        if (!editModeEnabled) {
             flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
         return flags
-    }
-
-    private fun applyBubbleDragEnabled(enabled: Boolean) {
-        bubbleDragEnabled = enabled
-        settingsStore.saveFloatingBubbleDragEnabled(enabled)
-        AppLogger.log("FloatingOCR", "Bubble drag toggled enabled=$enabled")
-        if (enabled) {
-            scheduleBubbleDragAutoDisable()
-            Toast.makeText(
-                this,
-                R.string.overlay_drag_bubble_auto_disable_notice,
-                Toast.LENGTH_SHORT
-            ).show()
-        } else {
-            cancelBubbleDragAutoDisable()
-        }
-        updateBubbleDragToggleButton()
-        detectionOverlayView?.setBubbleDragEnabled(enabled)
-        val params = detectionLayoutParams ?: return
-        val newFlags = buildDetectionFlags()
-        if (params.flags != newFlags) {
-            params.flags = newFlags
-            try {
-                windowManager.updateViewLayout(detectionOverlayView, params)
-            } catch (_: Exception) {
-            }
-        }
-        ensureControllerOnTop()
-    }
-
-    private fun scheduleBubbleDragAutoDisable() {
-        cancelBubbleDragAutoDisable()
-        mainHandler.postDelayed(bubbleDragAutoDisableRunnable, BUBBLE_DRAG_AUTO_DISABLE_MS)
     }
 
     private fun showProgressStatus(messageResId: Int, autoHide: Boolean = false) {
@@ -503,10 +422,6 @@ class FloatingBallOverlayService : Service() {
         }
     }
 
-    private fun cancelBubbleDragAutoDisable() {
-        mainHandler.removeCallbacks(bubbleDragAutoDisableRunnable)
-    }
-
     private fun ensureControllerOnTop() {
         val root = controllerRoot ?: return
         val params = controllerLayoutParams ?: return
@@ -515,13 +430,6 @@ class FloatingBallOverlayService : Service() {
             windowManager.addView(root, params)
         } catch (_: Exception) {
         }
-    }
-
-    private fun updateBubbleDragToggleButton() {
-        bubbleDragToggleButton?.text = getString(
-            R.string.overlay_drag_bubble_option_format,
-            if (bubbleDragEnabled) getString(R.string.common_on) else getString(R.string.common_off)
-        )
     }
 
     private fun updateEditModeToggleButton() {
@@ -533,6 +441,7 @@ class FloatingBallOverlayService : Service() {
 
     private fun updateEditButtons() {
         val isEditing = editModeEnabled
+        swipeTranslateButton?.visibility = if (isEditing) View.GONE else View.VISIBLE
         addBubbleButton?.visibility = if (isEditing) View.VISIBLE else View.GONE
         confirmEditButton?.visibility = if (isEditing) View.VISIBLE else View.GONE
         cancelEditButton?.visibility = if (isEditing) View.VISIBLE else View.GONE
@@ -553,20 +462,35 @@ class FloatingBallOverlayService : Service() {
         val density = resources.displayMetrics.density
         return AppCompatButton(this).apply {
             textSize = 13f
+            gravity = Gravity.CENTER
             setTextColor(0xFF1F1F1F.toInt())
             background = GradientDrawable().apply {
-                cornerRadius = 8f * density
-                setColor(0xFFFFFFFF.toInt())
-                setStroke((1f * density).toInt(), 0x33222222)
+                cornerRadius = 12f * density
+                setColor(0xF7FFFFFF.toInt())
+                setStroke((1f * density).toInt(), 0x2A1F1F1F)
             }
+            elevation = 6f * density
             minimumWidth = 0
             minWidth = 0
             setPadding(
-                (10f * density).toInt(),
+                (14f * density).toInt(),
                 (8f * density).toInt(),
-                (10f * density).toInt(),
+                (14f * density).toInt(),
                 (8f * density).toInt()
             )
+        }
+    }
+
+    private fun createMenuButtonLayoutParams(
+        width: Int,
+        topMargin: Float = 0f
+    ): LinearLayout.LayoutParams {
+        return LinearLayout.LayoutParams(
+            width,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            this.topMargin = topMargin.toInt()
         }
     }
 
@@ -576,11 +500,13 @@ class FloatingBallOverlayService : Service() {
             controllerMenuPanel?.visibility = View.GONE
             return
         }
-        val session = currentSession
-        if (session == null) {
+        if (!enterEditMode()) {
             Toast.makeText(this, R.string.overlay_edit_requires_detection, Toast.LENGTH_SHORT).show()
-            return
         }
+    }
+
+    private fun enterEditMode(showToast: Boolean = true): Boolean {
+        val session = currentSession ?: return false
         editModeEnabled = true
         createBubbleModeEnabled = false
         editSessionDirty = false
@@ -590,7 +516,72 @@ class FloatingBallOverlayService : Service() {
         refreshDetectionOverlayTouchability()
         updateEditModeToggleButton()
         updateEditButtons()
-        Toast.makeText(this, R.string.overlay_edit_mode_enabled, Toast.LENGTH_SHORT).show()
+        if (showToast) {
+            Toast.makeText(this, R.string.overlay_edit_mode_enabled, Toast.LENGTH_SHORT).show()
+        }
+        return true
+    }
+
+    private fun startSwipeTranslateMode() {
+        if (detectJob?.isActive == true) return
+        if (!screenCaptureSession.isReady()) {
+            AppLogger.log("FloatingOCR", "Swipe translate blocked: projection not ready")
+            showProgressStatus(R.string.floating_capture_not_ready, autoHide = true)
+            Toast.makeText(this, R.string.floating_capture_not_ready, Toast.LENGTH_SHORT).show()
+            return
+        }
+        showProgressStatus(R.string.floating_progress_capturing)
+        detectJob = scope.launch(Dispatchers.Default) {
+            var bitmap: Bitmap? = null
+            try {
+                bitmap = screenCaptureSession.captureCurrentScreen()
+                if (bitmap == null) {
+                    withContext(Dispatchers.Main) {
+                        showProgressStatus(R.string.floating_capture_not_ready, autoHide = true)
+                        Toast.makeText(
+                            this@FloatingBallOverlayService,
+                            R.string.floating_capture_not_ready,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    return@launch
+                }
+                withContext(Dispatchers.Main) {
+                    currentSession = TranslationResult(
+                        imageName = "",
+                        width = bitmap.width,
+                        height = bitmap.height,
+                        bubbles = emptyList()
+                    )
+                    editSessionSnapshot = null
+                    createBubbleModeEnabled = false
+                    syncOverlaySession()
+                    replaceCurrentSessionBitmap(bitmap)
+                    bitmap = null
+                    enterEditMode(showToast = false)
+                    toggleCreateBubbleMode()
+                    showProgressStatus(R.string.overlay_swipe_translate_ready, autoHide = true)
+                    Toast.makeText(
+                        this@FloatingBallOverlayService,
+                        R.string.overlay_swipe_translate_ready,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                AppLogger.log("FloatingOCR", "Swipe translate mode ready")
+            } catch (e: Exception) {
+                AppLogger.log("FloatingOCR", "Swipe translate mode failed", e)
+                withContext(Dispatchers.Main) {
+                    showProgressStatus(R.string.floating_detect_failed, autoHide = true)
+                    Toast.makeText(
+                        this@FloatingBallOverlayService,
+                        R.string.floating_detect_failed,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } finally {
+                bitmap?.recycle()
+            }
+        }
     }
 
     private fun toggleCreateBubbleMode() {
@@ -930,6 +921,9 @@ class FloatingBallOverlayService : Service() {
                     return@launch
                 }
                 withContext(Dispatchers.Main) {
+                    val proofreadingModeEnabled = settingsStore
+                        .loadFloatingTranslateApiSettings()
+                        .proofreadingModeEnabled
                     currentSession = TranslationResult(
                         imageName = "",
                         width = bitmap.width,
@@ -941,15 +935,25 @@ class FloatingBallOverlayService : Service() {
                     syncOverlaySession()
                     replaceCurrentSessionBitmap(bitmap)
                     bitmap = null
-                    showProgressStatus(
-                        getString(R.string.floating_progress_done, translatedBubbles.size),
-                        autoHide = true
-                    )
-                    Toast.makeText(
-                        this@FloatingBallOverlayService,
-                        getString(R.string.floating_detected_count, translatedBubbles.size),
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    if (proofreadingModeEnabled) {
+                        enterEditMode(showToast = true)
+                        controllerMenuPanel?.visibility = View.VISIBLE
+                        updateEditButtons()
+                        showProgressStatus(
+                            getString(R.string.floating_progress_done, translatedBubbles.size),
+                            autoHide = false
+                        )
+                    } else {
+                        showProgressStatus(
+                            getString(R.string.floating_progress_done, translatedBubbles.size),
+                            autoHide = true
+                        )
+                        Toast.makeText(
+                            this@FloatingBallOverlayService,
+                            getString(R.string.floating_detected_count, translatedBubbles.size),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
                 AppLogger.log("FloatingOCR", "Run detection finished bubbles=${translatedBubbles.size}")
             } catch (e: Exception) {
@@ -994,9 +998,6 @@ class FloatingBallOverlayService : Service() {
                 override fun onDoubleTap(e: MotionEvent): Boolean {
                     menuPanel.visibility = View.GONE
                     clearCurrentSession()
-                    if (bubbleDragEnabled) {
-                        applyBubbleDragEnabled(false)
-                    }
                     return true
                 }
 
@@ -1029,9 +1030,12 @@ class FloatingBallOverlayService : Service() {
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - downRawX
                     val dy = event.rawY - downRawY
-                    if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
-                        dragging = true
+                    val shouldStartDragging = abs(dx) > touchSlop || abs(dy) > touchSlop
+                    if (menuPanel.isVisible && shouldStartDragging) {
                         menuPanel.visibility = View.GONE
+                    }
+                    if (!dragging && shouldStartDragging) {
+                        dragging = true
                     }
                     if (!dragging) {
                         return@setOnTouchListener true
@@ -1081,8 +1085,8 @@ class FloatingBallOverlayService : Service() {
         controllerMenuPanel = null
         detectionOverlayView = null
         detectionLayoutParams = null
-        bubbleDragToggleButton = null
         editModeToggleButton = null
+        swipeTranslateButton = null
         addBubbleButton = null
         confirmEditButton = null
         cancelEditButton = null
@@ -1110,7 +1114,6 @@ class FloatingBallOverlayService : Service() {
         const val ACTION_STOP = "com.manga.translate.action.FLOATING_STOP"
         const val EXTRA_RESULT_CODE = "extra_result_code"
         const val EXTRA_RESULT_DATA = "extra_result_data"
-        private const val BUBBLE_DRAG_AUTO_DISABLE_MS = 10_000L
         private const val FLOATING_PROGRESS_HIDE_DELAY_MS = 2_000L
         private const val CHANNEL_ID = "floating_detect_channel"
         private const val NOTIFICATION_ID = 2002

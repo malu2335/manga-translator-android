@@ -72,7 +72,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     private var sourceHeight = 1
     private var bubbles: List<BubbleTranslation> = emptyList()
     private var bubbleOpacity = SettingsStore(context).loadTranslationBubbleOpacity()
-    private var bubbleDragEnabled = false
     private var editMode = false
     private var createBubbleMode = false
     private val touchSlop = 3f * resources.displayMetrics.density
@@ -114,14 +113,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         invalidate()
     }
 
-    fun setBubbleDragEnabled(enabled: Boolean) {
-        bubbleDragEnabled = enabled
-        if (!enabled && !editMode) {
-            draggingBubbleId = null
-            isDragging = false
-        }
-    }
-
     fun setEditMode(enabled: Boolean) {
         if (editMode == enabled) return
         editMode = enabled
@@ -157,7 +148,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val handled = when {
             editMode -> handleEditTouch(event)
-            bubbleDragEnabled && bubbles.isNotEmpty() -> handleDragTouch(event)
             else -> false
         }
         if (handled && event.actionMasked == MotionEvent.ACTION_UP && !isDragging) {
@@ -282,42 +272,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             max(downX, sourceX),
             max(downY, sourceY)
         )
-    }
-
-    private fun handleDragTouch(event: MotionEvent): Boolean {
-        val sourceX = event.x / scaleX()
-        val sourceY = event.y / scaleY()
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                val bubble = findBubbleAt(sourceX, sourceY) ?: return false
-                draggingBubbleId = bubble.id
-                downX = event.x
-                downY = event.y
-                isDragging = false
-                dragOffsetX = sourceX - bubble.rect.left
-                dragOffsetY = sourceY - bubble.rect.top
-                return true
-            }
-
-            MotionEvent.ACTION_MOVE -> {
-                val id = draggingBubbleId ?: return false
-                if (!isDragging) {
-                    isDragging = abs(event.x - downX) > touchSlop || abs(event.y - downY) > touchSlop
-                }
-                if (!isDragging) return true
-                updateBubblePosition(id, sourceX, sourceY)
-                return true
-            }
-
-            MotionEvent.ACTION_UP,
-            MotionEvent.ACTION_CANCEL -> {
-                val hadTarget = draggingBubbleId != null
-                draggingBubbleId = null
-                isDragging = false
-                return hadTarget
-            }
-        }
-        return false
     }
 
     private fun findBubbleAt(x: Float, y: Float): BubbleTranslation? {

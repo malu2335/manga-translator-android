@@ -18,6 +18,22 @@
             android:textColor="?attr/dialogTextColor"
             android:text="@string/floating_use_vl_direct_translate" />
 
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/floating_proofreading_mode_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="?attr/dialogTextColor"
+            android:text="@string/floating_proofreading_mode" />
+
+        <TextView
+            android:id="@+id/floating_proofreading_mode_note"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/floating_proofreading_mode_note"
+            android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
+
         <TextView
             android:id="@+id/floating_translate_vl_note"
             android:layout_width="match_parent"

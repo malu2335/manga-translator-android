@@ -33,7 +33,8 @@ data class FloatingTranslateApiSettings(
     val apiKey: String,
     val modelName: String,
     val useVlDirectTranslate: Boolean,
-    val vlTranslateConcurrency: Int
+    val vlTranslateConcurrency: Int,
+    val proofreadingModeEnabled: Boolean
 )
 
 data class CustomRequestParameter(
@@ -74,7 +75,8 @@ class SettingsStore(context: Context) {
             ).coerceIn(
                 MIN_FLOATING_VL_TRANSLATE_CONCURRENCY,
                 MAX_FLOATING_VL_TRANSLATE_CONCURRENCY
-            )
+            ),
+            proofreadingModeEnabled = prefs.getBoolean(KEY_FLOATING_PROOFREADING_MODE_ENABLED, false)
         )
     }
 
@@ -100,6 +102,10 @@ class SettingsStore(context: Context) {
                 .putString(KEY_FLOATING_MODEL_NAME, settings.modelName)
                 .putBoolean(KEY_FLOATING_USE_VL_DIRECT_TRANSLATE, settings.useVlDirectTranslate)
                 .putInt(KEY_FLOATING_VL_TRANSLATE_CONCURRENCY, normalizedConcurrency)
+                .putBoolean(
+                    KEY_FLOATING_PROOFREADING_MODE_ENABLED,
+                    settings.proofreadingModeEnabled
+                )
             }
     }
 
@@ -148,16 +154,6 @@ class SettingsStore(context: Context) {
     fun saveModelIoLogging(enabled: Boolean) {
         prefs.edit() {
                 putBoolean(KEY_MODEL_IO_LOGGING, enabled)
-            }
-    }
-
-    fun loadFloatingBubbleDragEnabled(): Boolean {
-        return prefs.getBoolean(KEY_FLOATING_BUBBLE_DRAG_ENABLED, false)
-    }
-
-    fun saveFloatingBubbleDragEnabled(enabled: Boolean) {
-        prefs.edit() {
-                putBoolean(KEY_FLOATING_BUBBLE_DRAG_ENABLED, enabled)
             }
     }
 
@@ -370,10 +366,11 @@ class SettingsStore(context: Context) {
         private const val KEY_FLOATING_MODEL_NAME = "floating_model_name"
         private const val KEY_FLOATING_USE_VL_DIRECT_TRANSLATE = "floating_use_vl_direct_translate"
         private const val KEY_FLOATING_VL_TRANSLATE_CONCURRENCY = "floating_vl_translate_concurrency"
+        private const val KEY_FLOATING_PROOFREADING_MODE_ENABLED =
+            "floating_proofreading_mode_enabled"
         private const val KEY_OCR_API_TIMEOUT_SECONDS = "ocr_api_timeout_seconds"
         private const val KEY_HORIZONTAL_TEXT = "horizontal_text_layout"
         private const val KEY_MODEL_IO_LOGGING = "model_io_logging"
-        private const val KEY_FLOATING_BUBBLE_DRAG_ENABLED = "floating_bubble_drag_enabled"
         private const val KEY_MAX_CONCURRENCY = "max_concurrency"
         private const val KEY_API_TIMEOUT_SECONDS = "api_timeout_seconds"
         private const val KEY_APP_LANGUAGE = "app_language"
