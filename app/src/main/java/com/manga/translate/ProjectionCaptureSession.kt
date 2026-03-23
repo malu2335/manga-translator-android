@@ -84,11 +84,18 @@ internal class ProjectionCaptureSession(
         return true
     }
 
-    suspend fun captureCurrentScreen(timeoutMs: Long = DEFAULT_CAPTURE_TIMEOUT_MS): Bitmap? {
+    suspend fun captureCurrentScreen(
+        timeoutMs: Long = DEFAULT_CAPTURE_TIMEOUT_MS,
+        requireFreshFrame: Boolean = false
+    ): Bitmap? {
         val reader = imageReader ?: return null
-        acquireLatestBitmap(reader)?.let { bitmap ->
-            AppLogger.log("FloatingOCR", "Captured frame ${bitmap.width}x${bitmap.height} immediately")
-            return bitmap
+        if (!requireFreshFrame) {
+            acquireLatestBitmap(reader)?.let { bitmap ->
+                AppLogger.log("FloatingOCR", "Captured frame ${bitmap.width}x${bitmap.height} immediately")
+                return bitmap
+            }
+        } else {
+            discardPendingImages(reader)
         }
         val bitmap = withTimeoutOrNull(timeoutMs) {
             suspendCancellableCoroutine<Bitmap?> { continuation ->
@@ -114,6 +121,20 @@ internal class ProjectionCaptureSession(
             AppLogger.log("FloatingOCR", "Captured frame ${bitmap.width}x${bitmap.height} after wait")
         }
         return bitmap
+    }
+
+    private fun discardPendingImages(reader: ImageReader) {
+        while (true) {
+            val image = try {
+                reader.acquireLatestImage()
+            } catch (_: Exception) {
+                null
+            } ?: break
+            try {
+                image.close()
+            } catch (_: Exception) {
+            }
+        }
     }
 
     fun release() {

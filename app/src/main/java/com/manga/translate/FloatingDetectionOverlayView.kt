@@ -12,6 +12,7 @@ import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import androidx.core.graphics.withTranslation
 import kotlin.math.abs
 import kotlin.math.max
@@ -84,6 +85,17 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     private var isDragging = false
     private var isDrawing = false
     private var dirty = false
+    private var longPressBubbleId: Int? = null
+    private var longPressTriggered = false
+    private val longPressTimeoutMs = ViewConfiguration.getLongPressTimeout().toLong()
+    private val longPressDeleteRunnable = Runnable {
+        val id = longPressBubbleId ?: return@Runnable
+        longPressTriggered = true
+        draggingBubbleId = null
+        isDragging = false
+        onBubbleDelete?.invoke(id)
+        setDirty(true)
+    }
 
     var onBubblesChanged: ((List<BubbleTranslation>) -> Unit)? = null
     var onBubbleDelete: ((Int) -> Unit)? = null
@@ -100,6 +112,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         this.bubbles = bubbles
         draggingBubbleId = null
         isDragging = false
+        cancelLongPressDelete()
         invalidate()
     }
 
@@ -109,6 +122,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         isDragging = false
         isDrawing = false
         drawingRect.setEmpty()
+        cancelLongPressDelete()
         setDirty(false)
         invalidate()
     }
@@ -122,6 +136,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             isDragging = false
             isDrawing = false
             drawingRect.setEmpty()
+            cancelLongPressDelete()
             setDirty(false)
         }
         invalidate()
@@ -134,6 +149,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         isDragging = false
         isDrawing = false
         drawingRect.setEmpty()
+        cancelLongPressDelete()
         invalidate()
     }
 
@@ -176,8 +192,10 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                     draggingBubbleId = bubble.id
                     dragOffsetX = sourceX - bubble.rect.left
                     dragOffsetY = sourceY - bubble.rect.top
+                    scheduleLongPressDelete(bubble.id)
                 } else {
                     draggingBubbleId = null
+                    cancelLongPressDelete()
                 }
                 return true
             }
@@ -186,6 +204,9 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                 val id = draggingBubbleId ?: return true
                 if (!isDragging) {
                     isDragging = abs(event.x - downX) > touchSlop || abs(event.y - downY) > touchSlop
+                    if (isDragging) {
+                        cancelLongPressDelete()
+                    }
                 }
                 if (isDragging) {
                     updateBubblePosition(id, sourceX, sourceY)
@@ -195,6 +216,11 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
 
             MotionEvent.ACTION_UP -> {
                 val id = draggingBubbleId
+                val didLongPressDelete = longPressTriggered
+                cancelLongPressDelete()
+                if (didLongPressDelete) {
+                    return true
+                }
                 if (!isDragging && id != null) {
                     val bubble = bubbles.firstOrNull { it.id == id }
                     if (bubble != null) {
@@ -211,6 +237,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                cancelLongPressDelete()
                 draggingBubbleId = null
                 isDragging = false
                 return true
@@ -301,6 +328,19 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         onBubblesChanged?.invoke(mutable)
         setDirty(true)
         invalidate()
+    }
+
+    private fun scheduleLongPressDelete(id: Int) {
+        cancelLongPressDelete()
+        longPressBubbleId = id
+        longPressTriggered = false
+        postDelayed(longPressDeleteRunnable, longPressTimeoutMs)
+    }
+
+    private fun cancelLongPressDelete() {
+        removeCallbacks(longPressDeleteRunnable)
+        longPressBubbleId = null
+        longPressTriggered = false
     }
 
     override fun onDraw(canvas: Canvas) {

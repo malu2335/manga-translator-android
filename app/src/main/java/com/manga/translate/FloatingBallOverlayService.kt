@@ -34,6 +34,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
@@ -566,6 +567,7 @@ class FloatingBallOverlayService : Service() {
         }
         showProgressStatus(R.string.floating_progress_capturing)
         detectJob = scope.launch(Dispatchers.Default) {
+            val runningJob = currentCoroutineContext()[Job]
             var bitmap: Bitmap? = null
             try {
                 bitmap = screenCaptureSession.captureCurrentScreen()
@@ -616,6 +618,9 @@ class FloatingBallOverlayService : Service() {
             } finally {
                 bitmap?.recycle()
                 withContext(Dispatchers.Main) {
+                    if (detectJob === runningJob) {
+                        detectJob = null
+                    }
                     updateAutoCloseDetectionState()
                 }
             }
@@ -683,6 +688,7 @@ class FloatingBallOverlayService : Service() {
         showProgressStatus(R.string.overlay_empty_bubble_translating)
         detectJob?.cancel()
         detectJob = scope.launch(Dispatchers.Default) {
+            val runningJob = currentCoroutineContext()[Job]
             try {
                 val floatingTimeoutMs =
                     settingsStore.loadFloatingTranslateApiSettings().timeoutSeconds * 1000
@@ -728,6 +734,9 @@ class FloatingBallOverlayService : Service() {
             } finally {
                 bitmapSnapshot.recycle()
                 withContext(Dispatchers.Main) {
+                    if (detectJob === runningJob) {
+                        detectJob = null
+                    }
                     updateAutoCloseDetectionState()
                 }
             }
@@ -822,6 +831,7 @@ class FloatingBallOverlayService : Service() {
         AppLogger.log("FloatingOCR", "Run detection started")
         showProgressStatus(R.string.floating_progress_capturing)
         detectJob = scope.launch(Dispatchers.Default) {
+            val runningJob = currentCoroutineContext()[Job]
             var bitmap: Bitmap? = null
             try {
                 bitmap = screenCaptureSession.captureCurrentScreen()
@@ -1021,6 +1031,9 @@ class FloatingBallOverlayService : Service() {
             } finally {
                 bitmap?.recycle()
                 withContext(Dispatchers.Main) {
+                    if (detectJob === runningJob) {
+                        detectJob = null
+                    }
                     updateAutoCloseDetectionState()
                 }
             }
@@ -1205,7 +1218,10 @@ class FloatingBallOverlayService : Service() {
 
     private suspend fun detectScreenChangeAgainstReference(): Boolean {
         val reference = autoCloseReferenceFrame ?: return false
-        val currentScreen = screenCaptureSession.captureCurrentScreen() ?: return false
+        val currentScreen = screenCaptureSession.captureCurrentScreen(
+            timeoutMs = AUTO_CLOSE_CAPTURE_TIMEOUT_MS,
+            requireFreshFrame = true
+        ) ?: return false
         try {
             val current = createScreenChangeReferenceFrame(currentScreen) ?: return false
             try {
@@ -1311,6 +1327,7 @@ class FloatingBallOverlayService : Service() {
         private const val FLOATING_TRANSLATE_RETRY_COUNT = 1
         private const val MAX_FLOATING_VL_TRANSLATE_CONCURRENCY = 16
         private const val AUTO_CLOSE_SCREEN_CHECK_INTERVAL_MS = 900L
+        private const val AUTO_CLOSE_CAPTURE_TIMEOUT_MS = 1200L
         private const val AUTO_CLOSE_REFERENCE_WIDTH = 180
         private const val AUTO_CLOSE_IGNORE_TOP_RATIO = 0.12f
         private const val AUTO_CLOSE_IGNORE_BOTTOM_RATIO = 0.14f
