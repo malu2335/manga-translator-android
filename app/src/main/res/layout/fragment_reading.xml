@@ -141,7 +141,8 @@
                 android:inputType="number"
                 android:maxLines="1"
                 android:padding="4dp"
-                android:textColor="#FF000000"
+                android:textColor="?attr/dialogTextColor"
+                android:textColorHint="?attr/dialogHintTextColor"
                 android:textSize="12sp" />
         </LinearLayout>
 
@@ -171,7 +172,8 @@
                 android:inputType="number"
                 android:maxLines="1"
                 android:padding="4dp"
-                android:textColor="#FF000000"
+                android:textColor="?attr/dialogTextColor"
+                android:textColorHint="?attr/dialogHintTextColor"
                 android:textSize="12sp" />
         </LinearLayout>
 

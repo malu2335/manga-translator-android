@@ -49,6 +49,11 @@
         <item name="android:textColorHint">?attr/dialogHintTextColor</item>
     </style>
 
+    <style name="Widget.MangaTranslator.EditText" parent="">
+        <item name="android:textColor">?attr/dialogTextColor</item>
+        <item name="android:textColorHint">?attr/dialogHintTextColor</item>
+    </style>
+
     <style name="Widget.MangaTranslator.DialogBody" parent="TextAppearance.AppCompat.Body1">
         <item name="android:textSize">15sp</item>
         <item name="android:lineSpacingExtra">4dp</item>

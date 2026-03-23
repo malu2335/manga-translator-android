@@ -59,6 +59,7 @@
                 android:hint="@string/api_url_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.MangaTranslator.EditText"
                     android:id="@+id/api_url_input"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -83,6 +84,7 @@
                 android:hint="@string/api_key_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.MangaTranslator.EditText"
                     android:id="@+id/api_key_input"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -98,6 +100,7 @@
                 android:hint="@string/model_name_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.MangaTranslator.EditText"
                     android:id="@+id/model_name_input"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -113,6 +116,7 @@
                 android:hint="@string/api_timeout_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.MangaTranslator.EditText"
                     android:id="@+id/api_timeout_input"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -197,6 +201,7 @@
                 android:hint="@string/max_concurrency_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.MangaTranslator.EditText"
                     android:id="@+id/max_concurrency_input"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -212,6 +217,7 @@
                 android:hint="@string/translation_bubble_opacity_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.MangaTranslator.EditText"
                     android:id="@+id/translation_bubble_opacity_input"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -247,6 +253,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
+                android:textColor="?attr/dialogTextColor"
                 android:text="@string/text_layout_horizontal" />
 
             <androidx.appcompat.widget.SwitchCompat
@@ -254,6 +261,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
+                android:textColor="?attr/dialogTextColor"
                 android:text="@string/model_io_logging" />
 
             <Button
