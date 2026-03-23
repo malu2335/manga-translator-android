@@ -40,8 +40,9 @@
         <item name="boxCornerRadiusTopEnd">22dp</item>
         <item name="boxCornerRadiusBottomStart">22dp</item>
         <item name="boxCornerRadiusBottomEnd">22dp</item>
-        <item name="boxStrokeColor">?attr/outlineColor</item>
-        <item name="hintTextColor">?attr/mutedTextColor</item>
+        <item name="boxStrokeColor">@color/input_stroke_color</item>
+        <item name="hintTextColor">@color/input_hint_color</item>
+        <item name="android:textColorHint">@color/input_hint_color</item>
     </style>
 
     <style name="Widget.MangaTranslator.DialogEditText" parent="">
