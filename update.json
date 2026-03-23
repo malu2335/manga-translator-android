@@ -1,10 +1,16 @@
 {
-  "versionCode": 34,
-  "versionName": "2.3.10",
+  "versionCode": 35,
+  "versionName": "2.3.11",
   "releasedAt": "2026-03-23",
-  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.10/app-release.apk",
-  "changelog": "修复部分机型启动后系统弹窗滚动条导致的闪退（恶性bug）",
+  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.11/app-release.apk",
+  "changelog": "普通模式新增VL直译。悬浮窗翻译新增校对模式、划屏翻译和划屏后自动关闭翻译功能，并优化超时设置。修复VL模型整气泡翻译解析错误、悬浮窗自动清屏不生效等问题，优化部分UI样式。",
   "history": [
+    {
+      "versionName": "2.3.10",
+      "releasedAt": "2026-03-23",
+      "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.10/app-release.apk",
+      "changelog": "修复部分机型启动后系统弹窗滚动条导致的闪退（恶性bug）"
+    },
     {
       "versionName": "2.3.9",
       "releasedAt": "2026-03-22",
