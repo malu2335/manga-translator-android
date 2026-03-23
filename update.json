@@ -1,10 +1,16 @@
 {
-  "versionCode": 33,
-  "versionName": "2.3.9",
-  "releasedAt": "2026-03-22",
-  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.9/app-release.apk",
-  "changelog": "修复错误弹窗导致的反复崩溃，优化多线程嵌字，修复悬浮窗翻译闪退。修复下载更新按钮不出现的问题（旧版本请前往 https://github.com/jedzqer/manga-translator-android/releases 手动更新）",
+  "versionCode": 34,
+  "versionName": "2.3.10",
+  "releasedAt": "2026-03-23",
+  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.10/app-release.apk",
+  "changelog": "修复部分机型启动后系统弹窗滚动条导致的闪退（恶性bug）",
   "history": [
+    {
+      "versionName": "2.3.9",
+      "releasedAt": "2026-03-22",
+      "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.9/app-release.apk",
+      "changelog": "修复错误弹窗导致的反复崩溃，优化多线程嵌字，修复悬浮窗翻译闪退。修复下载更新按钮不出现的问题（旧版本请前往 https://github.com/jedzqer/manga-translator-android/releases 手动更新）"
+    },
     {
       "versionName": "2.3.8",
       "releasedAt": "2026-03-20",
