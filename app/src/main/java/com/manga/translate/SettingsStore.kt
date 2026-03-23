@@ -32,9 +32,11 @@ data class FloatingTranslateApiSettings(
     val apiUrl: String,
     val apiKey: String,
     val modelName: String,
+    val timeoutSeconds: Int,
     val useVlDirectTranslate: Boolean,
     val vlTranslateConcurrency: Int,
-    val proofreadingModeEnabled: Boolean
+    val proofreadingModeEnabled: Boolean,
+    val autoCloseOnScreenChangeEnabled: Boolean
 )
 
 data class CustomRequestParameter(
@@ -68,6 +70,13 @@ class SettingsStore(context: Context) {
             apiUrl = prefs.getString(KEY_FLOATING_API_URL, "") ?: "",
             apiKey = prefs.getString(KEY_FLOATING_API_KEY, "") ?: "",
             modelName = prefs.getString(KEY_FLOATING_MODEL_NAME, "") ?: "",
+            timeoutSeconds = prefs.getInt(
+                KEY_FLOATING_TIMEOUT_SECONDS,
+                DEFAULT_FLOATING_API_TIMEOUT_SECONDS
+            ).coerceIn(
+                MIN_FLOATING_API_TIMEOUT_SECONDS,
+                MAX_FLOATING_API_TIMEOUT_SECONDS
+            ),
             useVlDirectTranslate = prefs.getBoolean(KEY_FLOATING_USE_VL_DIRECT_TRANSLATE, false),
             vlTranslateConcurrency = prefs.getInt(
                 KEY_FLOATING_VL_TRANSLATE_CONCURRENCY,
@@ -76,7 +85,11 @@ class SettingsStore(context: Context) {
                 MIN_FLOATING_VL_TRANSLATE_CONCURRENCY,
                 MAX_FLOATING_VL_TRANSLATE_CONCURRENCY
             ),
-            proofreadingModeEnabled = prefs.getBoolean(KEY_FLOATING_PROOFREADING_MODE_ENABLED, false)
+            proofreadingModeEnabled = prefs.getBoolean(KEY_FLOATING_PROOFREADING_MODE_ENABLED, false),
+            autoCloseOnScreenChangeEnabled = prefs.getBoolean(
+                KEY_FLOATING_AUTO_CLOSE_ON_SCREEN_CHANGE_ENABLED,
+                false
+            )
         )
     }
 
@@ -96,15 +109,24 @@ class SettingsStore(context: Context) {
             MIN_FLOATING_VL_TRANSLATE_CONCURRENCY,
             MAX_FLOATING_VL_TRANSLATE_CONCURRENCY
         )
+        val normalizedTimeout = settings.timeoutSeconds.coerceIn(
+            MIN_FLOATING_API_TIMEOUT_SECONDS,
+            MAX_FLOATING_API_TIMEOUT_SECONDS
+        )
         prefs.edit() {
                 putString(KEY_FLOATING_API_URL, settings.apiUrl)
                 .putString(KEY_FLOATING_API_KEY, settings.apiKey)
                 .putString(KEY_FLOATING_MODEL_NAME, settings.modelName)
+                .putInt(KEY_FLOATING_TIMEOUT_SECONDS, normalizedTimeout)
                 .putBoolean(KEY_FLOATING_USE_VL_DIRECT_TRANSLATE, settings.useVlDirectTranslate)
                 .putInt(KEY_FLOATING_VL_TRANSLATE_CONCURRENCY, normalizedConcurrency)
                 .putBoolean(
                     KEY_FLOATING_PROOFREADING_MODE_ENABLED,
                     settings.proofreadingModeEnabled
+                )
+                .putBoolean(
+                    KEY_FLOATING_AUTO_CLOSE_ON_SCREEN_CHANGE_ENABLED,
+                    settings.autoCloseOnScreenChangeEnabled
                 )
             }
     }
@@ -364,10 +386,13 @@ class SettingsStore(context: Context) {
         private const val KEY_FLOATING_API_URL = "floating_api_url"
         private const val KEY_FLOATING_API_KEY = "floating_api_key"
         private const val KEY_FLOATING_MODEL_NAME = "floating_model_name"
+        private const val KEY_FLOATING_TIMEOUT_SECONDS = "floating_timeout_seconds"
         private const val KEY_FLOATING_USE_VL_DIRECT_TRANSLATE = "floating_use_vl_direct_translate"
         private const val KEY_FLOATING_VL_TRANSLATE_CONCURRENCY = "floating_vl_translate_concurrency"
         private const val KEY_FLOATING_PROOFREADING_MODE_ENABLED =
             "floating_proofreading_mode_enabled"
+        private const val KEY_FLOATING_AUTO_CLOSE_ON_SCREEN_CHANGE_ENABLED =
+            "floating_auto_close_on_screen_change_enabled"
         private const val KEY_OCR_API_TIMEOUT_SECONDS = "ocr_api_timeout_seconds"
         private const val KEY_HORIZONTAL_TEXT = "horizontal_text_layout"
         private const val KEY_MODEL_IO_LOGGING = "model_io_logging"
@@ -401,6 +426,9 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_FLOATING_VL_TRANSLATE_CONCURRENCY = 1
         private const val MIN_FLOATING_VL_TRANSLATE_CONCURRENCY = 1
         private const val MAX_FLOATING_VL_TRANSLATE_CONCURRENCY = 16
+        private const val DEFAULT_FLOATING_API_TIMEOUT_SECONDS = 300
+        private const val MIN_FLOATING_API_TIMEOUT_SECONDS = 30
+        private const val MAX_FLOATING_API_TIMEOUT_SECONDS = 1200
         private const val DEFAULT_MAX_CONCURRENCY = 3
         private const val MIN_MAX_CONCURRENCY = 1
         private const val MAX_MAX_CONCURRENCY = 50

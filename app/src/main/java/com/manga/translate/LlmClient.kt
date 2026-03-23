@@ -782,9 +782,13 @@ class LlmClient(context: Context) {
 
     private fun parseTranslationContent(content: String): LlmTranslationResult {
         val cleaned = stripCodeFence(content)
+        val directFallback = parseTranslationFallback(cleaned)
+        if (directFallback != null) {
+            return directFallback
+        }
         return try {
             val json = JSONObject(cleaned)
-            val translation = json.optString("translation")?.trim().orEmpty()
+            val translation = extractTranslationText(json)
             if (translation.isBlank()) {
                 AppLogger.log("LlmClient", "Missing translation field in response")
                 throw LlmResponseException("MISSING_TRANSLATION", content)
@@ -810,6 +814,43 @@ class LlmClient(context: Context) {
             )
             throw LlmResponseException("INVALID_FORMAT", content, e)
         }
+    }
+
+    private fun parseTranslationFallback(content: String): LlmTranslationResult? {
+        val trimmed = content.trim()
+        if (trimmed.isBlank()) return null
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) return null
+        // Some OpenAI-compatible providers still return the translation as plain text.
+        return LlmTranslationResult(trimmed, emptyMap())
+    }
+
+    private fun extractTranslationText(json: JSONObject): String {
+        val directKeys = listOf("translation", "translated_text", "translatedText", "text", "content")
+        for (key in directKeys) {
+            val value = json.opt(key)
+            when (value) {
+                is String -> value.trim().takeIf { it.isNotBlank() }?.let { return it }
+                is JSONObject -> extractTranslationText(value).takeIf { it.isNotBlank() }?.let { return it }
+                is JSONArray -> joinJsonText(value).takeIf { it.isNotBlank() }?.let { return it }
+            }
+        }
+        val nestedKeys = listOf("data", "result", "output", "response", "message")
+        for (key in nestedKeys) {
+            val nested = json.optJSONObject(key) ?: continue
+            extractTranslationText(nested).takeIf { it.isNotBlank() }?.let { return it }
+        }
+        return ""
+    }
+
+    private fun joinJsonText(array: JSONArray): String {
+        val parts = ArrayList<String>(array.length())
+        for (i in 0 until array.length()) {
+            when (val item = array.opt(i)) {
+                is String -> item.trim().takeIf { it.isNotBlank() }?.let(parts::add)
+                is JSONObject -> extractTranslationText(item).takeIf { it.isNotBlank() }?.let(parts::add)
+            }
+        }
+        return parts.joinToString("\n").trim()
     }
 
     private fun parseImageTranslationContent(content: String): String? {

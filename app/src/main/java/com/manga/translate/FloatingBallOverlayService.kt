@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
@@ -36,6 +37,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 class FloatingBallOverlayService : Service() {
     private class FloatingBallTextView(context: android.content.Context) : AppCompatTextView(context) {
@@ -103,8 +106,37 @@ class FloatingBallOverlayService : Service() {
     private var editModeEnabled = false
     private var createBubbleModeEnabled = false
     private var editSessionDirty = false
+    private var autoCloseReferenceFrame: ScreenChangeReferenceFrame? = null
+    private var autoCloseCheckJob: Job? = null
     private val hideProgressStatusRunnable = Runnable {
         progressStatusView?.visibility = View.GONE
+    }
+    private val autoCloseCheckRunnable = object : Runnable {
+        override fun run() {
+            if (!shouldRunAutoCloseDetection()) return
+            if (autoCloseCheckJob?.isActive == true) {
+                mainHandler.postDelayed(this, AUTO_CLOSE_SCREEN_CHECK_INTERVAL_MS)
+                return
+            }
+            autoCloseCheckJob = scope.launch(Dispatchers.Default) {
+                try {
+                    val changed = detectScreenChangeAgainstReference()
+                    withContext(Dispatchers.Main) {
+                        if (changed) {
+                            AppLogger.log("FloatingOCR", "Auto close triggered by screen change")
+                            clearCurrentSession()
+                        } else {
+                            scheduleNextAutoCloseCheck()
+                        }
+                    }
+                } catch (e: Exception) {
+                    AppLogger.log("FloatingOCR", "Auto close screen check failed", e)
+                    withContext(Dispatchers.Main) {
+                        scheduleNextAutoCloseCheck()
+                    }
+                }
+            }
+        }
     }
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -144,6 +176,7 @@ class FloatingBallOverlayService : Service() {
 
     override fun onDestroy() {
         detectJob?.cancel()
+        autoCloseCheckJob?.cancel()
         clearCurrentSession()
         releaseProjection()
         removeOverlay()
@@ -514,6 +547,7 @@ class FloatingBallOverlayService : Service() {
         detectionOverlayView?.setEditMode(true)
         detectionOverlayView?.setCreateBubbleMode(false)
         refreshDetectionOverlayTouchability()
+        updateAutoCloseDetectionState()
         updateEditModeToggleButton()
         updateEditButtons()
         if (showToast) {
@@ -557,6 +591,7 @@ class FloatingBallOverlayService : Service() {
                     createBubbleModeEnabled = false
                     syncOverlaySession()
                     replaceCurrentSessionBitmap(bitmap)
+                    rebuildAutoCloseReferenceFromCurrentSession()
                     bitmap = null
                     enterEditMode(showToast = false)
                     toggleCreateBubbleMode()
@@ -580,6 +615,9 @@ class FloatingBallOverlayService : Service() {
                 }
             } finally {
                 bitmap?.recycle()
+                withContext(Dispatchers.Main) {
+                    updateAutoCloseDetectionState()
+                }
             }
         }
     }
@@ -588,6 +626,7 @@ class FloatingBallOverlayService : Service() {
         if (!editModeEnabled) return
         createBubbleModeEnabled = !createBubbleModeEnabled
         detectionOverlayView?.setCreateBubbleMode(createBubbleModeEnabled)
+        updateAutoCloseDetectionState()
         updateEditButtons()
         if (createBubbleModeEnabled) {
             Toast.makeText(this, R.string.overlay_create_bubble_hint, Toast.LENGTH_SHORT).show()
@@ -606,6 +645,7 @@ class FloatingBallOverlayService : Service() {
         detectionOverlayView?.setCreateBubbleMode(false)
         syncOverlaySession()
         refreshDetectionOverlayTouchability()
+        updateAutoCloseDetectionState()
         updateEditModeToggleButton()
         updateEditButtons()
         Toast.makeText(this, R.string.overlay_edit_canceled, Toast.LENGTH_SHORT).show()
@@ -619,6 +659,7 @@ class FloatingBallOverlayService : Service() {
         detectionOverlayView?.setEditMode(false)
         detectionOverlayView?.setCreateBubbleMode(false)
         refreshDetectionOverlayTouchability()
+        updateAutoCloseDetectionState()
         updateEditModeToggleButton()
         updateEditButtons()
         if (showToast) {
@@ -643,10 +684,12 @@ class FloatingBallOverlayService : Service() {
         detectJob?.cancel()
         detectJob = scope.launch(Dispatchers.Default) {
             try {
+                val floatingTimeoutMs =
+                    settingsStore.loadFloatingTranslateApiSettings().timeoutSeconds * 1000
                 val outcome = emptyBubbleCoordinator.process(
                     bitmap = bitmapSnapshot,
                     baseTranslation = session,
-                    timeoutMs = FLOATING_TRANSLATE_TIMEOUT_MS.toInt(),
+                    timeoutMs = floatingTimeoutMs,
                     retryCount = FLOATING_TRANSLATE_RETRY_COUNT,
                     floatPromptAsset = FLOAT_PROMPT_ASSET,
                     floatVlPromptAsset = FLOAT_VL_PROMPT_ASSET,
@@ -674,6 +717,7 @@ class FloatingBallOverlayService : Service() {
                     currentSession = outcome.translation
                     syncOverlaySession()
                     finishEditSession(showToast = false)
+                    rebuildAutoCloseReferenceFromCurrentSession()
                     showProgressStatus(R.string.overlay_empty_bubble_translated, autoHide = true)
                     Toast.makeText(
                         this@FloatingBallOverlayService,
@@ -683,6 +727,9 @@ class FloatingBallOverlayService : Service() {
                 }
             } finally {
                 bitmapSnapshot.recycle()
+                withContext(Dispatchers.Main) {
+                    updateAutoCloseDetectionState()
+                }
             }
         }
     }
@@ -695,6 +742,7 @@ class FloatingBallOverlayService : Service() {
         createBubbleModeEnabled = false
         syncOverlaySession()
         detectionOverlayView?.setCreateBubbleMode(false)
+        updateAutoCloseDetectionState()
         updateEditButtons()
     }
 
@@ -740,6 +788,7 @@ class FloatingBallOverlayService : Service() {
         detectionOverlayView?.setCreateBubbleMode(false)
         detectionOverlayView?.clearDetections()
         replaceCurrentSessionBitmap(null)
+        clearAutoCloseReference()
         refreshDetectionOverlayTouchability()
         updateEditModeToggleButton()
         updateEditButtons()
@@ -763,6 +812,7 @@ class FloatingBallOverlayService : Service() {
         if (editModeEnabled) {
             finishEditSession(showToast = false)
         }
+        updateAutoCloseDetectionState()
         if (!screenCaptureSession.isReady()) {
             AppLogger.log("FloatingOCR", "Run detection blocked: projection not ready")
             showProgressStatus(R.string.floating_capture_not_ready, autoHide = true)
@@ -808,6 +858,7 @@ class FloatingBallOverlayService : Service() {
                 val client = llmClient ?: LlmClient(applicationContext).also { llmClient = it }
                 val floatingSettings = settingsStore.loadFloatingTranslateApiSettings()
                 val floatingApiSettings = settingsStore.loadResolvedFloatingTranslateApiSettings()
+                val floatingTimeoutMs = floatingSettings.timeoutSeconds * 1000
                 val useVlDirectTranslate =
                     floatingSettings.useVlDirectTranslate &&
                         client.isConfigured(floatingApiSettings)
@@ -827,7 +878,7 @@ class FloatingBallOverlayService : Service() {
                                 source = BubbleSource.TEXT_DETECTOR
                             )
                         },
-                        timeoutMs = FLOATING_TRANSLATE_TIMEOUT_MS.toInt(),
+                        timeoutMs = floatingTimeoutMs,
                         retryCount = FLOATING_TRANSLATE_RETRY_COUNT,
                         promptAsset = FLOAT_VL_PROMPT_ASSET,
                         apiSettings = floatingApiSettings,
@@ -901,7 +952,7 @@ class FloatingBallOverlayService : Service() {
                     }
                     floatingBubbleTranslationCoordinator.translateTextBubbles(
                         bubbles = bubbles,
-                        timeoutMs = FLOATING_TRANSLATE_TIMEOUT_MS.toInt(),
+                        timeoutMs = floatingTimeoutMs,
                         retryCount = FLOATING_TRANSLATE_RETRY_COUNT,
                         promptAsset = FLOAT_PROMPT_ASSET,
                         apiSettings = floatingApiSettings,
@@ -934,6 +985,7 @@ class FloatingBallOverlayService : Service() {
                     createBubbleModeEnabled = false
                     syncOverlaySession()
                     replaceCurrentSessionBitmap(bitmap)
+                    rebuildAutoCloseReferenceFromCurrentSession()
                     bitmap = null
                     if (proofreadingModeEnabled) {
                         enterEditMode(showToast = true)
@@ -968,6 +1020,9 @@ class FloatingBallOverlayService : Service() {
                 }
             } finally {
                 bitmap?.recycle()
+                withContext(Dispatchers.Main) {
+                    updateAutoCloseDetectionState()
+                }
             }
         }
     }
@@ -1066,6 +1121,7 @@ class FloatingBallOverlayService : Service() {
     }
 
     private fun removeOverlay() {
+        stopAutoCloseDetection()
         val root = controllerRoot
         if (root != null) {
             try {
@@ -1097,6 +1153,139 @@ class FloatingBallOverlayService : Service() {
         screenCaptureSession.release()
     }
 
+    private fun shouldRunAutoCloseDetection(): Boolean {
+        val settings = settingsStore.loadFloatingTranslateApiSettings()
+        return settings.autoCloseOnScreenChangeEnabled &&
+            currentSession != null &&
+            !editModeEnabled &&
+            !createBubbleModeEnabled &&
+            detectJob?.isActive != true &&
+            screenCaptureSession.isReady() &&
+            autoCloseReferenceFrame != null
+    }
+
+    private fun updateAutoCloseDetectionState() {
+        if (shouldRunAutoCloseDetection()) {
+            startAutoCloseDetection()
+        } else {
+            stopAutoCloseDetection()
+        }
+    }
+
+    private fun startAutoCloseDetection() {
+        if (!shouldRunAutoCloseDetection()) return
+        mainHandler.removeCallbacks(autoCloseCheckRunnable)
+        scheduleNextAutoCloseCheck()
+    }
+
+    private fun stopAutoCloseDetection() {
+        mainHandler.removeCallbacks(autoCloseCheckRunnable)
+        autoCloseCheckJob?.cancel()
+        autoCloseCheckJob = null
+    }
+
+    private fun scheduleNextAutoCloseCheck() {
+        if (!shouldRunAutoCloseDetection()) return
+        mainHandler.removeCallbacks(autoCloseCheckRunnable)
+        mainHandler.postDelayed(autoCloseCheckRunnable, AUTO_CLOSE_SCREEN_CHECK_INTERVAL_MS)
+    }
+
+    private fun rebuildAutoCloseReferenceFromCurrentSession() {
+        val bitmap = currentSessionBitmap
+        autoCloseReferenceFrame?.bitmap?.recycle()
+        autoCloseReferenceFrame = bitmap?.let { createScreenChangeReferenceFrame(it) }
+        updateAutoCloseDetectionState()
+    }
+
+    private fun clearAutoCloseReference() {
+        autoCloseReferenceFrame?.bitmap?.recycle()
+        autoCloseReferenceFrame = null
+        stopAutoCloseDetection()
+    }
+
+    private suspend fun detectScreenChangeAgainstReference(): Boolean {
+        val reference = autoCloseReferenceFrame ?: return false
+        val currentScreen = screenCaptureSession.captureCurrentScreen() ?: return false
+        try {
+            val current = createScreenChangeReferenceFrame(currentScreen) ?: return false
+            try {
+                return hasMeaningfulScreenChange(reference, current)
+            } finally {
+                current.bitmap.recycle()
+            }
+        } finally {
+            currentScreen.recycle()
+        }
+    }
+
+    private fun createScreenChangeReferenceFrame(source: Bitmap): ScreenChangeReferenceFrame? {
+        if (source.width <= 0 || source.height <= 0) return null
+        val targetWidth = AUTO_CLOSE_REFERENCE_WIDTH
+        val targetHeight = max(1, (targetWidth * source.height.toFloat() / source.width.toFloat()).toInt())
+        val scaled = Bitmap.createScaledBitmap(source, targetWidth, targetHeight, true)
+        val ignoreTop = (targetHeight * AUTO_CLOSE_IGNORE_TOP_RATIO).toInt()
+        val ignoreBottom = (targetHeight * AUTO_CLOSE_IGNORE_BOTTOM_RATIO).toInt()
+        val sideInset = (targetWidth * AUTO_CLOSE_IGNORE_SIDE_RATIO).toInt()
+        val cropLeft = sideInset.coerceIn(0, targetWidth - 1)
+        val cropTop = ignoreTop.coerceIn(0, targetHeight - 1)
+        val cropRight = (targetWidth - sideInset).coerceIn(cropLeft + 1, targetWidth)
+        val cropBottom = (targetHeight - ignoreBottom).coerceIn(cropTop + 1, targetHeight)
+        return ScreenChangeReferenceFrame(
+            bitmap = scaled,
+            sampleRect = Rect(cropLeft, cropTop, cropRight, cropBottom)
+        )
+    }
+
+    private fun hasMeaningfulScreenChange(
+        reference: ScreenChangeReferenceFrame,
+        current: ScreenChangeReferenceFrame
+    ): Boolean {
+        val left = max(reference.sampleRect.left, current.sampleRect.left)
+        val top = max(reference.sampleRect.top, current.sampleRect.top)
+        val right = min(reference.sampleRect.right, current.sampleRect.right)
+        val bottom = min(reference.sampleRect.bottom, current.sampleRect.bottom)
+        if (right <= left || bottom <= top) return false
+        var sampled = 0
+        var changed = 0
+        var totalDelta = 0
+        var rowsWithChange = 0
+        val sampledRows = max(1, ((bottom - top) + AUTO_CLOSE_SAMPLE_STEP - 1) / AUTO_CLOSE_SAMPLE_STEP)
+        val rowChangeThreshold = max(1, ((right - left) / AUTO_CLOSE_SAMPLE_STEP) / 4)
+        for (y in top until bottom step AUTO_CLOSE_SAMPLE_STEP) {
+            var rowChangedPixels = 0
+            for (x in left until right step AUTO_CLOSE_SAMPLE_STEP) {
+                val delta = pixelDelta(reference.bitmap.getPixel(x, y), current.bitmap.getPixel(x, y))
+                sampled++
+                totalDelta += delta
+                if (delta >= AUTO_CLOSE_SIGNIFICANT_PIXEL_DELTA) {
+                    changed++
+                    rowChangedPixels++
+                }
+            }
+            if (rowChangedPixels >= rowChangeThreshold) {
+                rowsWithChange++
+            }
+        }
+        if (sampled == 0) return false
+        val changedRatio = changed.toFloat() / sampled.toFloat()
+        val averageDelta = totalDelta.toFloat() / sampled.toFloat()
+        val rowChangedRatio = rowsWithChange.toFloat() / sampledRows.toFloat()
+        AppLogger.log(
+            "FloatingOCR",
+            "Auto close sampled=$sampled changedRatio=$changedRatio averageDelta=$averageDelta rowChangedRatio=$rowChangedRatio"
+        )
+        return changedRatio >= AUTO_CLOSE_CHANGED_PIXEL_RATIO_THRESHOLD &&
+            averageDelta >= AUTO_CLOSE_AVERAGE_DELTA_THRESHOLD &&
+            rowChangedRatio >= AUTO_CLOSE_CHANGED_ROW_RATIO_THRESHOLD
+    }
+
+    private fun pixelDelta(first: Int, second: Int): Int {
+        val dr = abs(((first shr 16) and 0xFF) - ((second shr 16) and 0xFF))
+        val dg = abs(((first shr 8) and 0xFF) - ((second shr 8) and 0xFF))
+        val db = abs((first and 0xFF) - (second and 0xFF))
+        return (dr + dg + db) / 3
+    }
+
     private fun TranslationResult.deepCopy(): TranslationResult {
         return copy(
             bubbles = bubbles.map { bubble ->
@@ -1119,11 +1308,25 @@ class FloatingBallOverlayService : Service() {
         private const val NOTIFICATION_ID = 2002
         private const val FLOAT_PROMPT_ASSET = "float_llm_prompts.json"
         private const val FLOAT_VL_PROMPT_ASSET = "vl_bubble_prompts.json"
-        private const val FLOATING_TRANSLATE_TIMEOUT_MS = 30_000L
         private const val FLOATING_TRANSLATE_RETRY_COUNT = 1
         private const val MAX_FLOATING_VL_TRANSLATE_CONCURRENCY = 16
+        private const val AUTO_CLOSE_SCREEN_CHECK_INTERVAL_MS = 900L
+        private const val AUTO_CLOSE_REFERENCE_WIDTH = 180
+        private const val AUTO_CLOSE_IGNORE_TOP_RATIO = 0.12f
+        private const val AUTO_CLOSE_IGNORE_BOTTOM_RATIO = 0.14f
+        private const val AUTO_CLOSE_IGNORE_SIDE_RATIO = 0.04f
+        private const val AUTO_CLOSE_SAMPLE_STEP = 3
+        private const val AUTO_CLOSE_SIGNIFICANT_PIXEL_DELTA = 32
+        private const val AUTO_CLOSE_CHANGED_PIXEL_RATIO_THRESHOLD = 0.12f
+        private const val AUTO_CLOSE_AVERAGE_DELTA_THRESHOLD = 14f
+        private const val AUTO_CLOSE_CHANGED_ROW_RATIO_THRESHOLD = 0.18f
     }
 }
+
+private data class ScreenChangeReferenceFrame(
+    val bitmap: Bitmap,
+    val sampleRect: Rect
+)
 
 private fun Intent.getParcelableIntentExtraCompat(key: String): Intent? {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

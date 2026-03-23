@@ -27,6 +27,7 @@
     <string name="api_format_gemini">Gemini</string>
     <string name="model_name_hint">模型名称</string>
     <string name="api_timeout_hint">API 超时 (秒, 30–1200)</string>
+    <string name="floating_api_timeout_hint">悬浮翻译 API 超时 (秒, 30–1200)</string>
     <string name="max_concurrency_hint">最大并发数 (1–50)</string>
     <string name="translation_bubble_opacity_hint">翻译气泡透明度 (0–100，100 为完全不透明)</string>
     <string name="api_settings_note_openai">示例 URL：https://api.siliconflow.cn/v1</string>
@@ -103,8 +104,10 @@
     <string name="floating_use_vl_direct_translate_warning">已开启 VL 直翻。请使用支持图像输入的 VL 模型，否则调用会失败。</string>
     <string name="floating_proofreading_mode">校对模式</string>
     <string name="floating_proofreading_mode_note">开启后，悬浮窗翻译完成会自动进入现有编辑模式，方便手动增删和调整气泡。</string>
+    <string name="floating_auto_close_on_screen_change">自动清除气泡</string>
+    <string name="floating_auto_close_on_screen_change_note">开启后，可以在翻页时自动关闭翻译气泡，但会增加一些性能消耗。</string>
     <string name="floating_vl_translate_concurrency_hint">VL 翻译线程数 (1–16)</string>
-    <string name="floating_translate_settings_note">留空某一项则使用主设置中的对应配置。模型名称支持用英文逗号分隔多个模型，软件会按填写顺序均匀轮询；重复填写可提高某个模型的分配权重。</string>
+    <string name="floating_translate_settings_note">留空某一项则使用主设置中的对应配置。</string>
     <string name="ocr_use_local">使用本地 OCR</string>
     <string name="ocr_api_url_hint">OCR API 地址</string>
     <string name="ocr_api_key_hint">OCR API Key</string>

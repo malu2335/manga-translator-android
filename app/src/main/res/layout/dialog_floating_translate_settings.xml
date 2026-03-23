@@ -18,6 +18,14 @@
             android:textColor="?attr/dialogTextColor"
             android:text="@string/floating_use_vl_direct_translate" />
 
+        <TextView
+            android:id="@+id/floating_translate_vl_note"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/floating_use_vl_direct_translate_note"
+            android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
+
         <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/floating_proofreading_mode_switch"
             android:layout_width="match_parent"
@@ -34,12 +42,20 @@
             android:text="@string/floating_proofreading_mode_note"
             android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
 
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/floating_auto_close_on_screen_change_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="?attr/dialogTextColor"
+            android:text="@string/floating_auto_close_on_screen_change" />
+
         <TextView
-            android:id="@+id/floating_translate_vl_note"
+            android:id="@+id/floating_auto_close_on_screen_change_note"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="@string/floating_use_vl_direct_translate_note"
+            android:text="@string/floating_auto_close_on_screen_change_note"
             android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
 
         <com.google.android.material.textfield.TextInputLayout
@@ -53,6 +69,22 @@
             <com.google.android.material.textfield.TextInputEditText
                 style="@style/Widget.MangaTranslator.DialogEditText"
                 android:id="@+id/floating_vl_translate_concurrency_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/floating_api_timeout_layout"
+            style="@style/Widget.MangaTranslator.Input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="@string/floating_api_timeout_hint">
+
+            <com.google.android.material.textfield.TextInputEditText
+                style="@style/Widget.MangaTranslator.DialogEditText"
+                android:id="@+id/floating_api_timeout_input"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number" />

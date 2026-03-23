@@ -710,10 +710,15 @@ class SettingsFragment : Fragment() {
         dialogBinding.floatingApiUrlInput.setText(currentSettings.apiUrl)
         dialogBinding.floatingApiKeyInput.setText(currentSettings.apiKey)
         dialogBinding.floatingModelNameInput.setText(currentSettings.modelName)
+        dialogBinding.floatingApiTimeoutInput.setText(
+            formatNumber(currentSettings.timeoutSeconds)
+        )
         dialogBinding.floatingUseVlDirectTranslateSwitch.isChecked =
             currentSettings.useVlDirectTranslate
         dialogBinding.floatingProofreadingModeSwitch.isChecked =
             currentSettings.proofreadingModeEnabled
+        dialogBinding.floatingAutoCloseOnScreenChangeSwitch.isChecked =
+            currentSettings.autoCloseOnScreenChangeEnabled
         dialogBinding.floatingVlTranslateConcurrencyInput.setText(
             formatNumber(currentSettings.vlTranslateConcurrency)
         )
@@ -730,6 +735,11 @@ class SettingsFragment : Fragment() {
             .setTitle(R.string.floating_translate_settings_title)
             .setView(dialogBinding.root)
             .setPositiveButton(android.R.string.ok) { _, _ ->
+                val timeoutInput =
+                    dialogBinding.floatingApiTimeoutInput.text?.toString()?.trim()
+                val timeoutSeconds = parseIntInput(timeoutInput)
+                    ?.coerceIn(FLOATING_TIMEOUT_MIN_SECONDS, FLOATING_TIMEOUT_MAX_SECONDS)
+                    ?: currentSettings.timeoutSeconds
                 val concurrencyInput =
                     dialogBinding.floatingVlTranslateConcurrencyInput.text?.toString()?.trim()
                 val vlTranslateConcurrency = parseIntInput(concurrencyInput)
@@ -740,11 +750,14 @@ class SettingsFragment : Fragment() {
                         apiUrl = dialogBinding.floatingApiUrlInput.text?.toString()?.trim().orEmpty(),
                         apiKey = dialogBinding.floatingApiKeyInput.text?.toString()?.trim().orEmpty(),
                         modelName = dialogBinding.floatingModelNameInput.text?.toString()?.trim().orEmpty(),
+                        timeoutSeconds = timeoutSeconds,
                         useVlDirectTranslate =
                             dialogBinding.floatingUseVlDirectTranslateSwitch.isChecked,
                         vlTranslateConcurrency = vlTranslateConcurrency,
                         proofreadingModeEnabled =
-                            dialogBinding.floatingProofreadingModeSwitch.isChecked
+                            dialogBinding.floatingProofreadingModeSwitch.isChecked,
+                        autoCloseOnScreenChangeEnabled =
+                            dialogBinding.floatingAutoCloseOnScreenChangeSwitch.isChecked
                     )
                 )
                 AppLogger.log("Settings", "Floating translate API settings updated")
@@ -949,6 +962,8 @@ class SettingsFragment : Fragment() {
         private const val RELEASES_URL = "https://github.com/jedzqer/manga-translator/releases"
         private const val OCR_TIMEOUT_MIN_SECONDS = 30
         private const val OCR_TIMEOUT_MAX_SECONDS = 1200
+        private const val FLOATING_TIMEOUT_MIN_SECONDS = 30
+        private const val FLOATING_TIMEOUT_MAX_SECONDS = 1200
     }
 
     private data class ParsedLlmParams(
