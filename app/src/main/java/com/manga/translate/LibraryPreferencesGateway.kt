@@ -25,6 +25,10 @@ internal class LibraryPreferencesGateway(
         return TranslationLanguage.fromString(value)
     }
 
+    fun isVlDirectTranslateEnabled(folder: File): Boolean {
+        return prefs.getBoolean(vlDirectTranslateKeyPrefix + folder.absolutePath, false)
+    }
+
     fun getReadingMode(folder: File): FolderReadingMode {
         val value = prefs.getString(readingModeKeyPrefix + folder.absolutePath, null)
         return FolderReadingMode.fromPref(value)
@@ -32,6 +36,10 @@ internal class LibraryPreferencesGateway(
 
     fun setTranslationLanguage(folder: File, language: TranslationLanguage) {
         prefs.edit() {putString(languageKeyPrefix + folder.absolutePath, language.name)}
+    }
+
+    fun setVlDirectTranslateEnabled(folder: File, enabled: Boolean) {
+        prefs.edit() {putBoolean(vlDirectTranslateKeyPrefix + folder.absolutePath, enabled)}
     }
 
     fun setReadingMode(folder: File, mode: FolderReadingMode) {
@@ -99,6 +107,7 @@ internal class LibraryPreferencesGateway(
         private const val exportTreeKey = "export_tree_uri"
         private const val fullTranslateKeyPrefix = "full_translate_enabled_"
         private const val languageKeyPrefix = "translation_language_"
+        private const val vlDirectTranslateKeyPrefix = "vl_direct_translate_enabled_"
         private const val readingModeKeyPrefix = "reading_mode_"
     }
 }

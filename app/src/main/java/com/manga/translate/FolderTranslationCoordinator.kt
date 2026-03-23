@@ -30,6 +30,7 @@ internal class FolderTranslationCoordinator(
         val images: List<File>,
         val force: Boolean,
         val fullTranslate: Boolean,
+        val useVlDirectTranslate: Boolean,
         val language: TranslationLanguage,
         val onTranslateEnabled: (Boolean) -> Unit
     )
@@ -45,6 +46,7 @@ internal class FolderTranslationCoordinator(
         images: List<File>,
         force: Boolean,
         fullTranslate: Boolean,
+        useVlDirectTranslate: Boolean,
         language: TranslationLanguage,
         onTranslateEnabled: (Boolean) -> Unit
     ) {
@@ -53,13 +55,22 @@ internal class FolderTranslationCoordinator(
             images = images.toList(),
             force = force,
             fullTranslate = fullTranslate,
+            useVlDirectTranslate = useVlDirectTranslate,
             language = language,
             onTranslateEnabled = onTranslateEnabled
         )
         if (fullTranslate) {
             translateFolderFull(scope, folder, images, force, language, onTranslateEnabled)
         } else {
-            translateFolderStandard(scope, folder, images, force, language, onTranslateEnabled)
+            translateFolderStandard(
+                scope,
+                folder,
+                images,
+                force,
+                useVlDirectTranslate,
+                language,
+                onTranslateEnabled
+            )
         }
     }
 
@@ -71,6 +82,7 @@ internal class FolderTranslationCoordinator(
             images = task.images,
             force = task.force,
             fullTranslate = task.fullTranslate,
+            useVlDirectTranslate = task.useVlDirectTranslate,
             language = task.language,
             onTranslateEnabled = task.onTranslateEnabled
         )
@@ -82,6 +94,7 @@ internal class FolderTranslationCoordinator(
         folder: File,
         images: List<File>,
         force: Boolean,
+        useVlDirectTranslate: Boolean,
         language: TranslationLanguage,
         onTranslateEnabled: (Boolean) -> Unit
     ) {
@@ -124,7 +137,24 @@ internal class FolderTranslationCoordinator(
                     ui.setFolderStatus(appContext.getString(R.string.translation_preparing))
                     for (image in pendingImages) {
                         val result = try {
-                            translationPipeline.translateImage(image, glossary, force, language) { }
+                            if (useVlDirectTranslate) {
+                                val vlOutcome = translationPipeline.translateImageWithVl(image)
+                                when {
+                                    vlOutcome.requiresVlModel -> {
+                                        ui.showToast(R.string.folder_vl_model_required)
+                                        failed = true
+                                        break
+                                    }
+                                    vlOutcome.timedOut -> {
+                                        ui.showToast(R.string.floating_translate_timeout)
+                                        failed = true
+                                        break
+                                    }
+                                    else -> vlOutcome.result
+                                }
+                            } else {
+                                translationPipeline.translateImage(image, glossary, force, language) { }
+                            }
                         } catch (e: LlmRequestException) {
                             AppLogger.log("Library", "Translation aborted for ${image.name}", e)
                             ui.showApiError(e.errorCode, e.responseBody)

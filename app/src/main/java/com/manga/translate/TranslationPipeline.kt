@@ -18,6 +18,12 @@ class TranslationPipeline(context: Context) {
     private val settingsStore = SettingsStore(appContext)
     private val store = TranslationStore()
     private val ocrStore = OcrStore()
+    private val floatingTranslationCacheStore = FloatingTranslationCacheStore(appContext)
+    private val floatingBubbleTranslationCoordinator = FloatingBubbleTranslationCoordinator(
+        llmClient = llmClient,
+        floatingTranslationCacheStore = floatingTranslationCacheStore,
+        settingsStore = settingsStore
+    )
     private var detector: BubbleDetector? = null
     private var ocr: MangaOcr? = null
     private var englishOcr: EnglishOcr? = null
@@ -288,6 +294,61 @@ class TranslationPipeline(context: Context) {
         TranslationResult(page.imageFile.name, page.width, page.height, bubbles)
     }
 
+    suspend fun translateImageWithVl(imageFile: File): FolderVlTranslateOutcome =
+        withContext(Dispatchers.Default) {
+            if (!llmClient.isConfigured()) {
+                AppLogger.log("Pipeline", "Missing API settings for VL direct translate")
+                return@withContext FolderVlTranslateOutcome()
+            }
+            val page = detectImageBubbles(imageFile) ?: return@withContext FolderVlTranslateOutcome()
+            if (page.bubbles.isEmpty()) {
+                return@withContext FolderVlTranslateOutcome(
+                    result = TranslationResult(
+                        imageFile.name,
+                        page.width,
+                        page.height,
+                        emptyList()
+                    )
+                )
+            }
+            val bitmap = android.graphics.BitmapFactory.decodeFile(imageFile.absolutePath)
+                ?: run {
+                    AppLogger.log("Pipeline", "Failed to decode ${imageFile.name} for VL direct translate")
+                    return@withContext FolderVlTranslateOutcome()
+                }
+            try {
+                val outcome = floatingBubbleTranslationCoordinator.translateImageBubbles(
+                    bitmap = bitmap,
+                    bubbles = page.bubbles.map { bubble ->
+                        BubbleTranslation(bubble.id, bubble.rect, "", bubble.source)
+                    },
+                    timeoutMs = settingsStore.loadApiTimeoutMs(),
+                    retryCount = 3,
+                    promptAsset = "vl_bubble_prompts.json",
+                    apiSettings = settingsStore.load(),
+                    concurrency = 1,
+                    maxConcurrency = 16,
+                    logTag = "Pipeline"
+                )
+                if (outcome.requiresVlModel || outcome.timedOut) {
+                    return@withContext FolderVlTranslateOutcome(
+                        timedOut = outcome.timedOut,
+                        requiresVlModel = outcome.requiresVlModel
+                    )
+                }
+                FolderVlTranslateOutcome(
+                    result = TranslationResult(
+                        imageFile.name,
+                        page.width,
+                        page.height,
+                        outcome.bubbles
+                    )
+                )
+            } finally {
+                bitmap.recycleSafely()
+            }
+        }
+
     fun saveResult(imageFile: File, result: TranslationResult): File {
         val saved = store.save(imageFile, result)
         val ocrFile = ocrStore.ocrFileFor(imageFile)
@@ -431,6 +492,56 @@ class TranslationPipeline(context: Context) {
             outer.bottom >= inner.bottom
     }
 
+    private suspend fun detectImageBubbles(imageFile: File): PageOcrResult? =
+        withContext(Dispatchers.Default) {
+            val detector = getDetector() ?: return@withContext null
+            val textDetector = getTextDetector()
+            val bitmap = android.graphics.BitmapFactory.decodeFile(imageFile.absolutePath)
+                ?: run {
+                    AppLogger.log("Pipeline", "Failed to decode ${imageFile.name}")
+                    return@withContext null
+                }
+            try {
+                val detections = detector.detect(bitmap)
+                val bubbleRects = detections.map { it.rect }
+                val textRects = textDetector?.let { detectorInstance ->
+                    val masked = maskDetections(bitmap, bubbleRects)
+                    try {
+                        val rawTextRects = detectorInstance.detect(masked)
+                        val filtered = filterOverlapping(rawTextRects, bubbleRects, TEXT_IOU_THRESHOLD)
+                        RectGeometryDeduplicator.mergeSupplementRects(
+                            filtered,
+                            bitmap.width,
+                            bitmap.height
+                        )
+                    } finally {
+                        if (masked !== bitmap) {
+                            masked.recycleSafely()
+                        }
+                    }
+                } ?: emptyList()
+                val allRects = ArrayList<RectF>(bubbleRects.size + textRects.size)
+                allRects.addAll(bubbleRects)
+                allRects.addAll(textRects)
+                val bubbleDetectorCount = bubbleRects.size
+                val bubbles = allRects.mapIndexed { index, rect ->
+                    OcrBubble(
+                        id = index,
+                        rect = rect,
+                        text = "",
+                        source = if (index < bubbleDetectorCount) {
+                            BubbleSource.BUBBLE_DETECTOR
+                        } else {
+                            BubbleSource.TEXT_DETECTOR
+                        }
+                    )
+                }
+                PageOcrResult(imageFile, bitmap.width, bitmap.height, bubbles)
+            } finally {
+                bitmap.recycleSafely()
+            }
+        }
+
     companion object {
         private const val TEXT_IOU_THRESHOLD = 0.2f
         private const val MASK_EXPAND_RATIO = 0.1f
@@ -465,4 +576,10 @@ data class PageOcrResult(
     val height: Int,
     val bubbles: List<OcrBubble>,
     val cacheMode: String = ""
+)
+
+data class FolderVlTranslateOutcome(
+    val result: TranslationResult? = null,
+    val timedOut: Boolean = false,
+    val requiresVlModel: Boolean = false
 )

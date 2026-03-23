@@ -313,6 +313,18 @@ class LibraryFragment : Fragment() {
         binding.folderFullTranslateSwitch.setOnCheckedChangeListener { _, isChecked ->
             currentFolder?.let { preferencesGateway.setFullTranslateEnabled(it, isChecked) }
         }
+        binding.folderVlDirectTranslateSwitch.setOnCheckedChangeListener { _, isChecked ->
+            currentFolder?.let { folder ->
+                preferencesGateway.setVlDirectTranslateEnabled(folder, isChecked)
+                if (isChecked) {
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.folder_use_vl_direct_translate_warning,
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
 
         requireActivity().onBackPressedDispatcher.addCallback(
             viewLifecycleOwner,
@@ -435,6 +447,8 @@ class LibraryFragment : Fragment() {
         currentFolder = folder
         binding.folderTitle.text = folder.name
         binding.folderFullTranslateSwitch.isChecked = preferencesGateway.isFullTranslateEnabled(folder)
+        binding.folderVlDirectTranslateSwitch.isChecked =
+            preferencesGateway.isVlDirectTranslateEnabled(folder)
         updateLanguageSettingButton(folder)
         updateReadingModeButton(folder)
         updateEmbedButtonState(folder)
@@ -677,6 +691,7 @@ class LibraryFragment : Fragment() {
 
     private fun runTranslation(folder: File, images: List<File>, force: Boolean) {
         val fullTranslate = preferencesGateway.isFullTranslateEnabled(folder)
+        val useVlDirectTranslate = preferencesGateway.isVlDirectTranslateEnabled(folder)
         val useLocalOcr = settingsStore.loadOcrApiSettings().useLocalOcr
         val language = if (useLocalOcr) {
             preferencesGateway.getTranslationLanguage(folder)
@@ -689,6 +704,7 @@ class LibraryFragment : Fragment() {
             images = images,
             force = force,
             fullTranslate = fullTranslate,
+            useVlDirectTranslate = useVlDirectTranslate,
             language = language,
             onTranslateEnabled = { enabled -> _binding?.folderTranslate?.isEnabled = enabled }
         )

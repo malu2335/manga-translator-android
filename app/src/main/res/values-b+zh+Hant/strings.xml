@@ -233,6 +233,10 @@
     <string name="folder_language_to_zh">翻譯成中文</string>
     <string name="folder_language_ja_to_zh">日文 → 中文</string>
     <string name="folder_language_en_to_zh">英文 → 中文</string>
+    <string name="folder_use_vl_direct_translate">使用 VL 模型翻譯整個氣泡</string>
+    <string name="folder_use_vl_direct_translate_note">開啟後會把檢測到的氣泡裁圖直接送給視覺模型翻譯，跳過 OCR 識別步驟。普通翻譯使用主設定中的 API 與模型，請確認所填模型支援影像輸入。</string>
+    <string name="folder_use_vl_direct_translate_warning">已開啟資料夾 VL 直翻。普通翻譯會直接使用主設定中的模型處理氣泡圖片，請確認目前模型支援影像輸入。</string>
+    <string name="folder_vl_model_required">目前普通翻譯直翻需要 VL 模型。請在主設定中改用支援影像輸入的模型，或關閉該開關。</string>
     <string name="folder_full_translate">全文速譯</string>
     <string name="folder_full_translate_info_title">全文速譯說明</string>
     <string name="folder_full_translate_info">開啟後會先識別全部圖片文字並提取譯名，再按整頁翻譯氣泡內容。開啟後第一張圖片的翻譯速度視圖片總數而定。如果翻譯出現錯誤，可以關閉此開關，然後長按錯誤翻譯的圖片進行重譯</string>

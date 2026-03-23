@@ -396,6 +396,33 @@
                             android:src="@android:drawable/ic_menu_info_details" />
                     </LinearLayout>
 
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/bg_soft_panel"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="14dp"
+                        android:paddingTop="10dp"
+                        android:paddingEnd="14dp"
+                        android:paddingBottom="10dp">
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/folder_vl_direct_translate_switch"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/folder_use_vl_direct_translate" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/folder_vl_direct_translate_note"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/folder_use_vl_direct_translate_note"
+                        android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
+
                     <androidx.appcompat.widget.AppCompatButton
                         android:id="@+id/folder_language_setting"
                         android:layout_width="match_parent"
