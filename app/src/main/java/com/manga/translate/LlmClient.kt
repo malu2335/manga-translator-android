@@ -142,7 +142,7 @@ class LlmClient(context: Context) {
             requestTimeoutMs = requestTimeoutMs,
             retryCount = retryCount,
             apiSettings = apiSettings
-        )?.trim()?.ifBlank { null }
+        )?.let { parseImageTranslationContent(it) }
     }
 
     private suspend fun requestContent(
@@ -809,6 +809,17 @@ class LlmClient(context: Context) {
                 e
             )
             throw LlmResponseException("INVALID_FORMAT", content, e)
+        }
+    }
+
+    private fun parseImageTranslationContent(content: String): String? {
+        val cleaned = stripCodeFence(content).trim()
+        if (cleaned.isBlank()) return null
+        return try {
+            parseTranslationContent(cleaned).translation.trim().ifBlank { null }
+        } catch (_: Exception) {
+            // Some compatible providers may still return plain text for image translation.
+            cleaned.ifBlank { null }
         }
     }
 
