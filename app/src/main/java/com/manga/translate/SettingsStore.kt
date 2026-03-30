@@ -36,7 +36,11 @@ data class FloatingTranslateApiSettings(
     val useVlDirectTranslate: Boolean,
     val vlTranslateConcurrency: Int,
     val proofreadingModeEnabled: Boolean,
-    val autoCloseOnScreenChangeEnabled: Boolean
+    val autoCloseOnScreenChangeEnabled: Boolean,
+    val singleTapAction: FloatingBallGestureAction,
+    val doubleTapAction: FloatingBallGestureAction,
+    val longPressAction: FloatingBallGestureAction,
+    val tripleTapAction: FloatingBallGestureAction
 )
 
 data class CustomRequestParameter(
@@ -89,6 +93,22 @@ class SettingsStore(context: Context) {
             autoCloseOnScreenChangeEnabled = prefs.getBoolean(
                 KEY_FLOATING_AUTO_CLOSE_ON_SCREEN_CHANGE_ENABLED,
                 false
+            ),
+            singleTapAction = FloatingBallGestureAction.fromPref(
+                prefs.getString(KEY_FLOATING_SINGLE_TAP_ACTION, null),
+                DEFAULT_FLOATING_SINGLE_TAP_ACTION
+            ),
+            doubleTapAction = FloatingBallGestureAction.fromPref(
+                prefs.getString(KEY_FLOATING_DOUBLE_TAP_ACTION, null),
+                DEFAULT_FLOATING_DOUBLE_TAP_ACTION
+            ),
+            longPressAction = FloatingBallGestureAction.fromPref(
+                prefs.getString(KEY_FLOATING_LONG_PRESS_ACTION, null),
+                DEFAULT_FLOATING_LONG_PRESS_ACTION
+            ),
+            tripleTapAction = FloatingBallGestureAction.fromPref(
+                prefs.getString(KEY_FLOATING_TRIPLE_TAP_ACTION, null),
+                DEFAULT_FLOATING_TRIPLE_TAP_ACTION
             )
         )
     }
@@ -128,6 +148,10 @@ class SettingsStore(context: Context) {
                     KEY_FLOATING_AUTO_CLOSE_ON_SCREEN_CHANGE_ENABLED,
                     settings.autoCloseOnScreenChangeEnabled
                 )
+                .putString(KEY_FLOATING_SINGLE_TAP_ACTION, settings.singleTapAction.prefValue)
+                .putString(KEY_FLOATING_DOUBLE_TAP_ACTION, settings.doubleTapAction.prefValue)
+                .putString(KEY_FLOATING_LONG_PRESS_ACTION, settings.longPressAction.prefValue)
+                .putString(KEY_FLOATING_TRIPLE_TAP_ACTION, settings.tripleTapAction.prefValue)
             }
     }
 
@@ -393,6 +417,10 @@ class SettingsStore(context: Context) {
             "floating_proofreading_mode_enabled"
         private const val KEY_FLOATING_AUTO_CLOSE_ON_SCREEN_CHANGE_ENABLED =
             "floating_auto_close_on_screen_change_enabled"
+        private const val KEY_FLOATING_SINGLE_TAP_ACTION = "floating_single_tap_action"
+        private const val KEY_FLOATING_DOUBLE_TAP_ACTION = "floating_double_tap_action"
+        private const val KEY_FLOATING_LONG_PRESS_ACTION = "floating_long_press_action"
+        private const val KEY_FLOATING_TRIPLE_TAP_ACTION = "floating_triple_tap_action"
         private const val KEY_OCR_API_TIMEOUT_SECONDS = "ocr_api_timeout_seconds"
         private const val KEY_HORIZONTAL_TEXT = "horizontal_text_layout"
         private const val KEY_MODEL_IO_LOGGING = "model_io_logging"
@@ -426,6 +454,10 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_FLOATING_VL_TRANSLATE_CONCURRENCY = 1
         private const val MIN_FLOATING_VL_TRANSLATE_CONCURRENCY = 1
         private const val MAX_FLOATING_VL_TRANSLATE_CONCURRENCY = 16
+        private val DEFAULT_FLOATING_SINGLE_TAP_ACTION = FloatingBallGestureAction.START_TRANSLATE
+        private val DEFAULT_FLOATING_DOUBLE_TAP_ACTION = FloatingBallGestureAction.CLEAR_SCREEN
+        private val DEFAULT_FLOATING_LONG_PRESS_ACTION = FloatingBallGestureAction.OPEN_MENU
+        private val DEFAULT_FLOATING_TRIPLE_TAP_ACTION = FloatingBallGestureAction.NONE
         private const val DEFAULT_FLOATING_API_TIMEOUT_SECONDS = 300
         private const val MIN_FLOATING_API_TIMEOUT_SECONDS = 30
         private const val MAX_FLOATING_API_TIMEOUT_SECONDS = 1200

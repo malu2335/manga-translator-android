@@ -106,6 +106,17 @@
     <string name="floating_proofreading_mode_note">开启后，悬浮窗翻译完成会自动进入现有编辑模式，方便手动增删和调整气泡。</string>
     <string name="floating_auto_close_on_screen_change">自动清除气泡</string>
     <string name="floating_auto_close_on_screen_change_note">开启后，可以在翻页时自动关闭翻译气泡，但会增加一些性能消耗。</string>
+    <string name="floating_gesture_settings_title">悬浮球手势</string>
+    <string name="floating_gesture_settings_note">为单击、双击、长按、三击分别指定操作。允许重复，三击默认无操作。</string>
+    <string name="floating_single_tap_action_hint">单击</string>
+    <string name="floating_double_tap_action_hint">双击</string>
+    <string name="floating_long_press_action_hint">长按</string>
+    <string name="floating_triple_tap_action_hint">三击</string>
+    <string name="floating_gesture_action_translate">开始翻译</string>
+    <string name="floating_gesture_action_open_menu">打开菜单</string>
+    <string name="floating_gesture_action_clear_screen">清屏</string>
+    <string name="floating_gesture_action_none">无操作</string>
+    <string name="floating_gesture_action_swipe_translate">划屏翻译</string>
     <string name="floating_vl_translate_concurrency_hint">VL 翻译线程数 (1–16)</string>
     <string name="floating_translate_settings_note">留空某一项则使用主设置中的对应配置。</string>
     <string name="ocr_use_local">使用本地 OCR</string>
@@ -193,7 +204,8 @@
     <string name="floating_vl_model_required">当前悬浮窗直翻需要 VL 模型。请在悬浮窗翻译设置中改用支持图像输入的模型，或关闭该开关。</string>
     <string name="floating_service_channel">悬浮窗识别</string>
     <string name="floating_service_title">悬浮窗识别运行中</string>
-    <string name="floating_service_message">点击悬浮球可识别当前屏幕文本区域</string>
+    <string name="floating_service_message">按你设置的手势操作悬浮球</string>
+    <string name="floating_usage_tip_line">%1$s悬浮球：%2$s</string>
     <string name="floating_usage_tip">单击悬浮球：识别并翻译当前屏幕文本区域
 双击悬浮球：清除当前识别/翻译气泡
 长按悬浮球：弹出菜单</string>

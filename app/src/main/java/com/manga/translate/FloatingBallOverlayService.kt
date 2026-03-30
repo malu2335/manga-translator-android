@@ -17,10 +17,10 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
-import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -803,8 +803,70 @@ class FloatingBallOverlayService : Service() {
         updateEditButtons()
     }
 
+    private fun toggleMenuVisibility(menuPanel: View) {
+        menuPanel.isVisible = !menuPanel.isVisible
+        if (menuPanel.isVisible) {
+            updateEditButtons()
+        }
+    }
+
+    private fun performFloatingBallGestureAction(
+        action: FloatingBallGestureAction,
+        menuPanel: View
+    ) {
+        when (action) {
+            FloatingBallGestureAction.START_TRANSLATE -> {
+                menuPanel.visibility = View.GONE
+                runTextDetection()
+            }
+
+            FloatingBallGestureAction.OPEN_MENU -> {
+                toggleMenuVisibility(menuPanel)
+            }
+
+            FloatingBallGestureAction.CLEAR_SCREEN -> {
+                menuPanel.visibility = View.GONE
+                clearCurrentSession()
+            }
+
+            FloatingBallGestureAction.NONE -> Unit
+
+            FloatingBallGestureAction.SWIPE_TRANSLATE -> {
+                menuPanel.visibility = View.GONE
+                startSwipeTranslateMode()
+            }
+        }
+    }
+
+    private fun buildFloatingUsageTip(): String {
+        val settings = settingsStore.loadFloatingTranslateApiSettings()
+        val lines = listOf(
+            getString(
+                R.string.floating_usage_tip_line,
+                getString(R.string.floating_single_tap_action_hint),
+                getString(settings.singleTapAction.labelRes)
+            ),
+            getString(
+                R.string.floating_usage_tip_line,
+                getString(R.string.floating_double_tap_action_hint),
+                getString(settings.doubleTapAction.labelRes)
+            ),
+            getString(
+                R.string.floating_usage_tip_line,
+                getString(R.string.floating_long_press_action_hint),
+                getString(settings.longPressAction.labelRes)
+            ),
+            getString(
+                R.string.floating_usage_tip_line,
+                getString(R.string.floating_triple_tap_action_hint),
+                getString(settings.tripleTapAction.labelRes)
+            )
+        )
+        return lines.joinToString(separator = "\n")
+    }
+
     private fun showUsageTip() {
-        Toast.makeText(this, R.string.floating_usage_tip, Toast.LENGTH_LONG).show()
+        Toast.makeText(this, buildFloatingUsageTip(), Toast.LENGTH_LONG).show()
     }
 
     private fun prepareProjection(resultCode: Int, data: Intent) {
@@ -1047,44 +1109,45 @@ class FloatingBallOverlayService : Service() {
         params: WindowManager.LayoutParams
     ) {
         val touchSlop = (3f * resources.displayMetrics.density)
+        val doubleTapTimeout = ViewConfiguration.getDoubleTapTimeout().toLong()
+        val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
         var downRawX = 0f
         var downRawY = 0f
         var downX = 0
         var downY = 0
         var dragging = false
-        var suppressPerformClickAction = false
-        val gestureDetector = GestureDetector(
-            this,
-            object : GestureDetector.SimpleOnGestureListener() {
-                override fun onDown(e: MotionEvent): Boolean = true
-
-                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                    target.performClick()
-                    return true
-                }
-
-                override fun onDoubleTap(e: MotionEvent): Boolean {
-                    menuPanel.visibility = View.GONE
-                    clearCurrentSession()
-                    return true
-                }
-
-                override fun onLongPress(e: MotionEvent) {
-                    menuPanel.isVisible = !menuPanel.isVisible
-                    if (menuPanel.isVisible) {
-                        updateEditButtons()
-                    }
-                }
+        var isPointerDown = false
+        var longPressTriggered = false
+        var tapCount = 0
+        val commitTapRunnable = Runnable {
+            if (isPointerDown) {
+                return@Runnable
             }
-        )
+            val gestureSettings = settingsStore.loadFloatingTranslateApiSettings()
+            when (tapCount.coerceAtMost(3)) {
+                1 -> target.performClick()
+                2 -> performFloatingBallGestureAction(gestureSettings.doubleTapAction, menuPanel)
+                3 -> performFloatingBallGestureAction(gestureSettings.tripleTapAction, menuPanel)
+            }
+            tapCount = 0
+        }
+        val longPressRunnable = Runnable {
+            if (!isPointerDown || dragging || tapCount != 0) {
+                return@Runnable
+            }
+            longPressTriggered = true
+            performFloatingBallGestureAction(
+                settingsStore.loadFloatingTranslateApiSettings().longPressAction,
+                menuPanel
+            )
+        }
         target.onPerformClick = {
-            if (!suppressPerformClickAction) {
-                menuPanel.visibility = View.GONE
-                runTextDetection()
-            }
+            performFloatingBallGestureAction(
+                settingsStore.loadFloatingTranslateApiSettings().singleTapAction,
+                menuPanel
+            )
         }
         target.setOnTouchListener { _, event ->
-            gestureDetector.onTouchEvent(event)
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downRawX = event.rawX
@@ -1092,6 +1155,12 @@ class FloatingBallOverlayService : Service() {
                     downX = params.x
                     downY = params.y
                     dragging = false
+                    isPointerDown = true
+                    longPressTriggered = false
+                    mainHandler.removeCallbacks(longPressRunnable)
+                    if (tapCount == 0) {
+                        mainHandler.postDelayed(longPressRunnable, longPressTimeout)
+                    }
                     true
                 }
 
@@ -1103,6 +1172,9 @@ class FloatingBallOverlayService : Service() {
                         menuPanel.visibility = View.GONE
                     }
                     if (!dragging && shouldStartDragging) {
+                        mainHandler.removeCallbacks(longPressRunnable)
+                        mainHandler.removeCallbacks(commitTapRunnable)
+                        tapCount = 0
                         dragging = true
                     }
                     if (!dragging) {
@@ -1115,15 +1187,36 @@ class FloatingBallOverlayService : Service() {
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    if (!dragging) {
-                        suppressPerformClickAction = true
-                        target.performClick()
-                        suppressPerformClickAction = false
+                    isPointerDown = false
+                    mainHandler.removeCallbacks(longPressRunnable)
+                    if (dragging) {
+                        dragging = false
+                        return@setOnTouchListener true
                     }
-                    dragging
+                    if (longPressTriggered) {
+                        longPressTriggered = false
+                        return@setOnTouchListener true
+                    }
+                    tapCount = (tapCount + 1).coerceAtMost(3)
+                    mainHandler.removeCallbacks(commitTapRunnable)
+                    if (tapCount >= 3) {
+                        performFloatingBallGestureAction(
+                            settingsStore.loadFloatingTranslateApiSettings().tripleTapAction,
+                            menuPanel
+                        )
+                        tapCount = 0
+                    } else {
+                        mainHandler.postDelayed(commitTapRunnable, doubleTapTimeout)
+                    }
+                    true
                 }
 
                 MotionEvent.ACTION_CANCEL -> {
+                    isPointerDown = false
+                    tapCount = 0
+                    longPressTriggered = false
+                    mainHandler.removeCallbacks(longPressRunnable)
+                    mainHandler.removeCallbacks(commitTapRunnable)
                     dragging = false
                     false
                 }

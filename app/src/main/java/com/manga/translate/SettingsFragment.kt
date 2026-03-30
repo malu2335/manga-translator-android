@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.ScrollView
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -26,6 +27,7 @@ import com.manga.translate.databinding.DialogOcrSettingsBinding
 import com.manga.translate.databinding.DialogFloatingTranslateSettingsBinding
 import com.manga.translate.databinding.FragmentSettingsBinding
 import com.manga.translate.databinding.ItemCustomRequestParamBinding
+import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,6 +61,29 @@ class SettingsFragment : Fragment() {
             .split(",")
             .map { it.trim() }
             .filter { it.isNotBlank() }
+    }
+
+    private fun setupFloatingGestureActionDropdown(
+        inputView: MaterialAutoCompleteTextView,
+        currentAction: FloatingBallGestureAction
+    ) {
+        val actions = FloatingBallGestureAction.entries
+        val labels = actions.map { getString(it.labelRes) }
+        inputView.setAdapter(
+            ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, labels)
+        )
+        inputView.setText(getString(currentAction.labelRes), false)
+    }
+
+    private fun parseFloatingGestureAction(
+        inputView: MaterialAutoCompleteTextView,
+        defaultAction: FloatingBallGestureAction
+    ): FloatingBallGestureAction {
+        val selectedLabel = inputView.text?.toString()?.trim().orEmpty()
+        if (selectedLabel.isBlank()) return defaultAction
+        return FloatingBallGestureAction.entries.firstOrNull {
+            getString(it.labelRes) == selectedLabel
+        } ?: defaultAction
     }
 
     private fun resolveColorAttr(attrRes: Int): Int {
@@ -719,6 +744,22 @@ class SettingsFragment : Fragment() {
             currentSettings.proofreadingModeEnabled
         dialogBinding.floatingAutoCloseOnScreenChangeSwitch.isChecked =
             currentSettings.autoCloseOnScreenChangeEnabled
+        setupFloatingGestureActionDropdown(
+            dialogBinding.floatingSingleTapActionInput,
+            currentSettings.singleTapAction
+        )
+        setupFloatingGestureActionDropdown(
+            dialogBinding.floatingDoubleTapActionInput,
+            currentSettings.doubleTapAction
+        )
+        setupFloatingGestureActionDropdown(
+            dialogBinding.floatingLongPressActionInput,
+            currentSettings.longPressAction
+        )
+        setupFloatingGestureActionDropdown(
+            dialogBinding.floatingTripleTapActionInput,
+            currentSettings.tripleTapAction
+        )
         dialogBinding.floatingVlTranslateConcurrencyInput.setText(
             formatNumber(currentSettings.vlTranslateConcurrency)
         )
@@ -757,7 +798,23 @@ class SettingsFragment : Fragment() {
                         proofreadingModeEnabled =
                             dialogBinding.floatingProofreadingModeSwitch.isChecked,
                         autoCloseOnScreenChangeEnabled =
-                            dialogBinding.floatingAutoCloseOnScreenChangeSwitch.isChecked
+                            dialogBinding.floatingAutoCloseOnScreenChangeSwitch.isChecked,
+                        singleTapAction = parseFloatingGestureAction(
+                            dialogBinding.floatingSingleTapActionInput,
+                            currentSettings.singleTapAction
+                        ),
+                        doubleTapAction = parseFloatingGestureAction(
+                            dialogBinding.floatingDoubleTapActionInput,
+                            currentSettings.doubleTapAction
+                        ),
+                        longPressAction = parseFloatingGestureAction(
+                            dialogBinding.floatingLongPressActionInput,
+                            currentSettings.longPressAction
+                        ),
+                        tripleTapAction = parseFloatingGestureAction(
+                            dialogBinding.floatingTripleTapActionInput,
+                            currentSettings.tripleTapAction
+                        )
                     )
                 )
                 AppLogger.log("Settings", "Floating translate API settings updated")
