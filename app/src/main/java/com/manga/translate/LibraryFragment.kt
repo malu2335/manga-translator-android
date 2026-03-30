@@ -18,6 +18,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.view.isVisible
+import androidx.core.view.doOnLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
@@ -55,6 +56,9 @@ class LibraryFragment : Fragment() {
     private var currentFolder: File? = null
     private var embedActionsEnabled: Boolean = true
     private var isFolderTransitionRunning: Boolean = false
+    private var isFolderTopBarVisible: Boolean = true
+    private var lastFolderDetailScrollY: Int = 0
+    private var folderTopBarScrollAccumulated: Int = 0
 
     private val tutorialUrlGithub =
         "https://github.com/jedzqer/manga-translator/blob/main/Tutorial/简中教程.md"
@@ -278,6 +282,7 @@ class LibraryFragment : Fragment() {
         binding.folderImageList.layoutManager = LinearLayoutManager(requireContext())
         binding.folderImageList.isNestedScrollingEnabled = false
         binding.folderImageList.adapter = imageAdapter
+        setupFolderDetailScrollBehavior()
 
         binding.addFolderFab.setOnClickListener { showCreateFolderDialog() }
         binding.importEhviewerButton.setOnClickListener { importFromEhViewer() }
@@ -432,6 +437,7 @@ class LibraryFragment : Fragment() {
     private fun showFolderList() {
         currentFolder = null
         embedActionsEnabled = true
+        resetFolderTopBar(forceVisible = true)
         uiCallbacks.clearFolderStatus()
         selectionController.exitSelectionMode()
         folderAdapter.clearActionSelection()
@@ -445,6 +451,7 @@ class LibraryFragment : Fragment() {
 
     private fun showFolderDetail(folder: File) {
         currentFolder = folder
+        resetFolderTopBar(forceVisible = true)
         binding.folderTitle.text = folder.name
         binding.folderFullTranslateSwitch.isChecked = preferencesGateway.isFullTranslateEnabled(folder)
         binding.folderVlDirectTranslateSwitch.isChecked =
@@ -548,6 +555,7 @@ class LibraryFragment : Fragment() {
         binding.libraryListContainer.animate().cancel()
         binding.folderDetailContainer.animate().cancel()
         binding.addFolderFab.animate().cancel()
+        resetFolderTopBar(forceVisible = true)
         binding.libraryListContainer.visibility = View.VISIBLE
         binding.libraryListContainer.alpha = 1f
         binding.libraryListContainer.translationY = 0f
@@ -558,6 +566,67 @@ class LibraryFragment : Fragment() {
         binding.addFolderFab.alpha = 1f
         binding.addFolderFab.translationY = 0f
         isFolderTransitionRunning = false
+    }
+
+    private fun setupFolderDetailScrollBehavior() {
+        val threshold = (resources.displayMetrics.density * 20).toInt().coerceAtLeast(1)
+        binding.folderDetailScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+            if (!binding.folderDetailContainer.isVisible) {
+                lastFolderDetailScrollY = scrollY
+                return@setOnScrollChangeListener
+            }
+            val delta = scrollY - lastFolderDetailScrollY
+            lastFolderDetailScrollY = scrollY
+            if (scrollY <= 0) {
+                folderTopBarScrollAccumulated = 0
+                setFolderTopBarVisible(true)
+                return@setOnScrollChangeListener
+            }
+            if (delta == 0) return@setOnScrollChangeListener
+            val sameDirection =
+                (delta > 0 && folderTopBarScrollAccumulated > 0) ||
+                    (delta < 0 && folderTopBarScrollAccumulated < 0)
+            folderTopBarScrollAccumulated = if (folderTopBarScrollAccumulated == 0 || sameDirection) {
+                folderTopBarScrollAccumulated + delta
+            } else {
+                delta
+            }
+            if (folderTopBarScrollAccumulated >= threshold) {
+                setFolderTopBarVisible(false)
+                folderTopBarScrollAccumulated = 0
+            } else if (folderTopBarScrollAccumulated <= -threshold) {
+                setFolderTopBarVisible(true)
+                folderTopBarScrollAccumulated = 0
+            }
+        }
+    }
+
+    private fun resetFolderTopBar(forceVisible: Boolean) {
+        lastFolderDetailScrollY = binding.folderDetailScroll.scrollY
+        folderTopBarScrollAccumulated = 0
+        if (forceVisible) {
+            binding.folderTopBar.doOnLayout {
+                if (_binding == null) return@doOnLayout
+                setFolderTopBarVisible(true, immediate = true)
+            }
+        }
+    }
+
+    private fun setFolderTopBarVisible(visible: Boolean, immediate: Boolean = false) {
+        if (isFolderTopBarVisible == visible && !immediate) return
+        isFolderTopBarVisible = visible
+        val topBar = binding.folderTopBar
+        topBar.animate().cancel()
+        if (immediate) {
+            topBar.alpha = if (visible) 1f else 0f
+            topBar.translationY = if (visible) 0f else -topBar.height.toFloat()
+            return
+        }
+        topBar.animate()
+            .alpha(if (visible) 1f else 0f)
+            .translationY(if (visible) 0f else -topBar.height.toFloat())
+            .setDuration(180L)
+            .start()
     }
 
     private fun loadFolders() {
