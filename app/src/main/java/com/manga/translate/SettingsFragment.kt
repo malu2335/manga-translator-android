@@ -69,8 +69,30 @@ class SettingsFragment : Fragment() {
     ) {
         val actions = FloatingBallGestureAction.entries
         val labels = actions.map { getString(it.labelRes) }
+        val textColor = resolveColorAttr(R.attr.dialogTextColor)
         inputView.setAdapter(
-            ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, labels)
+            object : ArrayAdapter<String>(
+                requireContext(),
+                android.R.layout.simple_list_item_1,
+                labels
+            ) {
+                private fun applyThemeTextColor(view: View): View {
+                    (view as? TextView)?.setTextColor(textColor)
+                    return view
+                }
+
+                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                    return applyThemeTextColor(super.getView(position, convertView, parent))
+                }
+
+                override fun getDropDownView(
+                    position: Int,
+                    convertView: View?,
+                    parent: ViewGroup
+                ): View {
+                    return applyThemeTextColor(super.getDropDownView(position, convertView, parent))
+                }
+            }
         )
         inputView.setText(getString(currentAction.labelRes), false)
     }

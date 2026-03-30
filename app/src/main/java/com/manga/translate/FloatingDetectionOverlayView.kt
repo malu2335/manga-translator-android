@@ -101,6 +101,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     var onBubbleDelete: ((Int) -> Unit)? = null
     var onManualBubbleCreated: ((RectF) -> Unit)? = null
     var onEditDirtyChanged: ((Boolean) -> Unit)? = null
+    var onCreateBubbleTouchActiveChanged: ((Boolean) -> Unit)? = null
 
     init {
         applyBubbleOpacity()
@@ -150,6 +151,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         isDrawing = false
         drawingRect.setEmpty()
         cancelLongPressDelete()
+        onCreateBubbleTouchActiveChanged?.invoke(false)
         invalidate()
     }
 
@@ -255,6 +257,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                 downX = clampedX
                 downY = clampedY
                 drawingRect.set(clampedX, clampedY, clampedX, clampedY)
+                onCreateBubbleTouchActiveChanged?.invoke(true)
                 invalidate()
                 return true
             }
@@ -272,6 +275,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                 val created = RectF(drawingRect)
                 isDrawing = false
                 drawingRect.setEmpty()
+                onCreateBubbleTouchActiveChanged?.invoke(false)
                 invalidate()
                 if (created.width() * scaleX() >= minCreateSize &&
                     created.height() * scaleY() >= minCreateSize
@@ -285,6 +289,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             MotionEvent.ACTION_CANCEL -> {
                 isDrawing = false
                 drawingRect.setEmpty()
+                onCreateBubbleTouchActiveChanged?.invoke(false)
                 invalidate()
                 return true
             }

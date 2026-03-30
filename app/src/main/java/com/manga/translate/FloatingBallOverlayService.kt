@@ -76,6 +76,7 @@ class FloatingBallOverlayService : Service() {
     private var controllerRoot: LinearLayout? = null
     private var controllerLayoutParams: WindowManager.LayoutParams? = null
     private var controllerMenuPanel: LinearLayout? = null
+    private var controllerBallView: View? = null
     private var detectionOverlayView: FloatingDetectionOverlayView? = null
     private var detectionLayoutParams: WindowManager.LayoutParams? = null
     private val screenCaptureSession by lazy {
@@ -160,7 +161,6 @@ class FloatingBallOverlayService : Service() {
         }
         if (controllerRoot == null) {
             showControllerOverlay()
-            showUsageTip()
         }
         if (intent?.action == ACTION_START) {
             val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Int.MIN_VALUE)
@@ -374,6 +374,7 @@ class FloatingBallOverlayService : Service() {
         controllerRoot = root
         controllerLayoutParams = params
         controllerMenuPanel = menuPanel
+        controllerBallView = floatingBall
         progressStatusView = progressView
     }
 
@@ -420,6 +421,9 @@ class FloatingBallOverlayService : Service() {
             editSessionDirty = dirty
             updateEditButtons()
         }
+        overlay.onCreateBubbleTouchActiveChanged = { active ->
+            setFloatingBallHidden(active)
+        }
         windowManager.addView(overlay, params)
         AppLogger.log("FloatingOCR", "Detection overlay added")
         detectionOverlayView = overlay
@@ -454,6 +458,10 @@ class FloatingBallOverlayService : Service() {
         if (autoHide) {
             mainHandler.postDelayed(hideProgressStatusRunnable, FLOATING_PROGRESS_HIDE_DELAY_MS)
         }
+    }
+
+    private fun setFloatingBallHidden(hidden: Boolean) {
+        controllerBallView?.visibility = if (hidden) View.INVISIBLE else View.VISIBLE
     }
 
     private fun ensureControllerOnTop() {
@@ -545,6 +553,7 @@ class FloatingBallOverlayService : Service() {
         createBubbleModeEnabled = false
         editSessionDirty = false
         editSessionSnapshot = session.deepCopy()
+        setFloatingBallHidden(false)
         detectionOverlayView?.setEditMode(true)
         detectionOverlayView?.setCreateBubbleMode(false)
         refreshDetectionOverlayTouchability()
@@ -631,6 +640,9 @@ class FloatingBallOverlayService : Service() {
         if (!editModeEnabled) return
         createBubbleModeEnabled = !createBubbleModeEnabled
         detectionOverlayView?.setCreateBubbleMode(createBubbleModeEnabled)
+        if (!createBubbleModeEnabled) {
+            setFloatingBallHidden(false)
+        }
         updateAutoCloseDetectionState()
         updateEditButtons()
         if (createBubbleModeEnabled) {
@@ -645,6 +657,7 @@ class FloatingBallOverlayService : Service() {
         createBubbleModeEnabled = false
         editSessionDirty = false
         editSessionSnapshot = null
+        setFloatingBallHidden(false)
         currentSession = restored ?: currentSession
         detectionOverlayView?.setEditMode(false)
         detectionOverlayView?.setCreateBubbleMode(false)
@@ -661,6 +674,7 @@ class FloatingBallOverlayService : Service() {
         createBubbleModeEnabled = false
         editSessionDirty = false
         editSessionSnapshot = null
+        setFloatingBallHidden(false)
         detectionOverlayView?.setEditMode(false)
         detectionOverlayView?.setCreateBubbleMode(false)
         refreshDetectionOverlayTouchability()
@@ -749,6 +763,7 @@ class FloatingBallOverlayService : Service() {
         val bubble = BubbleTranslation(nextId, RectF(rect), "", BubbleSource.MANUAL)
         currentSession = session.copy(bubbles = session.bubbles + bubble)
         createBubbleModeEnabled = false
+        setFloatingBallHidden(false)
         syncOverlaySession()
         detectionOverlayView?.setCreateBubbleMode(false)
         updateAutoCloseDetectionState()
@@ -796,6 +811,7 @@ class FloatingBallOverlayService : Service() {
         detectionOverlayView?.setEditMode(false)
         detectionOverlayView?.setCreateBubbleMode(false)
         detectionOverlayView?.clearDetections()
+        setFloatingBallHidden(false)
         replaceCurrentSessionBitmap(null)
         clearAutoCloseReference()
         refreshDetectionOverlayTouchability()
@@ -836,37 +852,6 @@ class FloatingBallOverlayService : Service() {
                 startSwipeTranslateMode()
             }
         }
-    }
-
-    private fun buildFloatingUsageTip(): String {
-        val settings = settingsStore.loadFloatingTranslateApiSettings()
-        val lines = listOf(
-            getString(
-                R.string.floating_usage_tip_line,
-                getString(R.string.floating_single_tap_action_hint),
-                getString(settings.singleTapAction.labelRes)
-            ),
-            getString(
-                R.string.floating_usage_tip_line,
-                getString(R.string.floating_double_tap_action_hint),
-                getString(settings.doubleTapAction.labelRes)
-            ),
-            getString(
-                R.string.floating_usage_tip_line,
-                getString(R.string.floating_long_press_action_hint),
-                getString(settings.longPressAction.labelRes)
-            ),
-            getString(
-                R.string.floating_usage_tip_line,
-                getString(R.string.floating_triple_tap_action_hint),
-                getString(settings.tripleTapAction.labelRes)
-            )
-        )
-        return lines.joinToString(separator = "\n")
-    }
-
-    private fun showUsageTip() {
-        Toast.makeText(this, buildFloatingUsageTip(), Toast.LENGTH_LONG).show()
     }
 
     private fun prepareProjection(resultCode: Int, data: Intent) {
@@ -1245,6 +1230,7 @@ class FloatingBallOverlayService : Service() {
         controllerRoot = null
         controllerLayoutParams = null
         controllerMenuPanel = null
+        controllerBallView = null
         detectionOverlayView = null
         detectionLayoutParams = null
         editModeToggleButton = null
