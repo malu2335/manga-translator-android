@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.switchmaterial.SwitchMaterial
 import kotlinx.coroutines.Job
 import com.google.android.material.tabs.TabLayoutMediator
 import com.manga.translate.databinding.ActivityMainBinding
@@ -96,12 +97,14 @@ class MainActivity : AppCompatActivity() {
         if (hasCheckedUpdate) return
         hasCheckedUpdate = true
         lifecycleScope.launch {
-            val updateInfo = UpdateChecker.fetchUpdateInfo()
+            val updateInfo = UpdateChecker.fetchUpdateInfo(
+                includePreview = updateIgnoreStore.loadAcceptPreviewUpdates()
+            )
             if (updateInfo == null) return@launch
             AppLogger.log(
                 "UpdateChecker",
                 "Local version=${VersionInfo.VERSION_NAME} (${VersionInfo.VERSION_CODE}), " +
-                    "remote version=${updateInfo.versionName} (${updateInfo.versionCode})"
+                    "remote version=${updateInfo.versionName} (${updateInfo.versionCode}, ${updateInfo.releaseChannel})"
             )
             if (!isNewerVersion(updateInfo)) return@launch
             if (updateIgnoreStore.isIgnored(updateInfo.versionCode)) return@launch
@@ -122,12 +125,24 @@ class MainActivity : AppCompatActivity() {
         val latestContentView = dialogView.findViewById<TextView>(R.id.update_dialog_latest_content)
         val historyContainer = dialogView.findViewById<android.view.View>(R.id.update_dialog_history_container)
         val historyContentView = dialogView.findViewById<TextView>(R.id.update_dialog_history_content)
+        val previewSwitch = dialogView.findViewById<SwitchMaterial>(R.id.update_dialog_preview_switch)
         val actionsContainer = dialogView.findViewById<View>(R.id.update_dialog_actions)
         val negativeButton = dialogView.findViewById<AppCompatButton>(R.id.update_dialog_negative_button)
         val neutralButton = dialogView.findViewById<AppCompatButton>(R.id.update_dialog_neutral_button)
         val positiveButton = dialogView.findViewById<AppCompatButton>(R.id.update_dialog_positive_button)
-        latestTitleView.text = getString(R.string.update_dialog_latest_header, versionLabel)
+        latestTitleView.text = getString(
+            if (updateInfo.releaseChannel == ReleaseChannel.PREVIEW) {
+                R.string.update_dialog_latest_header_preview
+            } else {
+                R.string.update_dialog_latest_header
+            },
+            versionLabel
+        )
         latestContentView.text = buildLatestUpdateDialogMessage(updateInfo)
+        previewSwitch.isChecked = updateIgnoreStore.loadAcceptPreviewUpdates()
+        previewSwitch.setOnCheckedChangeListener { _, isChecked ->
+            updateIgnoreStore.saveAcceptPreviewUpdates(isChecked)
+        }
         val historyMessage = buildHistoryUpdateDialogMessage(updateInfo, versionLabel)
         historyContainer.visibility = if (historyMessage.isBlank()) android.view.View.GONE else android.view.View.VISIBLE
         historyContentView.text = historyMessage
@@ -338,6 +353,9 @@ class MainActivity : AppCompatActivity() {
                 builder.append("\n\n")
             }
             builder.append(entry.versionName)
+            if (entry.releaseChannel == ReleaseChannel.PREVIEW) {
+                builder.append(" [预览版]")
+            }
             if (entry.releasedAt.isNotBlank()) {
                 builder.append("  ").append(entry.releasedAt)
             }

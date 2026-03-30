@@ -28,7 +28,9 @@ import com.manga.translate.databinding.DialogFloatingTranslateSettingsBinding
 import com.manga.translate.databinding.FragmentSettingsBinding
 import com.manga.translate.databinding.ItemCustomRequestParamBinding
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -524,12 +526,19 @@ class SettingsFragment : Fragment() {
         val hostActivity = activity as? MainActivity ?: return
         val loadingDialog = AlertDialog.Builder(requireContext())
             .setView(ProgressBar(requireContext()))
-            .setCancelable(false)
             .create()
+        loadingDialog.setCanceledOnTouchOutside(false)
+        var loadJob: Job? = null
+        loadingDialog.setOnCancelListener {
+            loadJob?.cancel()
+        }
         loadingDialog.show()
-        lifecycleScope.launch {
+        loadJob = lifecycleScope.launch {
             try {
-                val updateInfo = UpdateChecker.fetchUpdateInfo(30_000)
+                val updateInfo = UpdateChecker.fetchUpdateInfo(
+                    timeoutMs = 30_000,
+                    includePreview = true
+                )
                 if (!isAdded) return@launch
                 if (updateInfo == null) {
                     Toast.makeText(
@@ -550,6 +559,8 @@ class SettingsFragment : Fragment() {
                     showIgnoreButton = false,
                     titleOverride = title
                 )
+            } catch (_: CancellationException) {
+                AppLogger.log("Settings", "Update dialog loading cancelled by user")
             } finally {
                 if (loadingDialog.isShowing) {
                     loadingDialog.dismiss()

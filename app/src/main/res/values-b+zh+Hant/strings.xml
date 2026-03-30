@@ -373,8 +373,10 @@
     <string name="update_dialog_message_default">發現新版本，是否下載更新？</string>
     <string name="update_dialog_latest_label">Current Latest</string>
     <string name="update_dialog_latest_header">最新版本 %1$s</string>
+    <string name="update_dialog_latest_header_preview">最新預覽版 %1$s</string>
     <string name="update_dialog_history_header">歷史更新</string>
     <string name="update_dialog_tutorial_tip">Tip：偶爾記得去查看教學看看有沒有最新玩法。</string>
+    <string name="update_dialog_preview_switch">接受預覽版推送</string>
     <string name="update_dialog_no_update_title">暫無新版本</string>
     <string name="update_dialog_load_failed">取得更新資訊失敗，請稍後重試。</string>
     <string name="update_dialog_cancel">取消</string>

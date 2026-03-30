@@ -1,6 +1,9 @@
 package com.manga.translate
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -11,14 +14,23 @@ data class UpdateInfo(
     val versionName: String,
     val apkUrl: String,
     val changelog: String,
-    val history: List<UpdateHistoryEntry>
+    val history: List<UpdateHistoryEntry>,
+    val releaseChannel: ReleaseChannel
 )
 
 data class UpdateHistoryEntry(
+    val versionCode: Int,
     val versionName: String,
     val releasedAt: String,
-    val changelog: String
+    val changelog: String,
+    val apkUrl: String,
+    val releaseChannel: ReleaseChannel
 )
+
+enum class ReleaseChannel {
+    STABLE,
+    PREVIEW
+}
 
 object UpdateChecker {
     private const val UPDATE_URL_GITHUB =
@@ -29,12 +41,24 @@ object UpdateChecker {
     private const val DEFAULT_TIMEOUT_MS = 15_000
 
     suspend fun fetchUpdateInfo(timeoutMs: Int = DEFAULT_TIMEOUT_MS): UpdateInfo? =
+        fetchUpdateInfo(timeoutMs, includePreview = true)
+
+    suspend fun fetchUpdateInfo(
+        timeoutMs: Int = DEFAULT_TIMEOUT_MS,
+        includePreview: Boolean
+    ): UpdateInfo? =
         withContext(Dispatchers.IO) {
+            val coroutineContext = currentCoroutineContext()
+            val job = coroutineContext[Job]
             for ((index, url) in updateUrls.withIndex()) {
+                coroutineContext.ensureActive()
                 val connection = (URL(url).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = timeoutMs
                     readTimeout = timeoutMs
+                }
+                val cancelHandle = job?.invokeOnCompletion {
+                    connection.disconnect()
                 }
                 try {
                     val code = connection.responseCode
@@ -48,7 +72,7 @@ object UpdateChecker {
                         AppLogger.log("UpdateChecker", "[$index] $url HTTP $code: $body")
                         continue
                     }
-                    val parsed = parseUpdateInfo(body)
+                    val parsed = parseUpdateInfo(body, includePreview)
                     if (parsed != null) {
                         AppLogger.log("UpdateChecker", "Loaded update info from $url")
                         return@withContext parsed
@@ -57,25 +81,25 @@ object UpdateChecker {
                 } catch (e: Exception) {
                     AppLogger.log("UpdateChecker", "[$index] Update request failed: $url", e)
                 } finally {
+                    cancelHandle?.dispose()
                     connection.disconnect()
                 }
             }
             null
         }
 
-    private fun parseUpdateInfo(body: String): UpdateInfo? {
+    private fun parseUpdateInfo(body: String, includePreview: Boolean): UpdateInfo? {
         return try {
             val json = JSONObject(body)
-            val versionCode = json.optInt("versionCode", -1)
-            val versionName = json.optString("versionName").trim()
-            val apkUrl = json.optString("apkUrl").trim()
-            val changelog = json.optString("changelog").trim()
             val history = buildHistory(json)
-            if (versionName.isBlank() || apkUrl.isBlank()) {
+            val latest = buildLatest(json) ?: return null
+            val selected = selectUpdateInfo(latest, history, includePreview) ?: latest
+            if (selected.versionName.isBlank() || selected.apkUrl.isBlank()) {
                 AppLogger.log("UpdateChecker", "Invalid update json: $body")
                 null
             } else {
-                UpdateInfo(versionCode, versionName, apkUrl, changelog, history)
+                val remainingHistory = buildSelectedHistory(selected, latest, history)
+                selected.copy(history = remainingHistory)
             }
         } catch (e: Exception) {
             AppLogger.log("UpdateChecker", "Parse update json failed", e)
@@ -83,17 +107,101 @@ object UpdateChecker {
         }
     }
 
+    private fun buildLatest(json: JSONObject): UpdateInfo? {
+        val versionCode = json.optInt("versionCode", -1)
+        val versionName = json.optString("versionName").trim()
+        val apkUrl = json.optString("apkUrl").trim()
+        val changelog = json.optString("changelog").trim()
+        val releaseChannel = parseReleaseChannel(json.optString("releaseChannel"))
+        if (versionName.isBlank() || apkUrl.isBlank()) return null
+        return UpdateInfo(
+            versionCode = versionCode,
+            versionName = versionName,
+            apkUrl = apkUrl,
+            changelog = changelog,
+            history = emptyList(),
+            releaseChannel = releaseChannel
+        )
+    }
+
     private fun buildHistory(json: JSONObject): List<UpdateHistoryEntry> {
         val historyArray = json.optJSONArray("history") ?: return emptyList()
         val items = ArrayList<UpdateHistoryEntry>(historyArray.length())
         for (i in 0 until historyArray.length()) {
             val entry = historyArray.optJSONObject(i) ?: continue
+            val versionCode = entry.optInt("versionCode", -1)
             val versionName = entry.optString("versionName").trim()
             val releasedAt = entry.optString("releasedAt").trim()
             val changelog = entry.optString("changelog").trim()
+            val apkUrl = entry.optString("apkUrl").trim()
+            val releaseChannel = parseReleaseChannel(entry.optString("releaseChannel"))
             if (versionName.isBlank() || changelog.isBlank()) continue
-            items.add(UpdateHistoryEntry(versionName, releasedAt, changelog))
+            items.add(
+                UpdateHistoryEntry(
+                    versionCode = versionCode,
+                    versionName = versionName,
+                    releasedAt = releasedAt,
+                    changelog = changelog,
+                    apkUrl = apkUrl,
+                    releaseChannel = releaseChannel
+                )
+            )
         }
         return items
+    }
+
+    private fun parseReleaseChannel(rawValue: String?): ReleaseChannel {
+        return when (rawValue?.trim()?.lowercase()) {
+            "preview" -> ReleaseChannel.PREVIEW
+            else -> ReleaseChannel.STABLE
+        }
+    }
+
+    private fun selectUpdateInfo(
+        latest: UpdateInfo,
+        history: List<UpdateHistoryEntry>,
+        includePreview: Boolean
+    ): UpdateInfo? {
+        if (includePreview || latest.releaseChannel == ReleaseChannel.STABLE) {
+            return latest
+        }
+        val latestStable = history.firstOrNull {
+            it.releaseChannel == ReleaseChannel.STABLE &&
+                it.versionCode > 0 &&
+                it.apkUrl.isNotBlank()
+        } ?: return null
+        return UpdateInfo(
+            versionCode = latestStable.versionCode,
+            versionName = latestStable.versionName,
+            apkUrl = latestStable.apkUrl,
+            changelog = latestStable.changelog,
+            history = emptyList(),
+            releaseChannel = latestStable.releaseChannel
+        )
+    }
+
+    private fun buildSelectedHistory(
+        selected: UpdateInfo,
+        latest: UpdateInfo,
+        history: List<UpdateHistoryEntry>
+    ): List<UpdateHistoryEntry> {
+        val items = ArrayList<UpdateHistoryEntry>(history.size + 1)
+        if (selected.versionName != latest.versionName || selected.versionCode != latest.versionCode) {
+            items.add(
+                UpdateHistoryEntry(
+                    versionCode = latest.versionCode,
+                    versionName = latest.versionName,
+                    releasedAt = "",
+                    changelog = latest.changelog,
+                    apkUrl = latest.apkUrl,
+                    releaseChannel = latest.releaseChannel
+                )
+            )
+        }
+        items.addAll(history)
+        return items.filterNot {
+            it.versionName.equals(selected.versionName, ignoreCase = true) &&
+                (selected.versionCode <= 0 || it.versionCode <= 0 || it.versionCode == selected.versionCode)
+        }
     }
 }

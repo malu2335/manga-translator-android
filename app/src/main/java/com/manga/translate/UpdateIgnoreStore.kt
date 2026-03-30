@@ -22,9 +22,20 @@ class UpdateIgnoreStore(context: Context) {
         return loadIgnoredVersionCode() == versionCode
     }
 
+    fun loadAcceptPreviewUpdates(): Boolean {
+        return prefs.getBoolean(KEY_ACCEPT_PREVIEW_UPDATES, false)
+    }
+
+    fun saveAcceptPreviewUpdates(enabled: Boolean) {
+        prefs.edit {
+            putBoolean(KEY_ACCEPT_PREVIEW_UPDATES, enabled)
+        }
+    }
+
     companion object {
         private const val PREFS_NAME = "manga_translate_update"
         private const val KEY_IGNORED_VERSION_CODE = "ignored_version_code"
+        private const val KEY_ACCEPT_PREVIEW_UPDATES = "accept_preview_updates"
         private const val NO_VERSION = -1
     }
 }
