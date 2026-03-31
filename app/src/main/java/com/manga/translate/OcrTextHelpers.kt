@@ -11,7 +11,7 @@ data class EnglishLine(
 )
 
 fun normalizeOcrText(text: String, language: TranslationLanguage): String {
-    if (language != TranslationLanguage.EN_TO_ZH) return text
+    if (language != TranslationLanguage.EN_TO_ZH && language != TranslationLanguage.KO_TO_ZH) return text
     return text.replace('\r', ' ')
         .replace('\n', ' ')
         .replace(Regex("\\s+"), " ")
@@ -77,6 +77,26 @@ fun recognizeEnglishLines(
     source: Bitmap,
     lineRects: List<RectF>,
     ocrEngine: EnglishOcr,
+    minLineScore: Float = DEFAULT_EN_MIN_LINE_SCORE
+): List<EnglishLine> {
+    if (lineRects.isEmpty()) return emptyList()
+    val results = ArrayList<EnglishLine>(lineRects.size)
+    for (rect in lineRects) {
+        withBitmapCrop(source, rect) { crop ->
+            val decoded = ocrEngine.recognizeWithScore(crop)
+            val text = decoded.text.trim()
+            if (decoded.score >= minLineScore && text.isNotBlank()) {
+                results.add(EnglishLine(rect, text))
+            }
+        }
+    }
+    return results
+}
+
+fun recognizeKoreanLines(
+    source: Bitmap,
+    lineRects: List<RectF>,
+    ocrEngine: KoreanOcr,
     minLineScore: Float = DEFAULT_EN_MIN_LINE_SCORE
 ): List<EnglishLine> {
     if (lineRects.isEmpty()) return emptyList()
