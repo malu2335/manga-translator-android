@@ -181,57 +181,32 @@
         </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <LinearLayout
+    <FrameLayout
         android:id="@+id/folder_detail_container"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:clipChildren="false"
         android:clipToPadding="false"
-        android:orientation="vertical"
         android:visibility="gone"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <LinearLayout
-            android:id="@+id/folder_top_bar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/folder_back_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:minWidth="0dp"
-                android:text="@string/folder_back" />
-
-            <TextView
-                android:id="@+id/folder_title"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:textAppearance="@style/Widget.MangaTranslator.Title" />
-        </LinearLayout>
-
         <com.manga.translate.SafeNestedScrollView
             android:id="@+id/folder_detail_scroll"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_marginTop="14dp"
+            android:layout_height="match_parent"
             android:clipChildren="false"
             android:clipToPadding="false"
             android:descendantFocusability="beforeDescendants"
-            android:layout_weight="1"
             android:focusable="true"
             android:focusableInTouchMode="true"
             android:fillViewport="true"
             android:overScrollMode="ifContentScrolls">
 
             <LinearLayout
+                android:id="@+id/folder_detail_content"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:clipChildren="false"
@@ -239,6 +214,7 @@
                 android:focusable="false"
                 android:focusableInTouchMode="false"
                 android:orientation="vertical"
+                android:paddingTop="14dp"
                 android:paddingBottom="8dp">
 
                 <LinearLayout
@@ -567,7 +543,33 @@
                 </LinearLayout>
             </LinearLayout>
         </com.manga.translate.SafeNestedScrollView>
-    </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/folder_top_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:background="?attr/surfaceAltColor"
+            android:elevation="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/folder_back_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/folder_back" />
+
+            <TextView
+                android:id="@+id/folder_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:textAppearance="@style/Widget.MangaTranslator.Title" />
+        </LinearLayout>
+    </FrameLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/add_folder_fab"

@@ -19,34 +19,10 @@
 
         <TextView
             android:id="@+id/folder_name"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:textAppearance="@style/Widget.MangaTranslator.CardTitle"
             android:textSize="17sp" />
-
-        <LinearLayout
-            android:id="@+id/folder_actions"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:visibility="gone">
-
-            <Button
-                android:id="@+id/folder_rename"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:minWidth="0dp"
-                android:text="@string/folder_rename" />
-
-            <Button
-                android:id="@+id/folder_delete"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:minWidth="0dp"
-                android:text="@string/folder_delete" />
-        </LinearLayout>
     </LinearLayout>
 
     <TextView
@@ -55,4 +31,31 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
+
+    <LinearLayout
+        android:id="@+id/folder_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/folder_rename"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:minWidth="0dp"
+            android:text="@string/folder_rename" />
+
+        <Button
+            android:id="@+id/folder_delete"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:minWidth="0dp"
+            android:text="@string/folder_delete" />
+    </LinearLayout>
 </LinearLayout>

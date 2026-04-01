@@ -59,6 +59,7 @@ class LibraryFragment : Fragment() {
     private var isFolderTopBarVisible: Boolean = true
     private var lastFolderDetailScrollY: Int = 0
     private var folderTopBarScrollAccumulated: Int = 0
+    private var folderDetailContentBaseTopPadding: Int = 0
 
     private val tutorialUrlGithub =
         "https://github.com/jedzqer/manga-translator/blob/main/Tutorial/简中教程.md"
@@ -282,6 +283,7 @@ class LibraryFragment : Fragment() {
         binding.folderImageList.layoutManager = LinearLayoutManager(requireContext())
         binding.folderImageList.isNestedScrollingEnabled = false
         binding.folderImageList.adapter = imageAdapter
+        setupFolderTopBarOverlay()
         setupFolderDetailScrollBehavior()
 
         binding.addFolderFab.setOnClickListener { showCreateFolderDialog() }
@@ -601,6 +603,32 @@ class LibraryFragment : Fragment() {
         }
     }
 
+    private fun setupFolderTopBarOverlay() {
+        folderDetailContentBaseTopPadding = binding.folderDetailContent.paddingTop
+        binding.folderTopBar.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            if (_binding == null) return@addOnLayoutChangeListener
+            updateFolderDetailContentTopInset()
+        }
+        binding.folderTopBar.doOnLayout {
+            if (_binding == null) return@doOnLayout
+            updateFolderDetailContentTopInset()
+        }
+    }
+
+    private fun updateFolderDetailContentTopInset() {
+        val topBar = binding.folderTopBar
+        topBar.bringToFront()
+        val content = binding.folderDetailContent
+        val targetTopPadding = folderDetailContentBaseTopPadding + topBar.height
+        if (content.paddingTop == targetTopPadding) return
+        content.setPadding(
+            content.paddingLeft,
+            targetTopPadding,
+            content.paddingRight,
+            content.paddingBottom
+        )
+    }
+
     private fun resetFolderTopBar(forceVisible: Boolean) {
         lastFolderDetailScrollY = binding.folderDetailScroll.scrollY
         folderTopBarScrollAccumulated = 0
@@ -617,6 +645,7 @@ class LibraryFragment : Fragment() {
         isFolderTopBarVisible = visible
         val topBar = binding.folderTopBar
         topBar.animate().cancel()
+        topBar.bringToFront()
         if (immediate) {
             topBar.alpha = if (visible) 1f else 0f
             topBar.translationY = if (visible) 0f else -topBar.height.toFloat()
