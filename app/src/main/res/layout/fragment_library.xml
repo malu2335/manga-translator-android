@@ -549,8 +549,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="top"
-            android:background="?attr/surfaceAltColor"
-            android:elevation="8dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 

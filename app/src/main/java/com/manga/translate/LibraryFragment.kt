@@ -24,6 +24,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.SimpleItemAnimator
 import com.manga.translate.databinding.FragmentLibraryBinding
 import java.io.File
 
@@ -273,6 +274,7 @@ class LibraryFragment : Fragment() {
 
         binding.folderList.layoutManager = LinearLayoutManager(requireContext())
         binding.folderList.adapter = folderAdapter
+        (binding.folderList.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
         binding.root.setOnClickListener { folderAdapter.clearActionSelection() }
         binding.folderList.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
             override fun onInterceptTouchEvent(rv: RecyclerView, e: android.view.MotionEvent): Boolean {
