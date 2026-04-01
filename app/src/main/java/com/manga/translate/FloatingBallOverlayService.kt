@@ -439,7 +439,8 @@ class FloatingBallOverlayService : Service() {
 
     private fun buildDetectionFlags(): Int {
         var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
         if (!editModeEnabled) {
             flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
