@@ -58,6 +58,7 @@ class ReadingFragment : Fragment() {
     private var currentImageFile: java.io.File? = null
     private var currentTranslation: TranslationResult? = null
     private var translationWatchJob: Job? = null
+    private var webtoonTranslationWatchJob: Job? = null
     private var currentBitmap: Bitmap? = null
     private var currentImageWidth: Int = 0
     private var currentImageHeight: Int = 0
@@ -82,6 +83,7 @@ class ReadingFragment : Fragment() {
     private lateinit var webtoonAdapter: WebtoonReadingAdapter
     private lateinit var webtoonLayoutManager: LinearLayoutManager
     private var webtoonProgrammaticScroll = false
+    private val visibleWebtoonTranslationModified = mutableMapOf<String, Long>()
     private var displayedPageIndex: Int? = null
     private var displayedImagePath: String? = null
     private var pageTransitionGeneration: Int = 0
@@ -118,6 +120,7 @@ class ReadingFragment : Fragment() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 if (folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) return
                 updateWebtoonPageInfo()
+                refreshVisibleWebtoonTranslations()
                 if (!webtoonProgrammaticScroll) {
                     persistWebtoonProgress()
                 }
@@ -240,6 +243,7 @@ class ReadingFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         translationWatchJob?.cancel()
+        webtoonTranslationWatchJob?.cancel()
         emptyBubbleJob?.cancel()
         cancelPageTransition()
         binding.readingWebtoonList.adapter = null
@@ -255,6 +259,7 @@ class ReadingFragment : Fragment() {
     }
 
     private fun loadCurrentImage() {
+        stopWebtoonTranslationWatcher()
         val images = readingSessionViewModel.images.value.orEmpty()
         val folder = readingSessionViewModel.currentFolder.value
         isEmbeddedMode = readingSessionViewModel.isEmbedded.value == true
@@ -375,6 +380,7 @@ class ReadingFragment : Fragment() {
         isEmbeddedMode = readingSessionViewModel.isEmbedded.value == true
         folderReadingMode = readingSessionViewModel.readingMode.value ?: FolderReadingMode.STANDARD
         translationWatchJob?.cancel()
+        stopWebtoonTranslationWatcher(clearCache = false)
         emptyBubbleJob?.cancel()
         hideResizePanel()
         currentImageFile = null
@@ -396,6 +402,7 @@ class ReadingFragment : Fragment() {
                 verticalLayoutEnabled = !settingsStore.loadUseHorizontalText(),
                 bubbleOpacity = settingsStore.loadTranslationBubbleOpacity()
             )
+            stopWebtoonTranslationWatcher()
             return
         }
         binding.readingEmptyHint.visibility = View.GONE
@@ -414,6 +421,7 @@ class ReadingFragment : Fragment() {
             webtoonLayoutManager.scrollToPositionWithOffset(targetIndex, 0)
             updateWebtoonPageInfo()
             persistWebtoonProgress()
+            startWebtoonTranslationWatcher()
             binding.readingWebtoonList.post {
                 webtoonProgrammaticScroll = false
             }
@@ -695,6 +703,15 @@ class ReadingFragment : Fragment() {
         binding.readingScrollContainer.visibility = if (isWebtoon) View.GONE else View.VISIBLE
         binding.readingScrollContainer.scrollEnabled = isWebtoon && !isEditMode
         binding.readingScrollContainer.isFillViewport = !isWebtoon
+        if (isWebtoon && !isEmbeddedMode) {
+            binding.readingWebtoonList.post {
+                if (!isAdded || _binding == null || folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) return@post
+                startWebtoonTranslationWatcher()
+                refreshVisibleWebtoonTranslations()
+            }
+        } else {
+            stopWebtoonTranslationWatcher()
+        }
         updateReadingContentLayout(currentBitmap)
         updateReadingInteractionState()
     }
@@ -839,6 +856,58 @@ class ReadingFragment : Fragment() {
         input.setText(formatInt(percent))
         input.setSelection(input.text?.length ?: 0)
         setInputUpdating(false)
+    }
+
+    private fun startWebtoonTranslationWatcher() {
+        if (folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) return
+        if (isEmbeddedMode) return
+        if (webtoonTranslationWatchJob?.isActive == true) return
+        webtoonTranslationWatchJob = viewLifecycleOwner.lifecycleScope.launch {
+            while (isActive) {
+                if (!isAdded || _binding == null || folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) {
+                    return@launch
+                }
+                refreshVisibleWebtoonTranslations()
+                delay(800)
+            }
+        }
+    }
+
+    private fun stopWebtoonTranslationWatcher(clearCache: Boolean = true) {
+        webtoonTranslationWatchJob?.cancel()
+        webtoonTranslationWatchJob = null
+        if (clearCache) {
+            visibleWebtoonTranslationModified.clear()
+        }
+    }
+
+    private fun refreshVisibleWebtoonTranslations() {
+        val images = readingSessionViewModel.images.value.orEmpty()
+        if (images.isEmpty()) {
+            visibleWebtoonTranslationModified.clear()
+            return
+        }
+        val firstVisible = webtoonLayoutManager.findFirstVisibleItemPosition()
+        val lastVisible = webtoonLayoutManager.findLastVisibleItemPosition()
+        if (firstVisible == RecyclerView.NO_POSITION || lastVisible == RecyclerView.NO_POSITION) {
+            return
+        }
+        val start = firstVisible.coerceAtLeast(0)
+        val end = lastVisible.coerceAtMost(images.lastIndex)
+        if (start > end) return
+        val visiblePaths = HashSet<String>(end - start + 1)
+        for (index in start..end) {
+            val imageFile = images[index]
+            val path = imageFile.absolutePath
+            visiblePaths.add(path)
+            val translationFile = translationStore.translationFileFor(imageFile)
+            val modified = if (translationFile.exists()) translationFile.lastModified() else Long.MIN_VALUE
+            val previous = visibleWebtoonTranslationModified.put(path, modified)
+            if (previous == null || previous != modified) {
+                webtoonAdapter.notifyTranslationChanged(path)
+            }
+        }
+        visibleWebtoonTranslationModified.keys.retainAll(visiblePaths)
     }
 
     private fun startTranslationWatcher(imageFile: java.io.File) {

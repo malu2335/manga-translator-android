@@ -1,11 +1,19 @@
 {
-  "versionCode": 36,
-  "versionName": "2.3.12",
-  "releaseChannel": "preview",
-  "releasedAt": "2026-03-30",
-  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.12/app-release.apk",
-  "changelog": "新增悬浮窗手势自定义，优化软件交互",
+  "versionCode": 37,
+  "versionName": "2.3.13",
+  "releaseChannel": "stable",
+  "releasedAt": "2026-04-01",
+  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.13/app-release.apk",
+  "changelog": "新增韩语翻译支持。修复鸿蒙设备悬浮窗相关问题，优化部分UI细节。",
   "history": [
+    {
+      "versionCode": 36,
+      "versionName": "2.3.12",
+      "releaseChannel": "preview",
+      "releasedAt": "2026-03-30",
+      "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.3.12/app-release.apk",
+      "changelog": "新增悬浮窗手势自定义，优化软件交互"
+    },
     {
       "versionCode": 35,
       "versionName": "2.3.11",

@@ -12,8 +12,6 @@ import com.manga.translate.databinding.ItemReadingWebtoonPageBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -30,6 +28,7 @@ class WebtoonReadingAdapter(
 
     private companion object {
         const val PAYLOAD_PRESENTATION_ONLY = "presentation_only"
+        const val PAYLOAD_TRANSLATION_ONLY = "translation_only"
         const val DEFAULT_PLACEHOLDER_HEIGHT_RATIO = 1.4f
     }
 
@@ -116,6 +115,10 @@ class WebtoonReadingAdapter(
         position: Int,
         payloads: MutableList<Any>
     ) {
+        if (payloads.contains(PAYLOAD_TRANSLATION_ONLY)) {
+            holder.reloadTranslationOverlay()
+            return
+        }
         if (payloads.contains(PAYLOAD_PRESENTATION_ONLY)) {
             holder.updatePresentation(
                 verticalLayoutEnabled = verticalLayoutEnabled,
@@ -130,26 +133,24 @@ class WebtoonReadingAdapter(
         holder.recycle()
     }
 
-    override fun onViewDetachedFromWindow(holder: WebtoonPageViewHolder) {
-        holder.stopWatching()
-    }
-
-    override fun onViewAttachedToWindow(holder: WebtoonPageViewHolder) {
-        holder.resumeWatching()
+    fun notifyTranslationChanged(imagePath: String) {
+        val index = items.indexOfFirst { it.absolutePath == imagePath }
+        if (index >= 0) {
+            notifyItemChanged(index, PAYLOAD_TRANSLATION_ONLY)
+        }
     }
 
     inner class WebtoonPageViewHolder(
         private val binding: ItemReadingWebtoonPageBinding
     ) : RecyclerView.ViewHolder(binding.root) {
         private var bindJob: Job? = null
-        private var watchJob: Job? = null
+        private var overlayReloadJob: Job? = null
         private var boundPath: String? = null
         private var boundFile: File? = null
         private var boundEmbeddedMode: Boolean = false
         private var currentBitmap: Bitmap? = null
         private var currentImageWidth: Int = 0
         private var currentImageHeight: Int = 0
-        private var lastTranslationModified: Long = Long.MIN_VALUE
 
         fun bind(
             imageFile: File,
@@ -163,9 +164,8 @@ class WebtoonReadingAdapter(
             currentBitmap = null
             currentImageWidth = 0
             currentImageHeight = 0
-            lastTranslationModified = Long.MIN_VALUE
             bindJob?.cancel()
-            watchJob?.cancel()
+            overlayReloadJob?.cancel()
             binding.readingPageOverlay.setEditMode(false)
             binding.readingPageOverlay.setTouchPassthroughEnabled(true)
             binding.readingPageOverlay.setVerticalLayoutEnabled(verticalLayoutEnabled)
@@ -182,18 +182,6 @@ class WebtoonReadingAdapter(
         fun updatePresentation(verticalLayoutEnabled: Boolean, bubbleOpacity: Float) {
             binding.readingPageOverlay.setVerticalLayoutEnabled(verticalLayoutEnabled)
             binding.readingPageOverlay.setBubbleOpacity(bubbleOpacity)
-        }
-
-        fun resumeWatching() {
-            val imageFile = boundFile ?: return
-            if (boundEmbeddedMode) return
-            if (watchJob?.isActive == true) return
-            startWatchingTranslations(imageFile)
-        }
-
-        fun stopWatching() {
-            watchJob?.cancel()
-            watchJob = null
         }
 
         private fun loadPage(imageFile: File, embeddedMode: Boolean) {
@@ -226,16 +214,13 @@ class WebtoonReadingAdapter(
                     rememberedPageHeights[imageFile.absolutePath] = binding.readingPageImage.height
                     binding.readingPagePlaceholder.visibility = View.GONE
                     bindOverlay(bitmap, translation)
-                    if (!embeddedMode) {
-                        startWatchingTranslations(imageFile)
-                    }
                 }
             }
         }
 
         fun recycle() {
             bindJob?.cancel()
-            watchJob?.cancel()
+            overlayReloadJob?.cancel()
             boundPath = null
             boundFile = null
             currentBitmap = null
@@ -289,25 +274,17 @@ class WebtoonReadingAdapter(
             binding.readingPageOverlay.visibility = if (resolved.bubbles.isEmpty()) View.GONE else View.VISIBLE
         }
 
-        private fun startWatchingTranslations(imageFile: File) {
-            watchJob?.cancel()
-            watchJob = scope.launch {
-                val translationFile = translationStore.translationFileFor(imageFile)
-                while (isActive && boundPath == imageFile.absolutePath) {
-                    val modified = if (translationFile.exists()) translationFile.lastModified() else Long.MIN_VALUE
-                    if (modified != lastTranslationModified) {
-                        lastTranslationModified = modified
-                        val bitmap = currentBitmap
-                        if (bitmap != null) {
-                            val translation = withContext(Dispatchers.IO) {
-                                if (translationFile.exists()) translationStore.load(imageFile) else null
-                            }
-                            if (boundPath != imageFile.absolutePath) return@launch
-                            bindOverlay(bitmap, translation)
-                        }
-                    }
-                    delay(800)
+        fun reloadTranslationOverlay() {
+            val imageFile = boundFile ?: return
+            if (boundEmbeddedMode) return
+            val bitmap = currentBitmap ?: return
+            overlayReloadJob?.cancel()
+            overlayReloadJob = scope.launch {
+                val translation = withContext(Dispatchers.IO) {
+                    translationStore.load(imageFile)
                 }
+                if (boundPath != imageFile.absolutePath) return@launch
+                bindOverlay(bitmap, translation)
             }
         }
 
