@@ -20,6 +20,7 @@ class ReadingEmptyBubbleCoordinator(
     private val settingsStore = SettingsStore(appContext)
     private var mangaOcr: MangaOcr? = null
     private var englishOcr: EnglishOcr? = null
+    private var koreanOcr: KoreanOcr? = null
     private var englishLineDetector: EnglishLineDetector? = null
 
     suspend fun process(
@@ -168,6 +169,17 @@ class ReadingEmptyBubbleCoordinator(
                         lines.joinToString("\n") { it.text }
                     }
                 }
+                TranslationLanguage.KO_TO_ZH -> {
+                    val engine = getKoreanOcr() ?: return@withBitmapCrop ""
+                    val lineDetector = getEnglishLineDetector()
+                    val lineRects = lineDetector?.detectLines(crop).orEmpty()
+                    val lines = recognizeKoreanLines(crop, lineRects, engine)
+                    if (lines.isEmpty()) {
+                        engine.recognize(crop).trim()
+                    } else {
+                        lines.joinToString("\n") { it.text }
+                    }
+                }
             }
         }.orEmpty()
     }
@@ -190,6 +202,17 @@ class ReadingEmptyBubbleCoordinator(
             englishOcr
         } catch (e: Exception) {
             AppLogger.log("Reading", "Failed to init English OCR", e)
+            null
+        }
+    }
+
+    private fun getKoreanOcr(): KoreanOcr? {
+        if (koreanOcr != null) return koreanOcr
+        return try {
+            koreanOcr = KoreanOcr(appContext)
+            koreanOcr
+        } catch (e: Exception) {
+            AppLogger.log("Reading", "Failed to init Korean OCR", e)
             null
         }
     }

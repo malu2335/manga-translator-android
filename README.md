@@ -75,6 +75,7 @@
 - `comic-speech-bubble-detector.onnx`（气泡检测）
 - `encoder_model.onnx`、`decoder_model.onnx`（OCR）
 - `en_PP-OCRv5_rec_mobile_infer.onnx`（英文 OCR）
+- `korean_PP-OCRv3_rec_infer.onnx`（韩文 OCR）
 - `ysgyolo_1.2_OS1.0.onnx`（文本补检 + 文字蒙版）
 - `Multilingual_PP-OCRv3_det_infer.onnx`（英文行检测）
 - `migan_512.onnx`、`migan_512.onnx.data`（嵌字抹除）
