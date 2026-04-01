@@ -83,6 +83,7 @@
 模型下载链接：
 - 气泡检测模型：https://huggingface.co/ogkalu/comic-speech-bubble-detector-yolov8m
 - OCR 模型：https://huggingface.co/l0wgear/manga-ocr-2025-onnx
+- 韩文 OCR 模型：https://huggingface.co/breezedeus/cnocr-ppocr-korean_PP-OCRv3
 
 提示词与 OCR 配置位于 `assets/`，名称需与代码保持一致。
 
