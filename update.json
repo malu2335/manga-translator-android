@@ -1,5 +1,6 @@
 {
-  "versionCode": 38,
+  "versionCode": 37, 
+  "_comment" : "写37是因为版本还未上传",
   "versionName": "2.4.0",
   "releaseChannel": "preview",
   "releasedAt": "2026-04-06",

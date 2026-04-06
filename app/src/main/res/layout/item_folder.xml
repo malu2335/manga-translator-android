@@ -40,9 +40,17 @@
             android:visibility="gone">
 
             <Button
+                android:id="@+id/folder_move"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/folder_move" />
+
+            <Button
                 android:id="@+id/folder_rename"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:minWidth="0dp"
                 android:text="@string/folder_rename" />
 

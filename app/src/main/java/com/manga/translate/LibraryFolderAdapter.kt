@@ -14,6 +14,7 @@ class LibraryFolderAdapter(
     private val onClick: (FolderItem) -> Unit,
     private val onDelete: (FolderItem) -> Unit,
     private val onRename: (FolderItem) -> Unit,
+    private val onMove: (FolderItem) -> Unit,
     private val onSelectionChanged: (() -> Unit)? = null,
     private val onItemLongPress: ((FolderItem) -> Unit)? = null
 ) : ListAdapter<FolderItem, LibraryFolderAdapter.FolderViewHolder>(DiffCallback) {
@@ -115,6 +116,7 @@ class LibraryFolderAdapter(
             onClick = onClick,
             onDelete = onDelete,
             onRename = onRename,
+            onMove = onMove,
             onToggleAction = ::toggleActionPosition,
             onItemLongPress = onItemLongPress,
             onToggleSelection = ::toggleSelectionAndNotify
@@ -136,6 +138,7 @@ class LibraryFolderAdapter(
         private val onClick: (FolderItem) -> Unit,
         private val onDelete: (FolderItem) -> Unit,
         private val onRename: (FolderItem) -> Unit,
+        private val onMove: (FolderItem) -> Unit,
         private val onToggleAction: (Int) -> Unit,
         private val onItemLongPress: ((FolderItem) -> Unit)?,
         private val onToggleSelection: (File) -> Unit
@@ -155,6 +158,7 @@ class LibraryFolderAdapter(
                 onToggleSelection(item.folder)
             }
             binding.folderActions.visibility = if (showActions && !selectionMode) View.VISIBLE else View.GONE
+            binding.folderMove.visibility = if (item.isCollection) View.GONE else View.VISIBLE
             binding.root.setOnLongClickListener {
                 if (onItemLongPress != null) {
                     onItemLongPress.invoke(item)
@@ -170,6 +174,7 @@ class LibraryFolderAdapter(
                     onClick(item)
                 }
             }
+            binding.folderMove.setOnClickListener { onMove(item) }
             binding.folderDelete.setOnClickListener { onDelete(item) }
             binding.folderRename.setOnClickListener { onRename(item) }
         }

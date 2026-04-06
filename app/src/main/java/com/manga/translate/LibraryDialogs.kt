@@ -173,6 +173,18 @@ internal class LibraryDialogs {
         showTextInputDialog(context, R.string.folder_rename, initialText = oldName, onConfirm = onConfirm)
     }
 
+    fun showMoveFolderDialog(
+        context: Context,
+        collections: List<String>,
+        onSelected: (Int) -> Unit
+    ) {
+        AlertDialog.Builder(context)
+            .setTitle(R.string.folder_move_title)
+            .setItems(collections.toTypedArray()) { _, which -> onSelected(which) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     fun showFullTranslateInfo(context: Context) {
         showMessageDialog(
             context,

@@ -177,6 +177,19 @@ class LibraryRepository(private val context: Context) {
         return if (folder.renameTo(target)) target else null
     }
 
+    fun moveFolderToCollection(folder: File, collection: File): File? {
+        if (!folder.exists() || !folder.isDirectory) return null
+        if (!collection.exists() || !collection.isDirectory) return null
+        if (!isCollectionFolder(collection)) return null
+        if (isCollectionFolder(folder)) return null
+        val currentParent = folder.parentFile ?: return null
+        if (currentParent.absolutePath == collection.absolutePath) return folder
+        if (folder.absolutePath == collection.absolutePath) return null
+        val target = File(collection, folder.name)
+        if (target.exists()) return null
+        return if (folder.renameTo(target)) target else null
+    }
+
     private fun isImageFile(name: String): Boolean {
         val lower = name.lowercase(Locale.getDefault())
         return lower.endsWith(".jpg") ||

@@ -73,7 +73,8 @@ class LibraryFragment : Fragment() {
     private val folderAdapter = LibraryFolderAdapter(
         onClick = { openFolder(it.folder) },
         onDelete = { confirmDeleteFolder(it.folder) },
-        onRename = { showRenameFolderDialog(it.folder) }
+        onRename = { showRenameFolderDialog(it.folder) },
+        onMove = { showMoveFolderPicker(it.folder) }
     )
 
     private val imageAdapter = FolderImageAdapter(
@@ -86,6 +87,7 @@ class LibraryFragment : Fragment() {
         onClick = { openChildFolder(it.folder) },
         onDelete = { confirmDeleteFolder(it.folder) },
         onRename = { showRenameFolderDialog(it.folder) },
+        onMove = { showMoveFolderPicker(it.folder) },
         onSelectionChanged = { updateChapterSelectionActions() },
         onItemLongPress = { enterChapterSelectionMode(it.folder) }
     )
@@ -895,6 +897,29 @@ class LibraryFragment : Fragment() {
             } else {
                 AppLogger.log("Library", "Renamed folder ${folder.name} -> ${renamed.name}")
                 refreshFolderViewsAfterMutation(folder, renamed)
+            }
+        }
+    }
+
+    private fun showMoveFolderPicker(folder: File) {
+        val collections = repository
+            .listFolders()
+            .filter { it.absolutePath != folder.absolutePath }
+            .filter { repository.isCollectionFolder(it) }
+            .filter { it.absolutePath != folder.parentFile?.absolutePath }
+        if (collections.isEmpty()) {
+            Toast.makeText(requireContext(), R.string.folder_move_no_collections, Toast.LENGTH_SHORT).show()
+            return
+        }
+        dialogs.showMoveFolderDialog(requireContext(), collections.map { buildFolderTitle(it) }) { index ->
+            val targetCollection = collections.getOrNull(index) ?: return@showMoveFolderDialog
+            val moved = repository.moveFolderToCollection(folder, targetCollection)
+            if (moved == null) {
+                AppLogger.log("Library", "Move folder failed: ${folder.name} -> ${targetCollection.name}")
+                Toast.makeText(requireContext(), R.string.folder_move_failed, Toast.LENGTH_SHORT).show()
+            } else {
+                AppLogger.log("Library", "Moved folder ${folder.name} -> ${targetCollection.name}/${moved.name}")
+                refreshFolderViewsAfterMutation(folder, moved)
             }
         }
     }
