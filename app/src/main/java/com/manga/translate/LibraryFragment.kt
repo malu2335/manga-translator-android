@@ -63,6 +63,7 @@ class LibraryFragment : Fragment() {
     private var lastFolderDetailScrollY: Int = 0
     private var folderTopBarScrollAccumulated: Int = 0
     private var folderDetailContentBaseTopPadding: Int = 0
+    private var isChapterSelectionMode: Boolean = false
 
     private val tutorialUrlGithub =
         "https://github.com/jedzqer/manga-translator/blob/main/Tutorial/简中教程.md"
@@ -84,7 +85,9 @@ class LibraryFragment : Fragment() {
     private val chapterAdapter = LibraryFolderAdapter(
         onClick = { openChildFolder(it.folder) },
         onDelete = { confirmDeleteFolder(it.folder) },
-        onRename = { showRenameFolderDialog(it.folder) }
+        onRename = { showRenameFolderDialog(it.folder) },
+        onSelectionChanged = { updateChapterSelectionActions() },
+        onItemLongPress = { enterChapterSelectionMode(it.folder) }
     )
 
     private val uiCallbacks = object : LibraryUiCallbacks {
@@ -335,9 +338,9 @@ class LibraryFragment : Fragment() {
         binding.folderRead.setOnClickListener { startReading() }
         binding.folderEmbed.setOnClickListener { embedFolder() }
         binding.folderUnembed.setOnClickListener { cancelEmbed() }
-        binding.folderSelectAll.setOnClickListener { selectionController.toggleSelectAllImages() }
-        binding.folderDeleteSelected.setOnClickListener { selectionController.confirmDeleteSelectedImages(currentFolder) }
-        binding.folderCancelSelection.setOnClickListener { selectionController.exitSelectionMode() }
+        binding.folderSelectAll.setOnClickListener { handleSelectAllClick() }
+        binding.folderDeleteSelected.setOnClickListener { handleDeleteSelectedClick() }
+        binding.folderCancelSelection.setOnClickListener { exitActiveSelectionMode() }
         binding.folderRetranslateSelected.setOnClickListener {
             val folder = currentFolder
             val enabled = folder?.let { preferencesGateway.isFullTranslateEnabled(it) } ?: true
@@ -471,7 +474,7 @@ class LibraryFragment : Fragment() {
         embedActionsEnabled = true
         resetFolderTopBar(forceVisible = true)
         uiCallbacks.clearFolderStatus()
-        selectionController.exitSelectionMode()
+        exitActiveSelectionMode()
         folderAdapter.clearActionSelection()
         chapterAdapter.clearActionSelection()
         loadFolders()
@@ -494,7 +497,7 @@ class LibraryFragment : Fragment() {
         updateReadingModeButton(folder)
         updateEmbedButtonState(folder)
         updateFolderContentMode(folder)
-        selectionController.exitSelectionMode()
+        exitActiveSelectionMode()
         loadImages(folder)
         if (binding.folderDetailContainer.isVisible && !binding.libraryListContainer.isVisible) {
             binding.folderDetailContainer.alpha = 1f
@@ -742,6 +745,7 @@ class LibraryFragment : Fragment() {
     }
 
     private fun openChildFolder(folder: File) {
+        if (isChapterSelectionMode) return
         chapterAdapter.clearActionSelection()
         val parent = currentFolder ?: return
         showFolderDetail(folder, parent)
@@ -1010,7 +1014,7 @@ class LibraryFragment : Fragment() {
 
     private fun cancelEmbed() {
         val folder = currentFolder ?: return
-        selectionController.exitSelectionMode()
+        exitActiveSelectionMode()
         embedCoordinator.cancelEmbed(
             scope = viewLifecycleOwner.lifecycleScope,
             folder = folder,
@@ -1022,7 +1026,7 @@ class LibraryFragment : Fragment() {
 
     private fun startReading() {
         val folder = currentFolder ?: return
-        selectionController.exitSelectionMode()
+        exitActiveSelectionMode()
         if (repository.isCollectionFolder(folder)) {
             val images = repository.listChildFolders(folder).flatMap { repository.listImages(it) }
             if (images.isEmpty()) {
@@ -1239,8 +1243,91 @@ class LibraryFragment : Fragment() {
         binding.folderTranslationSettings.visibility = if (isCollection) View.GONE else View.VISIBLE
         binding.folderReadingSettings.visibility = if (isCollection) View.GONE else View.VISIBLE
         binding.folderSelectionActions.visibility = View.GONE
+        binding.folderRetranslateSelected.visibility = if (isCollection) View.GONE else View.VISIBLE
         if (isCollection) {
             selectionController.exitSelectionMode()
+        }
+    }
+
+    private fun handleSelectAllClick() {
+        if (isChapterSelectionMode) {
+            if (chapterAdapter.areAllSelected()) {
+                chapterAdapter.clearSelection()
+            } else {
+                chapterAdapter.selectAll()
+            }
+            return
+        }
+        selectionController.toggleSelectAllImages()
+    }
+
+    private fun handleDeleteSelectedClick() {
+        if (isChapterSelectionMode) {
+            confirmDeleteSelectedChapters()
+            return
+        }
+        selectionController.confirmDeleteSelectedImages(currentFolder)
+    }
+
+    private fun exitActiveSelectionMode() {
+        if (isChapterSelectionMode) {
+            exitChapterSelectionMode()
+        }
+        selectionController.exitSelectionMode()
+    }
+
+    private fun enterChapterSelectionMode(target: File) {
+        if (!isChapterSelectionMode) {
+            isChapterSelectionMode = true
+            selectionController.exitSelectionMode()
+            chapterAdapter.setSelectionMode(true)
+            binding.folderSelectionActions.visibility = View.VISIBLE
+            binding.folderRetranslateSelected.visibility = View.GONE
+        }
+        chapterAdapter.toggleSelectionAndNotify(target)
+    }
+
+    private fun exitChapterSelectionMode() {
+        if (!isChapterSelectionMode) return
+        isChapterSelectionMode = false
+        chapterAdapter.setSelectionMode(false)
+        binding.folderSelectionActions.visibility = View.GONE
+        binding.folderRetranslateSelected.visibility = View.GONE
+        uiCallbacks.clearFolderStatus()
+    }
+
+    private fun updateChapterSelectionActions() {
+        if (!isChapterSelectionMode) return
+        val count = chapterAdapter.selectedCount()
+        uiCallbacks.setFolderStatus(getString(R.string.chapter_selection_count, count))
+        binding.folderSelectAll.text = getString(
+            if (chapterAdapter.areAllSelected()) R.string.clear_all else R.string.select_all
+        )
+    }
+
+    private fun confirmDeleteSelectedChapters() {
+        val folder = currentFolder ?: return
+        val selected = chapterAdapter.getSelectedFolders()
+        if (selected.isEmpty()) {
+            uiCallbacks.setFolderStatus(getString(R.string.delete_chapters_empty))
+            return
+        }
+        dialogs.confirmDeleteSelectedFolders(requireContext(), selected.size) {
+            var failed = false
+            selected.forEach { child ->
+                if (!repository.deleteFolder(child)) {
+                    failed = true
+                }
+            }
+            if (failed) {
+                AppLogger.log("Library", "Delete selected chapters failed in ${folder.name}")
+                Toast.makeText(requireContext(), R.string.delete_chapters_failed, Toast.LENGTH_SHORT).show()
+            } else {
+                AppLogger.log("Library", "Deleted ${selected.size} chapters from ${folder.name}")
+            }
+            exitChapterSelectionMode()
+            loadImages(folder)
+            loadFolders()
         }
     }
 

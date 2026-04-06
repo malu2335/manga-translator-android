@@ -291,9 +291,13 @@
     <string name="retranslate_selected">重譯所選</string>
     <string name="cancel_selection">取消</string>
     <string name="folder_selection_count">已選擇 %1$d 張</string>
+    <string name="chapter_selection_count">已選擇 %1$d 個子章節</string>
     <string name="delete_images_confirm">確定刪除選中的 %1$d 張圖片嗎？此操作無法撤銷。</string>
+    <string name="delete_chapters_confirm">確定刪除選中的 %1$d 個子章節嗎？此操作無法撤銷。</string>
     <string name="delete_images_failed">部分圖片刪除失敗</string>
+    <string name="delete_chapters_failed">部分子章節刪除失敗</string>
     <string name="delete_images_empty">請先選擇要刪除的圖片</string>
+    <string name="delete_chapters_empty">請先選擇要刪除的子章節</string>
     <string name="retranslate_images_empty">請先選擇要重譯的圖片</string>
 
     <!-- Import / Folder -->

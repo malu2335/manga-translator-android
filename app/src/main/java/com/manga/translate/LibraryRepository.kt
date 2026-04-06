@@ -72,6 +72,10 @@ class LibraryRepository(private val context: Context) {
     }
 
     fun addImages(folder: File, uris: List<Uri>): List<File> {
+        if (isCollectionFolder(folder)) {
+            AppLogger.log("LibraryRepo", "Reject adding images into collection ${folder.name}")
+            return emptyList()
+        }
         val added = ArrayList<File>()
         for (uri in uris) {
             val fileName = queryDisplayName(uri) ?: "image_${System.currentTimeMillis()}.jpg"

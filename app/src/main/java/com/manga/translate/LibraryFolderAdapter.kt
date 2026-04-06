@@ -2,20 +2,30 @@ package com.manga.translate
 
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.manga.translate.databinding.ItemFolderBinding
+import java.io.File
 
 class LibraryFolderAdapter(
     private val onClick: (FolderItem) -> Unit,
     private val onDelete: (FolderItem) -> Unit,
-    private val onRename: (FolderItem) -> Unit
+    private val onRename: (FolderItem) -> Unit,
+    private val onSelectionChanged: (() -> Unit)? = null,
+    private val onItemLongPress: ((FolderItem) -> Unit)? = null
 ) : ListAdapter<FolderItem, LibraryFolderAdapter.FolderViewHolder>(DiffCallback) {
     private var actionPosition: Int? = null
+    private val selectedPaths = LinkedHashSet<String>()
+    private var selectionMode = false
 
     fun submit(list: List<FolderItem>) {
+        if (selectionMode) {
+            val validPaths = list.map { it.folder.absolutePath }.toHashSet()
+            selectedPaths.retainAll(validPaths)
+        }
         submitList(list)
         val current = actionPosition
         if (current != null && current >= list.size) {
@@ -32,6 +42,7 @@ class LibraryFolderAdapter(
     }
 
     fun clearActionSelectionIfTouchedOutside(recyclerView: RecyclerView, event: MotionEvent) {
+        if (selectionMode) return
         if (event.actionMasked != MotionEvent.ACTION_DOWN) return
         val current = actionPosition ?: return
         val holder = recyclerView.findViewHolderForAdapterPosition(current) ?: return
@@ -46,13 +57,78 @@ class LibraryFolderAdapter(
         }
     }
 
+    fun setSelectionMode(enabled: Boolean) {
+        selectionMode = enabled
+        if (enabled) {
+            clearActionSelection()
+        } else {
+            selectedPaths.clear()
+        }
+        if (currentList.isNotEmpty()) {
+            notifyItemRangeChanged(0, currentList.size)
+        }
+    }
+
+    fun toggleSelectionAndNotify(folder: File) {
+        val path = folder.absolutePath
+        if (!selectedPaths.add(path)) {
+            selectedPaths.remove(path)
+        }
+        val index = currentList.indexOfFirst { it.folder.absolutePath == path }
+        if (index >= 0) {
+            notifyItemChanged(index)
+        }
+        onSelectionChanged?.invoke()
+    }
+
+    fun selectAll() {
+        selectedPaths.clear()
+        currentList.forEach { selectedPaths.add(it.folder.absolutePath) }
+        if (currentList.isNotEmpty()) {
+            notifyItemRangeChanged(0, currentList.size)
+        }
+        onSelectionChanged?.invoke()
+    }
+
+    fun clearSelection() {
+        selectedPaths.clear()
+        if (currentList.isNotEmpty()) {
+            notifyItemRangeChanged(0, currentList.size)
+        }
+        onSelectionChanged?.invoke()
+    }
+
+    fun getSelectedFolders(): List<File> {
+        return currentList.filter { selectedPaths.contains(it.folder.absolutePath) }.map { it.folder }
+    }
+
+    fun selectedCount(): Int = selectedPaths.size
+
+    fun areAllSelected(): Boolean {
+        return currentList.isNotEmpty() && selectedPaths.size == currentList.size
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FolderViewHolder {
         val binding = ItemFolderBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return FolderViewHolder(binding, onClick, onDelete, onRename, ::toggleActionPosition)
+        return FolderViewHolder(
+            binding = binding,
+            onClick = onClick,
+            onDelete = onDelete,
+            onRename = onRename,
+            onToggleAction = ::toggleActionPosition,
+            onItemLongPress = onItemLongPress,
+            onToggleSelection = ::toggleSelectionAndNotify
+        )
     }
 
     override fun onBindViewHolder(holder: FolderViewHolder, position: Int) {
-        holder.bind(getItem(position), position == actionPosition)
+        val item = getItem(position)
+        holder.bind(
+            item = item,
+            showActions = position == actionPosition,
+            selectionMode = selectionMode,
+            selected = selectedPaths.contains(item.folder.absolutePath)
+        )
     }
 
     class FolderViewHolder(
@@ -60,9 +136,11 @@ class LibraryFolderAdapter(
         private val onClick: (FolderItem) -> Unit,
         private val onDelete: (FolderItem) -> Unit,
         private val onRename: (FolderItem) -> Unit,
-        private val onToggleAction: (Int) -> Unit
+        private val onToggleAction: (Int) -> Unit,
+        private val onItemLongPress: ((FolderItem) -> Unit)?,
+        private val onToggleSelection: (File) -> Unit
     ) : RecyclerView.ViewHolder(binding.root) {
-        fun bind(item: FolderItem, showActions: Boolean) {
+        fun bind(item: FolderItem, showActions: Boolean, selectionMode: Boolean, selected: Boolean) {
             binding.folderName.text = item.folder.name
             val context = binding.root.context
             binding.folderMeta.text = if (item.isCollection) {
@@ -70,15 +148,27 @@ class LibraryFolderAdapter(
             } else {
                 context.getString(R.string.folder_image_count, item.imageCount)
             }
-            binding.folderActions.visibility = if (showActions) {
-                android.view.View.VISIBLE
-            } else {
-                android.view.View.GONE
+            binding.folderCheck.visibility = if (selectionMode) View.VISIBLE else View.GONE
+            binding.folderCheck.setOnCheckedChangeListener(null)
+            binding.folderCheck.isChecked = selected
+            binding.folderCheck.setOnCheckedChangeListener { _, _ ->
+                onToggleSelection(item.folder)
             }
-            binding.root.setOnClickListener { onClick(item) }
+            binding.folderActions.visibility = if (showActions && !selectionMode) View.VISIBLE else View.GONE
             binding.root.setOnLongClickListener {
-                onToggleAction(bindingAdapterPosition)
+                if (onItemLongPress != null) {
+                    onItemLongPress.invoke(item)
+                } else {
+                    onToggleAction(bindingAdapterPosition)
+                }
                 true
+            }
+            binding.root.setOnClickListener {
+                if (selectionMode) {
+                    binding.folderCheck.toggle()
+                } else {
+                    onClick(item)
+                }
             }
             binding.folderDelete.setOnClickListener { onDelete(item) }
             binding.folderRename.setOnClickListener { onRename(item) }
