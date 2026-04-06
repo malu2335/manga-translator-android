@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.graphics.RectF
@@ -22,11 +23,12 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.widget.AppCompatButton
-import androidx.appcompat.widget.AppCompatTextView
+import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.app.NotificationCompat
 import androidx.core.content.getSystemService
 import androidx.core.view.isVisible
@@ -42,7 +44,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 class FloatingBallOverlayService : Service() {
-    private class FloatingBallTextView(context: android.content.Context) : AppCompatTextView(context) {
+    private class FloatingBallImageView(context: android.content.Context) : AppCompatImageView(context) {
         var onPerformClick: (() -> Unit)? = null
 
         override fun performClick(): Boolean {
@@ -302,7 +304,7 @@ class FloatingBallOverlayService : Service() {
     private fun showControllerOverlay() {
         ensureWindowManager()
         val density = resources.displayMetrics.density
-        val ballSize = (52f * density).toInt()
+        val ballSize = (56f * density).toInt()
         val margin = (8f * density).toInt()
         val menuButtonWidth = (156f * density).toInt()
         val screenWidth = resources.displayMetrics.widthPixels
@@ -327,15 +329,19 @@ class FloatingBallOverlayService : Service() {
             }
             visibility = View.GONE
         }
-        val floatingBall = FloatingBallTextView(this).apply {
-            text = "译"
-            gravity = Gravity.CENTER
-            textSize = 18f
-            setTextColor(0xFFFFFFFF.toInt())
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(0xFF3F51B5.toInt())
-            }
+        val floatingBall = FloatingBallImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setImageResource(R.drawable.ic_translate_overlay)
+            imageTintList = ColorStateList.valueOf(0xFFFFFFFF.toInt())
+            background = createFloatingBallBackground(pressed = false)
+            elevation = 10f * density
+            setPadding(
+                (14f * density).toInt(),
+                (14f * density).toInt(),
+                (14f * density).toInt(),
+                (14f * density).toInt()
+            )
+            contentDescription = getString(R.string.floating_service_message)
         }
 
         root.addView(
@@ -581,6 +587,42 @@ class FloatingBallOverlayService : Service() {
         } else {
             getString(R.string.overlay_add_bubble_button)
         }
+    }
+
+    private fun createFloatingBallBackground(pressed: Boolean): GradientDrawable {
+        val density = resources.displayMetrics.density
+        return GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            if (pressed) {
+                intArrayOf(
+                    0xFF1AA7FF.toInt(),
+                    0xFF6A5CFF.toInt()
+                )
+            } else {
+                intArrayOf(
+                    0xFF39C5FF.toInt(),
+                    0xFF4F7BFF.toInt()
+                )
+            }
+        ).apply {
+            shape = GradientDrawable.OVAL
+            gradientType = GradientDrawable.LINEAR_GRADIENT
+            setStroke(
+                (1.5f * density).toInt().coerceAtLeast(1),
+                if (pressed) 0x99FFFFFF.toInt() else 0x66FFFFFF
+            )
+        }
+    }
+
+    private fun updateFloatingBallPressedState(
+        target: AppCompatImageView,
+        pressed: Boolean
+    ) {
+        target.isPressed = pressed
+        target.background = createFloatingBallBackground(pressed)
+        target.scaleX = if (pressed) 0.94f else 1f
+        target.scaleY = if (pressed) 0.94f else 1f
+        target.alpha = if (pressed) 0.96f else 1f
     }
 
     private fun createMenuButton(): AppCompatButton {
@@ -1172,7 +1214,7 @@ class FloatingBallOverlayService : Service() {
 
 
     private fun attachBallGesture(
-        target: FloatingBallTextView,
+        target: FloatingBallImageView,
         menuPanel: View,
         params: WindowManager.LayoutParams
     ) {
@@ -1225,6 +1267,7 @@ class FloatingBallOverlayService : Service() {
                     dragging = false
                     isPointerDown = true
                     longPressTriggered = false
+                    updateFloatingBallPressedState(target, pressed = true)
                     mainHandler.removeCallbacks(longPressRunnable)
                     if (tapCount == 0) {
                         mainHandler.postDelayed(longPressRunnable, longPressTimeout)
@@ -1244,6 +1287,7 @@ class FloatingBallOverlayService : Service() {
                         mainHandler.removeCallbacks(commitTapRunnable)
                         tapCount = 0
                         dragging = true
+                        updateFloatingBallPressedState(target, pressed = false)
                     }
                     if (!dragging) {
                         return@setOnTouchListener true
@@ -1256,6 +1300,7 @@ class FloatingBallOverlayService : Service() {
 
                 MotionEvent.ACTION_UP -> {
                     isPointerDown = false
+                    updateFloatingBallPressedState(target, pressed = false)
                     mainHandler.removeCallbacks(longPressRunnable)
                     if (dragging) {
                         dragging = false
@@ -1286,6 +1331,7 @@ class FloatingBallOverlayService : Service() {
                     mainHandler.removeCallbacks(longPressRunnable)
                     mainHandler.removeCallbacks(commitTapRunnable)
                     dragging = false
+                    updateFloatingBallPressedState(target, pressed = false)
                     false
                 }
 
