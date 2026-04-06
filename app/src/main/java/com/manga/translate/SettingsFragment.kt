@@ -99,6 +99,51 @@ class SettingsFragment : Fragment() {
         inputView.setText(getString(currentAction.labelRes), false)
     }
 
+    private fun setupTranslationLanguageDropdown(
+        inputView: MaterialAutoCompleteTextView,
+        currentLanguage: TranslationLanguage
+    ) {
+        val languages = TranslationLanguage.entries
+        val labels = languages.map { getString(it.displayNameResId) }
+        val textColor = resolveColorAttr(R.attr.dialogTextColor)
+        inputView.setAdapter(
+            object : ArrayAdapter<String>(
+                requireContext(),
+                android.R.layout.simple_list_item_1,
+                labels
+            ) {
+                private fun applyThemeTextColor(view: View): View {
+                    (view as? TextView)?.setTextColor(textColor)
+                    return view
+                }
+
+                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                    return applyThemeTextColor(super.getView(position, convertView, parent))
+                }
+
+                override fun getDropDownView(
+                    position: Int,
+                    convertView: View?,
+                    parent: ViewGroup
+                ): View {
+                    return applyThemeTextColor(super.getDropDownView(position, convertView, parent))
+                }
+            }
+        )
+        inputView.setText(getString(currentLanguage.displayNameResId), false)
+    }
+
+    private fun parseTranslationLanguage(
+        inputView: MaterialAutoCompleteTextView,
+        defaultLanguage: TranslationLanguage
+    ): TranslationLanguage {
+        val selectedLabel = inputView.text?.toString()?.trim().orEmpty()
+        if (selectedLabel.isBlank()) return defaultLanguage
+        return TranslationLanguage.entries.firstOrNull {
+            getString(it.displayNameResId) == selectedLabel
+        } ?: defaultLanguage
+    }
+
     private fun parseFloatingGestureAction(
         inputView: MaterialAutoCompleteTextView,
         defaultAction: FloatingBallGestureAction
@@ -793,6 +838,10 @@ class SettingsFragment : Fragment() {
             dialogBinding.floatingTripleTapActionInput,
             currentSettings.tripleTapAction
         )
+        setupTranslationLanguageDropdown(
+            dialogBinding.floatingLanguageInput,
+            currentSettings.language
+        )
         dialogBinding.floatingVlTranslateConcurrencyInput.setText(
             formatNumber(currentSettings.vlTranslateConcurrency)
         )
@@ -824,6 +873,10 @@ class SettingsFragment : Fragment() {
                         apiUrl = dialogBinding.floatingApiUrlInput.text?.toString()?.trim().orEmpty(),
                         apiKey = dialogBinding.floatingApiKeyInput.text?.toString()?.trim().orEmpty(),
                         modelName = dialogBinding.floatingModelNameInput.text?.toString()?.trim().orEmpty(),
+                        language = parseTranslationLanguage(
+                            dialogBinding.floatingLanguageInput,
+                            currentSettings.language
+                        ),
                         timeoutSeconds = timeoutSeconds,
                         useVlDirectTranslate =
                             dialogBinding.floatingUseVlDirectTranslateSwitch.isChecked,

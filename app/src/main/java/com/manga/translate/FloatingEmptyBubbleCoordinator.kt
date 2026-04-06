@@ -19,6 +19,9 @@ class FloatingEmptyBubbleCoordinator(
         settingsStore = settingsStore
     )
     private var mangaOcr: MangaOcr? = null
+    private var englishOcr: EnglishOcr? = null
+    private var koreanOcr: KoreanOcr? = null
+    private var englishLineDetector: EnglishLineDetector? = null
 
     suspend fun process(
         bitmap: Bitmap,
@@ -87,14 +90,15 @@ class FloatingEmptyBubbleCoordinator(
         bitmap: Bitmap,
         bubbles: List<BubbleTranslation>
     ): List<BubbleTranslation> = withContext(Dispatchers.Default) {
-        val ocr = getMangaOcr()
+        val floatingLanguage = settingsStore.loadFloatingTranslateApiSettings().language
+        val ocrSettings = settingsStore.loadOcrApiSettings()
         bubbles.map { bubble ->
             val crop = cropBitmap(bitmap, bubble.rect)
             val text = try {
                 if (crop == null) {
                     ""
                 } else {
-                    ocr?.recognize(crop)?.trim().orEmpty()
+                    recognizeBubble(crop, floatingLanguage, ocrSettings.useLocalOcr)
                 }
             } catch (e: Exception) {
                 AppLogger.log("FloatingOCR", "Recognize empty bubble failed id=${bubble.id}", e)
@@ -119,9 +123,47 @@ class FloatingEmptyBubbleCoordinator(
             retryCount = retryCount,
             promptAsset = promptAsset,
             apiSettings = apiSettings,
-            language = TranslationLanguage.JA_TO_ZH,
+            language = settingsStore.loadFloatingTranslateApiSettings().language,
             logTag = "FloatingOCR"
         )
+    }
+
+    private suspend fun recognizeBubble(
+        crop: Bitmap,
+        language: TranslationLanguage,
+        useLocalOcr: Boolean
+    ): String = withContext(Dispatchers.Default) {
+        if (!useLocalOcr) {
+            return@withContext llmClient.recognizeImageText(crop)?.trim().orEmpty()
+        }
+        when (language) {
+            TranslationLanguage.JA_TO_ZH -> {
+                val engine = getMangaOcr() ?: return@withContext ""
+                engine.recognize(crop).trim()
+            }
+            TranslationLanguage.EN_TO_ZH -> {
+                val engine = getEnglishOcr() ?: return@withContext ""
+                val lineDetector = getEnglishLineDetector()
+                val lineRects = lineDetector?.detectLines(crop).orEmpty()
+                val lines = recognizeEnglishLines(crop, lineRects, engine)
+                if (lines.isEmpty()) {
+                    engine.recognize(crop).trim()
+                } else {
+                    lines.joinToString("\n") { it.text }
+                }
+            }
+            TranslationLanguage.KO_TO_ZH -> {
+                val engine = getKoreanOcr() ?: return@withContext ""
+                val lineDetector = getEnglishLineDetector()
+                val lineRects = lineDetector?.detectLines(crop).orEmpty()
+                val lines = recognizeKoreanLines(crop, lineRects, engine)
+                if (lines.isEmpty()) {
+                    engine.recognize(crop).trim()
+                } else {
+                    lines.joinToString("\n") { it.text }
+                }
+            }
+        }
     }
 
     private suspend fun translateBubbleImages(
@@ -158,6 +200,36 @@ class FloatingEmptyBubbleCoordinator(
             MangaOcr(appContext).also { mangaOcr = it }
         } catch (e: Exception) {
             AppLogger.log("FloatingOCR", "Failed to init MangaOCR for floating edit", e)
+            null
+        }
+    }
+
+    private fun getEnglishOcr(): EnglishOcr? {
+        if (englishOcr != null) return englishOcr
+        return try {
+            EnglishOcr(appContext).also { englishOcr = it }
+        } catch (e: Exception) {
+            AppLogger.log("FloatingOCR", "Failed to init English OCR for floating edit", e)
+            null
+        }
+    }
+
+    private fun getKoreanOcr(): KoreanOcr? {
+        if (koreanOcr != null) return koreanOcr
+        return try {
+            KoreanOcr(appContext).also { koreanOcr = it }
+        } catch (e: Exception) {
+            AppLogger.log("FloatingOCR", "Failed to init Korean OCR for floating edit", e)
+            null
+        }
+    }
+
+    private fun getEnglishLineDetector(): EnglishLineDetector? {
+        if (englishLineDetector != null) return englishLineDetector
+        return try {
+            EnglishLineDetector(appContext).also { englishLineDetector = it }
+        } catch (e: Exception) {
+            AppLogger.log("FloatingOCR", "Failed to init line detector for floating edit", e)
             null
         }
     }

@@ -32,6 +32,7 @@ data class FloatingTranslateApiSettings(
     val apiUrl: String,
     val apiKey: String,
     val modelName: String,
+    val language: TranslationLanguage,
     val timeoutSeconds: Int,
     val useVlDirectTranslate: Boolean,
     val vlTranslateConcurrency: Int,
@@ -74,6 +75,9 @@ class SettingsStore(context: Context) {
             apiUrl = prefs.getString(KEY_FLOATING_API_URL, "") ?: "",
             apiKey = prefs.getString(KEY_FLOATING_API_KEY, "") ?: "",
             modelName = prefs.getString(KEY_FLOATING_MODEL_NAME, "") ?: "",
+            language = TranslationLanguage.fromString(
+                prefs.getString(KEY_FLOATING_LANGUAGE, TranslationLanguage.JA_TO_ZH.name)
+            ),
             timeoutSeconds = prefs.getInt(
                 KEY_FLOATING_TIMEOUT_SECONDS,
                 DEFAULT_FLOATING_API_TIMEOUT_SECONDS
@@ -137,6 +141,7 @@ class SettingsStore(context: Context) {
                 putString(KEY_FLOATING_API_URL, settings.apiUrl)
                 .putString(KEY_FLOATING_API_KEY, settings.apiKey)
                 .putString(KEY_FLOATING_MODEL_NAME, settings.modelName)
+                .putString(KEY_FLOATING_LANGUAGE, settings.language.name)
                 .putInt(KEY_FLOATING_TIMEOUT_SECONDS, normalizedTimeout)
                 .putBoolean(KEY_FLOATING_USE_VL_DIRECT_TRANSLATE, settings.useVlDirectTranslate)
                 .putInt(KEY_FLOATING_VL_TRANSLATE_CONCURRENCY, normalizedConcurrency)
@@ -410,6 +415,7 @@ class SettingsStore(context: Context) {
         private const val KEY_FLOATING_API_URL = "floating_api_url"
         private const val KEY_FLOATING_API_KEY = "floating_api_key"
         private const val KEY_FLOATING_MODEL_NAME = "floating_model_name"
+        private const val KEY_FLOATING_LANGUAGE = "floating_language"
         private const val KEY_FLOATING_TIMEOUT_SECONDS = "floating_timeout_seconds"
         private const val KEY_FLOATING_USE_VL_DIRECT_TRANSLATE = "floating_use_vl_direct_translate"
         private const val KEY_FLOATING_VL_TRANSLATE_CONCURRENCY = "floating_vl_translate_concurrency"

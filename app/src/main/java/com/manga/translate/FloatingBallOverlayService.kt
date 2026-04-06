@@ -94,6 +94,9 @@ class FloatingBallOverlayService : Service() {
     }
     private var textDetector: TextDetector? = null
     private var mangaOcr: MangaOcr? = null
+    private var englishOcr: EnglishOcr? = null
+    private var koreanOcr: KoreanOcr? = null
+    private var englishLineDetector: EnglishLineDetector? = null
     private var llmClient: LlmClient? = null
     private var detectJob: Job? = null
     private var editModeToggleButton: AppCompatButton? = null
@@ -184,6 +187,85 @@ class FloatingBallOverlayService : Service() {
         scope.cancel()
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
+    }
+
+    private suspend fun recognizeFloatingBubbleText(
+        crop: Bitmap,
+        language: TranslationLanguage
+    ): String = withContext(Dispatchers.Default) {
+        val ocrSettings = settingsStore.loadOcrApiSettings()
+        val client = llmClient ?: LlmClient(applicationContext).also { llmClient = it }
+        if (!ocrSettings.useLocalOcr) {
+            return@withContext client.recognizeImageText(crop)?.trim().orEmpty()
+        }
+        when (language) {
+            TranslationLanguage.JA_TO_ZH -> {
+                val engine = getFloatingMangaOcr() ?: return@withContext ""
+                engine.recognize(crop).trim()
+            }
+            TranslationLanguage.EN_TO_ZH -> {
+                val engine = getFloatingEnglishOcr() ?: return@withContext ""
+                val lineDetector = getFloatingEnglishLineDetector()
+                val lineRects = lineDetector?.detectLines(crop).orEmpty()
+                val lines = recognizeEnglishLines(crop, lineRects, engine)
+                if (lines.isEmpty()) {
+                    engine.recognize(crop).trim()
+                } else {
+                    lines.joinToString("\n") { it.text }
+                }
+            }
+            TranslationLanguage.KO_TO_ZH -> {
+                val engine = getFloatingKoreanOcr() ?: return@withContext ""
+                val lineDetector = getFloatingEnglishLineDetector()
+                val lineRects = lineDetector?.detectLines(crop).orEmpty()
+                val lines = recognizeKoreanLines(crop, lineRects, engine)
+                if (lines.isEmpty()) {
+                    engine.recognize(crop).trim()
+                } else {
+                    lines.joinToString("\n") { it.text }
+                }
+            }
+        }
+    }
+
+    private fun getFloatingMangaOcr(): MangaOcr? {
+        if (mangaOcr != null) return mangaOcr
+        return try {
+            MangaOcr(applicationContext).also { mangaOcr = it }
+        } catch (e: Exception) {
+            AppLogger.log("FloatingOCR", "Failed to init MangaOCR", e)
+            null
+        }
+    }
+
+    private fun getFloatingEnglishOcr(): EnglishOcr? {
+        if (englishOcr != null) return englishOcr
+        return try {
+            EnglishOcr(applicationContext).also { englishOcr = it }
+        } catch (e: Exception) {
+            AppLogger.log("FloatingOCR", "Failed to init English OCR", e)
+            null
+        }
+    }
+
+    private fun getFloatingKoreanOcr(): KoreanOcr? {
+        if (koreanOcr != null) return koreanOcr
+        return try {
+            KoreanOcr(applicationContext).also { koreanOcr = it }
+        } catch (e: Exception) {
+            AppLogger.log("FloatingOCR", "Failed to init Korean OCR", e)
+            null
+        }
+    }
+
+    private fun getFloatingEnglishLineDetector(): EnglishLineDetector? {
+        if (englishLineDetector != null) return englishLineDetector
+        return try {
+            EnglishLineDetector(applicationContext).also { englishLineDetector = it }
+        } catch (e: Exception) {
+            AppLogger.log("FloatingOCR", "Failed to init English line detector", e)
+            null
+        }
     }
 
     private fun canDrawOverlays(): Boolean {
@@ -957,6 +1039,7 @@ class FloatingBallOverlayService : Service() {
                     }
                     return@launch
                 }
+                val floatingLanguage = floatingSettings.language
                 val translatedBubbles = if (useVlDirectTranslate) {
                     if (vlOutcome?.timedOut == true) {
                         null
@@ -964,11 +1047,6 @@ class FloatingBallOverlayService : Service() {
                         vlOutcome?.bubbles ?: emptyList()
                     }
                 } else {
-                    val ocr = mangaOcr ?: runCatching {
-                        MangaOcr(applicationContext)
-                    }.getOrNull()?.also {
-                        mangaOcr = it
-                    }
                     withContext(Dispatchers.Main) {
                         showProgressStatus(
                             getString(R.string.floating_progress_recognizing, deduplicatedRects.size)
@@ -989,9 +1067,13 @@ class FloatingBallOverlayService : Service() {
                             continue
                         }
                         val text = try {
-                            ocr?.recognize(crop)?.trim().orEmpty()
+                            recognizeFloatingBubbleText(crop, floatingLanguage)
                         } catch (e: Exception) {
-                            AppLogger.log("FloatingOCR", "MangaOCR recognize failed", e)
+                            AppLogger.log(
+                                "FloatingOCR",
+                                "Floating OCR recognize failed language=${floatingLanguage.name}",
+                                e
+                            )
                             ""
                         } finally {
                             crop.recycle()
@@ -1014,7 +1096,7 @@ class FloatingBallOverlayService : Service() {
                         retryCount = FLOATING_TRANSLATE_RETRY_COUNT,
                         promptAsset = FLOAT_PROMPT_ASSET,
                         apiSettings = floatingApiSettings,
-                        language = TranslationLanguage.JA_TO_ZH
+                        language = floatingLanguage
                     )
                 }
                 if (translatedBubbles == null) {
