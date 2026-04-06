@@ -27,10 +27,39 @@ class LibraryRepository(private val context: Context) {
         return folders.sortedBy { it.name.lowercase(Locale.getDefault()) }
     }
 
+    fun listChildFolders(folder: File): List<File> {
+        val folders = folder.listFiles { file -> file.isDirectory && !file.name.startsWith(".") }
+            ?.toList()
+            .orEmpty()
+        return folders.sortedBy { it.name.lowercase(Locale.getDefault()) }
+    }
+
+    fun isCollectionFolder(folder: File): Boolean {
+        if (collectionMarkerFile(folder).exists()) return true
+        return listImages(folder).isEmpty() && listChildFolders(folder).isNotEmpty()
+    }
+
     fun createFolder(name: String): File? {
-        val trimmed = name.trim().replace("/", "_").replace("\\", "_")
-        if (trimmed.isEmpty() || trimmed.contains("..")) return null
+        val trimmed = sanitizeFolderName(name) ?: return null
         val folder = File(rootDir, trimmed)
+        if (folder.exists()) return null
+        return if (folder.mkdirs()) folder else null
+    }
+
+    fun createCollection(name: String): File? {
+        val folder = createFolder(name) ?: return null
+        return if (runCatching { collectionMarkerFile(folder).writeText("1") }.isSuccess) {
+            folder
+        } else {
+            folder.deleteRecursively()
+            null
+        }
+    }
+
+    fun createChildFolder(parent: File, name: String): File? {
+        if (!parent.exists() || !parent.isDirectory) return null
+        val trimmed = sanitizeFolderName(name) ?: return null
+        val folder = File(parent, trimmed)
         if (folder.exists()) return null
         return if (folder.mkdirs()) folder else null
     }
@@ -137,10 +166,9 @@ class LibraryRepository(private val context: Context) {
 
     fun renameFolder(folder: File, newName: String): File? {
         if (!folder.exists() || !folder.isDirectory) return null
-        val trimmed = newName.trim().replace("/", "_").replace("\\", "_")
-        if (trimmed.isEmpty() || trimmed.contains("..")) return null
+        val trimmed = sanitizeFolderName(newName) ?: return null
         if (trimmed == folder.name) return folder
-        val target = File(rootDir, trimmed)
+        val target = File(folder.parentFile, trimmed)
         if (target.exists()) return null
         return if (folder.renameTo(target)) target else null
     }
@@ -167,8 +195,7 @@ class LibraryRepository(private val context: Context) {
     }
 
     private fun createUniqueFolder(baseName: String): File? {
-        val sanitized = baseName.trim().replace("/", "_").replace("\\", "_")
-        if (sanitized.isEmpty() || sanitized.contains("..")) return null
+        val sanitized = sanitizeFolderName(baseName) ?: return null
         var index = 0
         while (true) {
             val candidateName = if (index == 0) sanitized else "${sanitized}_$index"
@@ -178,6 +205,15 @@ class LibraryRepository(private val context: Context) {
             }
             index += 1
         }
+    }
+
+    private fun collectionMarkerFile(folder: File): File {
+        return File(folder, COLLECTION_MARKER_FILE_NAME)
+    }
+
+    private fun sanitizeFolderName(name: String): String? {
+        val trimmed = name.trim().replace("/", "_").replace("\\", "_")
+        return trimmed.takeIf { it.isNotEmpty() && !it.contains("..") }
     }
 
     private fun queryDisplayName(uri: Uri): String? {
@@ -209,4 +245,8 @@ class LibraryRepository(private val context: Context) {
         val folder: File?,
         val importedCount: Int
     )
+
+    companion object {
+        private const val COLLECTION_MARKER_FILE_NAME = ".folder-collection"
+    }
 }

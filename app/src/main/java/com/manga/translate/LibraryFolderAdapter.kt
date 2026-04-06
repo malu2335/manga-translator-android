@@ -64,10 +64,12 @@ class LibraryFolderAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: FolderItem, showActions: Boolean) {
             binding.folderName.text = item.folder.name
-            binding.folderMeta.text = binding.root.context.getString(
-                R.string.folder_image_count,
-                item.imageCount
-            )
+            val context = binding.root.context
+            binding.folderMeta.text = if (item.isCollection) {
+                context.getString(R.string.folder_collection_meta, item.chapterCount, item.imageCount)
+            } else {
+                context.getString(R.string.folder_image_count, item.imageCount)
+            }
             binding.folderActions.visibility = if (showActions) {
                 android.view.View.VISIBLE
             } else {

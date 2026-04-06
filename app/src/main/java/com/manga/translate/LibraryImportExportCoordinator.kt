@@ -107,6 +107,22 @@ internal class LibraryImportExportCoordinator(
         showImportFolderPicker(uiContext, uri, scope, onShowFolderList)
     }
 
+    fun handleChapterImportTreeSelection(
+        uiContext: Context,
+        parentFolder: File,
+        uri: Uri,
+        scope: CoroutineScope
+    ) {
+        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        try {
+            uiContext.contentResolver.takePersistableUriPermission(uri, flags)
+        } catch (e: SecurityException) {
+            AppLogger.log("Library", "Persist chapter import permission failed", e)
+        }
+        preferencesGateway.setImportTreeUri(uri)
+        showChapterImportFolderPicker(uiContext, parentFolder, uri, scope)
+    }
+
     private fun showImportFolderPicker(
         uiContext: Context,
         treeUri: Uri,
@@ -171,6 +187,105 @@ internal class LibraryImportExportCoordinator(
                 }
                 ui.refreshFolders()
                 onShowFolderList()
+            }
+        }
+    }
+
+    private fun showChapterImportFolderPicker(
+        uiContext: Context,
+        parentFolder: File,
+        treeUri: Uri,
+        scope: CoroutineScope
+    ) {
+        val root = DocumentFile.fromTreeUri(uiContext, treeUri)
+        if (root == null || !root.canRead()) {
+            ui.showToast(R.string.import_permission_required)
+            return
+        }
+        val folders = root.listFiles().filter { folder ->
+            folder.isDirectory && folder.listFiles().any { child -> child.isFile && isImageDocument(child) }
+        }
+        if (folders.isNotEmpty()) {
+            dialogs.showDocumentFolderMultiPicker(
+                context = uiContext,
+                titleRes = R.string.chapter_import_select_folders,
+                folders = folders
+            ) { selected ->
+                if (selected.isEmpty()) {
+                    ui.showToast(R.string.chapter_import_no_folders)
+                    return@showDocumentFolderMultiPicker
+                }
+                importChildChapters(uiContext, parentFolder, selected, scope)
+            }
+            return
+        }
+        val rootImages = root.listFiles().filter { it.isFile && isImageDocument(it) }
+        if (rootImages.isEmpty()) {
+            ui.showToast(R.string.chapter_import_no_folders)
+            return
+        }
+        importChildChapters(uiContext, parentFolder, listOf(root), scope)
+    }
+
+    private fun importChildChapters(
+        uiContext: Context,
+        parentFolder: File,
+        sources: List<DocumentFile>,
+        scope: CoroutineScope
+    ) {
+        scope.launch(Dispatchers.IO) {
+            var importedChapters = 0
+            var importedImages = 0
+            var skippedChapters = 0
+
+            for (source in sources) {
+                val sourceName = source.name?.trim().orEmpty()
+                if (sourceName.isEmpty()) {
+                    skippedChapters += 1
+                    continue
+                }
+                val chapterFolder = repository.createChildFolder(parentFolder, sourceName)
+                if (chapterFolder == null) {
+                    skippedChapters += 1
+                    continue
+                }
+                val images = source.listFiles().filter { it.isFile && isImageDocument(it) }
+                if (images.isEmpty()) {
+                    chapterFolder.deleteRecursively()
+                    skippedChapters += 1
+                    continue
+                }
+                val added = repository.addImages(chapterFolder, images.map { it.uri })
+                if (added.isEmpty()) {
+                    chapterFolder.deleteRecursively()
+                    skippedChapters += 1
+                    continue
+                }
+                importedChapters += 1
+                importedImages += added.size
+            }
+
+            withContext(Dispatchers.Main) {
+                when {
+                    importedChapters <= 0 -> ui.showToast(R.string.import_failed)
+                    skippedChapters > 0 -> ui.showToastMessage(
+                        uiContext.getString(
+                            R.string.chapter_import_done_with_skipped,
+                            importedChapters,
+                            importedImages,
+                            skippedChapters
+                        )
+                    )
+                    else -> ui.showToastMessage(
+                        uiContext.getString(
+                            R.string.chapter_import_done,
+                            importedChapters,
+                            importedImages
+                        )
+                    )
+                }
+                ui.refreshImages(parentFolder)
+                ui.refreshFolders()
             }
         }
     }

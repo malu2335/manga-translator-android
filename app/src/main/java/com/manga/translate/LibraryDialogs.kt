@@ -130,6 +130,32 @@ internal class LibraryDialogs {
         showTextInputDialog(context, R.string.create_folder, onConfirm = onConfirm)
     }
 
+    fun showCreateCollectionDialog(context: Context, onConfirm: (String) -> Unit) {
+        showTextInputDialog(context, R.string.create_collection, onConfirm = onConfirm)
+    }
+
+    fun showCreateChapterDialog(context: Context, onConfirm: (String) -> Unit) {
+        showTextInputDialog(context, R.string.create_chapter, onConfirm = onConfirm)
+    }
+
+    fun showCreateEntryDialog(
+        context: Context,
+        onCreateFolder: () -> Unit,
+        onCreateCollection: () -> Unit
+    ) {
+        val items = arrayOf(
+            context.getString(R.string.create_folder),
+            context.getString(R.string.create_collection)
+        )
+        AlertDialog.Builder(context)
+            .setTitle(R.string.create_entry_title)
+            .setItems(items) { _, which ->
+                if (which == 0) onCreateFolder() else onCreateCollection()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     fun confirmDeleteFolder(context: Context, folderName: String, onConfirm: () -> Unit) {
         AlertDialog.Builder(context)
             .setTitle(R.string.folder_delete)
@@ -230,6 +256,27 @@ internal class LibraryDialogs {
             .setTitle(R.string.ehviewer_select_folder)
             .setItems(names) { _, index -> onPicked(folders[index]) }
             .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    fun showDocumentFolderMultiPicker(
+        context: Context,
+        titleRes: Int,
+        folders: List<DocumentFile>,
+        onPicked: (List<DocumentFile>) -> Unit
+    ) {
+        val names = folders.map { it.name ?: "未命名" }.toTypedArray()
+        val checked = BooleanArray(folders.size)
+        AlertDialog.Builder(context)
+            .setTitle(titleRes)
+            .setMultiChoiceItems(names, checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val selected = folders.filterIndexed { index, _ -> checked[index] }
+                onPicked(selected)
+            }
             .show()
     }
 

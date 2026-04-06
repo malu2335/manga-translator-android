@@ -55,6 +55,8 @@ class LibraryFragment : Fragment() {
     private lateinit var selectionController: LibrarySelectionController
 
     private var currentFolder: File? = null
+    private var currentParentFolder: File? = null
+    private var pendingChapterImportParent: File? = null
     private var embedActionsEnabled: Boolean = true
     private var isFolderTransitionRunning: Boolean = false
     private var isFolderTopBarVisible: Boolean = true
@@ -77,6 +79,12 @@ class LibraryFragment : Fragment() {
         onSelectionChanged = { selectionController.updateSelectionActions() },
         onItemLongPress = { selectionController.enterSelectionMode(it.file) },
         onItemClick = { openImageInReader(it.file) }
+    )
+
+    private val chapterAdapter = LibraryFolderAdapter(
+        onClick = { openChildFolder(it.folder) },
+        onDelete = { confirmDeleteFolder(it.folder) },
+        onRename = { showRenameFolderDialog(it.folder) }
     )
 
     private val uiCallbacks = object : LibraryUiCallbacks {
@@ -159,6 +167,21 @@ class LibraryFragment : Fragment() {
                 uri = uri,
                 scope = viewLifecycleOwner.lifecycleScope,
                 onShowFolderList = { showFolderList() }
+            )
+        }
+    }
+
+    private val pickChapterImportTree = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        val parentFolder = pendingChapterImportParent
+        pendingChapterImportParent = null
+        if (uri != null && parentFolder != null) {
+            importExportCoordinator.handleChapterImportTreeSelection(
+                uiContext = requireContext(),
+                parentFolder = parentFolder,
+                uri = uri,
+                scope = viewLifecycleOwner.lifecycleScope
             )
         }
     }
@@ -285,10 +308,13 @@ class LibraryFragment : Fragment() {
         binding.folderImageList.layoutManager = LinearLayoutManager(requireContext())
         binding.folderImageList.isNestedScrollingEnabled = false
         binding.folderImageList.adapter = imageAdapter
+        binding.folderChapterList.layoutManager = LinearLayoutManager(requireContext())
+        binding.folderChapterList.isNestedScrollingEnabled = false
+        binding.folderChapterList.adapter = chapterAdapter
         setupFolderTopBarOverlay()
         setupFolderDetailScrollBehavior()
 
-        binding.addFolderFab.setOnClickListener { showCreateFolderDialog() }
+        binding.addFolderFab.setOnClickListener { showCreateEntryDialog() }
         binding.importEhviewerButton.setOnClickListener { importFromEhViewer() }
         binding.floatingTranslateButton.setOnClickListener { handleFloatingTranslateClick() }
         binding.importCbzButton.setOnClickListener {
@@ -301,8 +327,9 @@ class LibraryFragment : Fragment() {
             )
         }
         binding.tutorialButton.setOnClickListener { openTutorial() }
-        binding.folderBackButton.setOnClickListener { showFolderList() }
-        binding.folderAddImages.setOnClickListener { pickImages.launch(arrayOf("image/*")) }
+        binding.folderBackButton.setOnClickListener { navigateBackFromDetail() }
+        binding.folderAddImages.setOnClickListener { handleAddContentClick() }
+        binding.folderImportChapters.setOnClickListener { importChildChapters() }
         binding.folderExport.setOnClickListener { exportFolder() }
         binding.folderTranslate.setOnClickListener { translateFolder() }
         binding.folderRead.setOnClickListener { startReading() }
@@ -344,7 +371,7 @@ class LibraryFragment : Fragment() {
                         return
                     }
                     if (binding.folderDetailContainer.isVisible) {
-                        showFolderList()
+                        navigateBackFromDetail()
                     } else {
                         isEnabled = false
                         requireActivity().onBackPressedDispatcher.onBackPressed()
@@ -440,11 +467,13 @@ class LibraryFragment : Fragment() {
 
     private fun showFolderList() {
         currentFolder = null
+        currentParentFolder = null
         embedActionsEnabled = true
         resetFolderTopBar(forceVisible = true)
         uiCallbacks.clearFolderStatus()
         selectionController.exitSelectionMode()
         folderAdapter.clearActionSelection()
+        chapterAdapter.clearActionSelection()
         loadFolders()
         if (!binding.folderDetailContainer.isVisible) {
             applyFolderListVisibleState()
@@ -453,16 +482,18 @@ class LibraryFragment : Fragment() {
         animateFolderTransition(showDetail = false)
     }
 
-    private fun showFolderDetail(folder: File) {
+    private fun showFolderDetail(folder: File, parentFolder: File? = null) {
         currentFolder = folder
+        currentParentFolder = parentFolder
         resetFolderTopBar(forceVisible = true)
-        binding.folderTitle.text = folder.name
+        binding.folderTitle.text = buildFolderTitle(folder)
         binding.folderFullTranslateSwitch.isChecked = preferencesGateway.isFullTranslateEnabled(folder)
         binding.folderVlDirectTranslateSwitch.isChecked =
             preferencesGateway.isVlDirectTranslateEnabled(folder)
         updateLanguageSettingButton(folder)
         updateReadingModeButton(folder)
         updateEmbedButtonState(folder)
+        updateFolderContentMode(folder)
         selectionController.exitSelectionMode()
         loadImages(folder)
         if (binding.folderDetailContainer.isVisible && !binding.libraryListContainer.isVisible) {
@@ -662,15 +693,24 @@ class LibraryFragment : Fragment() {
 
     private fun loadFolders() {
         val folders = repository.listFolders()
-        val items = folders.map { folder ->
-            FolderItem(folder, repository.listImages(folder).size)
-        }
+        val items = folders.map(::buildFolderItem)
         folderAdapter.submit(items)
         binding.libraryEmpty.text = getString(R.string.folder_empty)
         binding.libraryEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
     }
 
     private fun loadImages(folder: File) {
+        if (repository.isCollectionFolder(folder)) {
+            val chapters = repository.listChildFolders(folder)
+            chapterAdapter.submit(chapters.map(::buildFolderItem))
+            imageAdapter.submit(emptyList())
+            binding.folderChapterList.visibility = View.VISIBLE
+            binding.folderImageList.visibility = View.GONE
+            binding.folderImagesEmpty.text = getString(R.string.folder_chapters_empty)
+            binding.folderImagesEmpty.visibility = if (chapters.isEmpty()) View.VISIBLE else View.GONE
+            uiCallbacks.clearFolderStatus()
+            return
+        }
         val images = repository.listImages(folder)
         val embeddedByName = embeddedStateStore
             .listEmbeddedImages(folder)
@@ -683,6 +723,10 @@ class LibraryFragment : Fragment() {
             )
         }
         imageAdapter.submit(items)
+        chapterAdapter.submit(emptyList())
+        binding.folderChapterList.visibility = View.GONE
+        binding.folderImageList.visibility = View.VISIBLE
+        binding.folderImagesEmpty.text = getString(R.string.folder_images_empty)
         updateEmbedButtonState(folder)
         binding.folderImagesEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
         if (selectionController.isSelectionMode) {
@@ -695,6 +739,12 @@ class LibraryFragment : Fragment() {
     private fun openFolder(folder: File) {
         folderAdapter.clearActionSelection()
         showFolderDetail(folder)
+    }
+
+    private fun openChildFolder(folder: File) {
+        chapterAdapter.clearActionSelection()
+        val parent = currentFolder ?: return
+        showFolderDetail(folder, parent)
     }
 
     private fun openTutorial() {
@@ -721,6 +771,14 @@ class LibraryFragment : Fragment() {
         }
     }
 
+    private fun showCreateEntryDialog() {
+        dialogs.showCreateEntryDialog(
+            context = requireContext(),
+            onCreateFolder = { showCreateFolderDialog() },
+            onCreateCollection = { showCreateCollectionDialog() }
+        )
+    }
+
     private fun showCreateFolderDialog() {
         dialogs.showCreateFolderDialog(requireContext()) { name ->
             val folder = repository.createFolder(name)
@@ -734,12 +792,66 @@ class LibraryFragment : Fragment() {
         }
     }
 
+    private fun showCreateCollectionDialog() {
+        dialogs.showCreateCollectionDialog(requireContext()) { name ->
+            val folder = repository.createCollection(name)
+            if (folder == null) {
+                AppLogger.log("Library", "Create collection failed: $name")
+                Toast.makeText(requireContext(), R.string.folder_create_failed, Toast.LENGTH_SHORT).show()
+            } else {
+                AppLogger.log("Library", "Created collection ${folder.name}")
+                loadFolders()
+            }
+        }
+    }
+
+    private fun showCreateChapterDialog(parent: File) {
+        dialogs.showCreateChapterDialog(requireContext()) { name ->
+            val folder = repository.createChildFolder(parent, name)
+            if (folder == null) {
+                AppLogger.log("Library", "Create chapter failed in ${parent.name}: $name")
+                Toast.makeText(requireContext(), R.string.folder_create_failed, Toast.LENGTH_SHORT).show()
+            } else {
+                AppLogger.log("Library", "Created chapter ${folder.name} in ${parent.name}")
+                loadImages(parent)
+                loadFolders()
+            }
+        }
+    }
+
     private fun addImagesToFolder(uris: List<Uri>) {
         val folder = currentFolder ?: return
         val added = repository.addImages(folder, uris)
         AppLogger.log("Library", "Added ${added.size} images to ${folder.name}")
         loadImages(folder)
         loadFolders()
+    }
+
+    private fun handleAddContentClick() {
+        val folder = currentFolder ?: return
+        if (repository.isCollectionFolder(folder)) {
+            showCreateChapterDialog(folder)
+        } else {
+            pickImages.launch(arrayOf("image/*"))
+        }
+    }
+
+    private fun navigateBackFromDetail() {
+        val parentFolder = currentParentFolder
+        if (parentFolder != null) {
+            showFolderDetail(parentFolder)
+        } else {
+            showFolderList()
+        }
+    }
+
+    private fun importChildChapters() {
+        val parentFolder = currentFolder ?: return
+        if (!repository.isCollectionFolder(parentFolder)) return
+        pendingChapterImportParent = parentFolder
+        importExportCoordinator.requestImportDirectory { initialUri ->
+            pickChapterImportTree.launch(initialUri)
+        }
     }
 
     private fun importFromEhViewer() {
@@ -766,7 +878,7 @@ class LibraryFragment : Fragment() {
             } else {
                 AppLogger.log("Library", "Deleted folder ${folder.name}")
             }
-            loadFolders()
+            refreshFolderViewsAfterMutation(folder)
         }
     }
 
@@ -778,8 +890,39 @@ class LibraryFragment : Fragment() {
                 Toast.makeText(requireContext(), R.string.folder_rename_failed, Toast.LENGTH_SHORT).show()
             } else {
                 AppLogger.log("Library", "Renamed folder ${folder.name} -> ${renamed.name}")
+                refreshFolderViewsAfterMutation(folder, renamed)
+            }
+        }
+    }
+
+    private fun refreshFolderViewsAfterMutation(original: File, updated: File? = null) {
+        val visibleFolder = currentFolder
+        val visibleParent = currentParentFolder
+        val currentPath = visibleFolder?.absolutePath
+        val parentPath = visibleParent?.absolutePath
+        val originalPath = original.absolutePath
+        val originalParentPath = original.parentFile?.absolutePath
+
+        when {
+            currentPath == originalPath -> {
+                if (updated == null) {
+                    showFolderList()
+                } else {
+                    showFolderDetail(updated, visibleParent)
+                }
+            }
+            parentPath == originalPath -> {
+                if (updated == null) {
+                    showFolderList()
+                } else {
+                    showFolderDetail(visibleFolder ?: updated, updated)
+                }
+            }
+            currentPath != null && originalParentPath == currentPath -> {
+                loadImages(visibleFolder)
                 loadFolders()
             }
+            else -> loadFolders()
         }
     }
 
@@ -880,6 +1023,18 @@ class LibraryFragment : Fragment() {
     private fun startReading() {
         val folder = currentFolder ?: return
         selectionController.exitSelectionMode()
+        if (repository.isCollectionFolder(folder)) {
+            val images = repository.listChildFolders(folder).flatMap { repository.listImages(it) }
+            if (images.isEmpty()) {
+                uiCallbacks.setFolderStatus(getString(R.string.folder_chapters_empty))
+                return
+            }
+            val startIndex = readingProgressStore.load(folder)
+            val readingMode = preferencesGateway.getReadingMode(folder)
+            readingSessionViewModel.setFolder(folder, images, startIndex, false, readingMode)
+            (activity as? MainActivity)?.switchToTab(MainPagerAdapter.READING_INDEX)
+            return
+        }
         val originalImages = repository.listImages(folder)
         if (originalImages.isEmpty()) {
             uiCallbacks.setFolderStatus(getString(R.string.folder_images_empty))
@@ -1044,6 +1199,48 @@ class LibraryFragment : Fragment() {
             preferencesGateway.setReadingMode(folder, selectedMode)
             updateReadingModeButton(folder)
             AppLogger.log("Library", "Set reading mode for ${folder.name}: ${selectedMode.prefValue}")
+        }
+    }
+
+    private fun buildFolderItem(folder: File): FolderItem {
+        val chapters = repository.listChildFolders(folder)
+        val isCollection = repository.isCollectionFolder(folder)
+        val imageCount = if (isCollection) {
+            chapters.sumOf { repository.listImages(it).size }
+        } else {
+            repository.listImages(folder).size
+        }
+        return FolderItem(
+            folder = folder,
+            imageCount = imageCount,
+            chapterCount = chapters.size,
+            isCollection = isCollection
+        )
+    }
+
+    private fun buildFolderTitle(folder: File): String {
+        return if (repository.isCollectionFolder(folder)) {
+            folder.name + getString(R.string.folder_collection_title_suffix)
+        } else {
+            folder.name
+        }
+    }
+
+    private fun updateFolderContentMode(folder: File) {
+        val isCollection = repository.isCollectionFolder(folder)
+        binding.folderAddImages.text = getString(
+            if (isCollection) R.string.folder_add_chapter else R.string.folder_add_images
+        )
+        binding.folderImportChapters.visibility = if (isCollection) View.VISIBLE else View.GONE
+        binding.folderExport.visibility = if (isCollection) View.GONE else View.VISIBLE
+        binding.folderTranslate.visibility = if (isCollection) View.GONE else View.VISIBLE
+        binding.folderEmbed.visibility = if (isCollection) View.GONE else View.VISIBLE
+        binding.folderUnembed.visibility = if (isCollection) View.GONE else View.VISIBLE
+        binding.folderTranslationSettings.visibility = if (isCollection) View.GONE else View.VISIBLE
+        binding.folderReadingSettings.visibility = if (isCollection) View.GONE else View.VISIBLE
+        binding.folderSelectionActions.visibility = View.GONE
+        if (isCollection) {
+            selectionController.exitSelectionMode()
         }
     }
 
