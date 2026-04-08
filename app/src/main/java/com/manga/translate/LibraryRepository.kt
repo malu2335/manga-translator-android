@@ -6,7 +6,8 @@ import android.provider.OpenableColumns
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
-import java.util.zip.ZipFile
+import net.lingala.zip4j.ZipFile
+import net.lingala.zip4j.model.FileHeader
 
 class LibraryRepository(private val context: Context) {
     private val rootDir: File = File(
@@ -119,29 +120,34 @@ class LibraryRepository(private val context: Context) {
             AppLogger.log("LibraryRepo", "Archive copied to temp file: ${tempFile.length()} bytes")
 
             ZipFile(tempFile).use { zipFile ->
-                val entries = zipFile.entries()
-                AppLogger.log("LibraryRepo", "Archive total entries: ${zipFile.size()}")
-                
-                while (entries.hasMoreElements()) {
-                    val entry = entries.nextElement()
-                    
-                    if (!entry.isDirectory) {
-                        val entryName = entry.name
-                            .replace('\\', '/')
-                            .substringAfterLast('/')
-                        
-                        AppLogger.log("LibraryRepo", "Archive entry: ${entry.name} -> $entryName")
-                        
-                        if (entryName.isNotBlank() && isImageFile(entryName)) {
-                            val dest = resolveUniqueFile(folder, entryName)
-                            zipFile.getInputStream(entry).use { input ->
-                                FileOutputStream(dest).use { output ->
-                                    input.copyTo(output)
-                                }
+                val headers = zipFile.fileHeaders.orEmpty()
+                AppLogger.log("LibraryRepo", "Archive total entries: ${headers.size}")
+
+                for (header in headers) {
+                    if (header.isDirectory) continue
+
+                    val entryName = extractImportImageName(header.fileName)
+                    AppLogger.log(
+                        "LibraryRepo",
+                        "Archive entry: ${header.fileName} -> ${entryName ?: "(skipped)"}"
+                    )
+
+                    if (entryName == null) continue
+
+                    try {
+                        val dest = resolveUniqueFile(folder, entryName)
+                        zipFile.getInputStream(header).use { input ->
+                            FileOutputStream(dest).use { output ->
+                                input.copyTo(output)
                             }
-                            importedCount += 1
-                            AppLogger.log("LibraryRepo", "Archive imported: $entryName (${dest.length()} bytes)")
                         }
+                        importedCount += 1
+                        AppLogger.log(
+                            "LibraryRepo",
+                            "Archive imported: $entryName (${dest.length()} bytes)"
+                        )
+                    } catch (e: Exception) {
+                        logArchiveEntryImportFailure(header, e)
                     }
                 }
             }
@@ -265,5 +271,34 @@ class LibraryRepository(private val context: Context) {
 
     companion object {
         private const val COLLECTION_MARKER_FILE_NAME = ".folder-collection"
+        private val CONTROL_CHARS_REGEX = Regex("[\\u0000-\\u001F]")
+
+        internal fun extractImportImageName(entryName: String?): String? {
+            val normalized = entryName
+                ?.replace('\\', '/')
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: return null
+            val fileName = normalized.substringAfterLast('/').trim()
+            if (fileName.isEmpty() || fileName == "." || fileName == "..") {
+                return null
+            }
+            val sanitized = fileName.replace(CONTROL_CHARS_REGEX, "_")
+            val lower = sanitized.lowercase(Locale.getDefault())
+            return if (
+                lower.endsWith(".jpg") ||
+                lower.endsWith(".jpeg") ||
+                lower.endsWith(".png") ||
+                lower.endsWith(".webp")
+            ) {
+                sanitized
+            } else {
+                null
+            }
+        }
+    }
+
+    private fun logArchiveEntryImportFailure(header: FileHeader, error: Exception) {
+        AppLogger.log("LibraryRepo", "Archive entry import failed: ${header.fileName}", error)
     }
 }

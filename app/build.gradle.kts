@@ -81,4 +81,5 @@ dependencies {
     implementation("androidx.viewpager2:viewpager2:1.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.19.2")
+    implementation("net.lingala.zip4j:zip4j:2.11.5")
 }
