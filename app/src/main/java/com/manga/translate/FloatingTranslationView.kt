@@ -72,6 +72,7 @@ class FloatingTranslationView @JvmOverloads constructor(
     private var longPressTriggered = false
     private var editMode = false
     private var touchPassthroughEnabled = false
+    private var editScrollThroughEnabled = false
     private var bubbleOpacity = SettingsStore(context).loadTranslationBubbleOpacity()
     private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
     private val longPressRunnable = Runnable {
@@ -82,7 +83,7 @@ class FloatingTranslationView @JvmOverloads constructor(
         onBubbleLongPress?.invoke(id)
     }
 
-    var onOffsetChanged: ((Float, Float) -> Unit)? = null
+    var onOffsetChanged: ((Int, Float, Float) -> Unit)? = null
     var onTap: ((Float) -> Unit)? = null
     var onSwipe: ((Int) -> Unit)? = null
     var onTransformTouch: ((MotionEvent) -> Boolean)? = null
@@ -129,6 +130,7 @@ class FloatingTranslationView @JvmOverloads constructor(
         activeId = null
         longPressTriggered = false
         removeCallbacks(longPressRunnable)
+        parent?.requestDisallowInterceptTouchEvent(false)
         invalidate()
     }
 
@@ -142,6 +144,10 @@ class FloatingTranslationView @JvmOverloads constructor(
 
     fun setTouchPassthroughEnabled(enabled: Boolean) {
         touchPassthroughEnabled = enabled
+    }
+
+    fun setEditScrollThroughEnabled(enabled: Boolean) {
+        editScrollThroughEnabled = enabled
     }
 
     fun getOffsets(): Map<Int, Pair<Float, Float>> {
@@ -171,6 +177,7 @@ class FloatingTranslationView @JvmOverloads constructor(
         if (touchPassthroughEnabled && !editMode) {
             return false
         }
+        val allowParentScrollInEditMode = editMode && editScrollThroughEnabled
         val transformHandled = onTransformTouch?.invoke(event) == true
         if (transformHandled) {
             if (event.actionMasked == MotionEvent.ACTION_DOWN ||
@@ -195,7 +202,12 @@ class FloatingTranslationView @JvmOverloads constructor(
                 swipeTriggered = false
                 longPressTriggered = false
                 removeCallbacks(longPressRunnable)
+                if (allowParentScrollInEditMode && activeId == null) {
+                    parent?.requestDisallowInterceptTouchEvent(false)
+                    return false
+                }
                 if (editMode && activeId != null) {
+                    parent?.requestDisallowInterceptTouchEvent(true)
                     postDelayed(longPressRunnable, longPressTimeout)
                 }
                 return true
@@ -225,6 +237,7 @@ class FloatingTranslationView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_UP -> {
                 removeCallbacks(longPressRunnable)
+                parent?.requestDisallowInterceptTouchEvent(false)
                 if (longPressTriggered) {
                     dragging = false
                     activeId = null
@@ -262,6 +275,7 @@ class FloatingTranslationView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_CANCEL -> {
                 removeCallbacks(longPressRunnable)
+                parent?.requestDisallowInterceptTouchEvent(false)
                 dragging = false
                 activeId = null
                 return true
@@ -292,7 +306,7 @@ class FloatingTranslationView @JvmOverloads constructor(
         newX = min(max(newX, minX), maxX)
         newY = min(max(newY, minY), maxY)
         offsets[id] = newX to newY
-        onOffsetChanged?.invoke(newX, newY)
+        onOffsetChanged?.invoke(id, newX, newY)
         invalidate()
     }
 

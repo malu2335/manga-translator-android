@@ -3,6 +3,7 @@ package com.manga.translate
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
@@ -25,7 +26,6 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.manga.translate.databinding.FragmentReadingBinding
 import com.manga.translate.di.appContainer
@@ -85,8 +85,12 @@ class ReadingFragment : Fragment() {
     private lateinit var emptyBubbleCoordinator: ReadingEmptyBubbleCoordinator
     private var emptyBubbleJob: Job? = null
     private lateinit var webtoonAdapter: WebtoonReadingAdapter
-    private lateinit var webtoonLayoutManager: LinearLayoutManager
+    private lateinit var webtoonLayoutManager: LockedWebtoonLinearLayoutManager
     private var webtoonProgrammaticScroll = false
+    private var webtoonLockedPageIndex: Int? = null
+    private var webtoonLockedPagePath: String? = null
+    private val webtoonEditOffsets = mutableMapOf<Int, Pair<Float, Float>>()
+    private var webtoonPreparingEdit = false
     private val visibleWebtoonTranslationModified = mutableMapOf<String, Long>()
     private var displayedPageIndex: Int? = null
     private var displayedImagePath: String? = null
@@ -106,9 +110,25 @@ class ReadingFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         emptyBubbleCoordinator = appContainer.createReadingEmptyBubbleCoordinator()
-        webtoonLayoutManager = LinearLayoutManager(requireContext())
+        webtoonLayoutManager = LockedWebtoonLinearLayoutManager(requireContext())
         webtoonLayoutManager.initialPrefetchItemCount = 3
         webtoonAdapter = WebtoonReadingAdapter(viewLifecycleOwner.lifecycleScope, translationStore)
+        webtoonAdapter.onLockedBubbleOffsetChanged = offsetChanged@{ bubbleId, offsetX, offsetY ->
+            if (!isWebtoonEditSessionActive()) return@offsetChanged
+            webtoonEditOffsets[bubbleId] = offsetX to offsetY
+        }
+        webtoonAdapter.onLockedBubbleRemove = { bubbleId ->
+            handleBubbleRemove(bubbleId)
+        }
+        webtoonAdapter.onLockedBubbleTap = { bubbleId ->
+            handleBubbleEdit(bubbleId)
+        }
+        webtoonAdapter.onLockedBubbleResizeTap = { bubbleId ->
+            showResizePanel(bubbleId)
+        }
+        webtoonAdapter.onLockedBubbleLongPress = { bubbleId ->
+            showBubbleActionDialog(bubbleId)
+        }
         binding.readingWebtoonList.layoutManager = webtoonLayoutManager
         binding.readingWebtoonList.adapter = webtoonAdapter
         binding.readingWebtoonList.setItemViewCacheSize(4)
@@ -197,7 +217,14 @@ class ReadingFragment : Fragment() {
             }
         }
         readingSessionViewModel.readingMode.observe(viewLifecycleOwner) { mode ->
+            val previousMode = folderReadingMode
+            if (previousMode != mode && isEditMode) {
+                setEditMode(false)
+            }
             folderReadingMode = mode
+            if (mode != FolderReadingMode.WEBTOON_SCROLL) {
+                clearWebtoonEditSession()
+            }
             applyFolderReadingMode()
             reloadReadingContent()
         }
@@ -242,6 +269,7 @@ class ReadingFragment : Fragment() {
         webtoonTranslationWatchJob?.cancel()
         emptyBubbleJob?.cancel()
         cancelPageTransition()
+        clearWebtoonEditSession(resetCurrentPage = true)
         binding.readingWebtoonList.adapter = null
         _binding = null
     }
@@ -391,29 +419,34 @@ class ReadingFragment : Fragment() {
         if (images.isEmpty() || folder == null) {
             binding.readingEmptyHint.visibility = View.VISIBLE
             binding.readingPageInfo.visibility = View.GONE
-            binding.readingEditControls.visibility = View.GONE
+            updateEditButtonState()
             webtoonAdapter.submit(
                 images = emptyList(),
                 embeddedMode = isEmbeddedMode,
                 verticalLayoutEnabled = !settingsStore.loadUseHorizontalText(),
                 bubbleOpacity = settingsStore.loadTranslationBubbleOpacity()
             )
+            syncWebtoonEditSession()
             stopWebtoonTranslationWatcher()
             return
         }
         binding.readingEmptyHint.visibility = View.GONE
         binding.readingPageInfo.visibility = View.VISIBLE
-        binding.readingEditControls.visibility = View.GONE
+        updateEditButtonState()
         webtoonAdapter.submit(
             images = images,
             embeddedMode = isEmbeddedMode,
             verticalLayoutEnabled = !settingsStore.loadUseHorizontalText(),
             bubbleOpacity = settingsStore.loadTranslationBubbleOpacity()
         )
+        syncWebtoonEditSession()
         val targetIndex = (readingSessionViewModel.index.value ?: 0).coerceIn(0, images.lastIndex)
         webtoonProgrammaticScroll = true
         binding.readingWebtoonList.post {
-            if (!isAdded || _binding == null || folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) return@post
+            if (!isAdded || _binding == null || folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) {
+                webtoonProgrammaticScroll = false
+                return@post
+            }
             webtoonLayoutManager.scrollToPositionWithOffset(targetIndex, 0)
             updateWebtoonPageInfo()
             persistWebtoonProgress()
@@ -422,6 +455,112 @@ class ReadingFragment : Fragment() {
                 webtoonProgrammaticScroll = false
             }
         }
+    }
+
+    private fun isWebtoonEditSessionActive(): Boolean {
+        return folderReadingMode == FolderReadingMode.WEBTOON_SCROLL &&
+            isEditMode &&
+            !isEmbeddedMode &&
+            webtoonLockedPageIndex != null &&
+            webtoonLockedPagePath != null
+    }
+
+    private fun syncWebtoonEditSession() {
+        val active = isWebtoonEditSessionActive()
+        webtoonLayoutManager.setLockedPosition(if (active) webtoonLockedPageIndex else null)
+        webtoonAdapter.updateEditSession(
+            enabled = active,
+            lockedImagePath = if (active) webtoonLockedPagePath else null,
+            translation = if (active) currentTranslation else null,
+            offsets = if (active) webtoonEditOffsets else emptyMap()
+        )
+    }
+
+    private fun clearWebtoonEditSession(resetCurrentPage: Boolean = false) {
+        webtoonPreparingEdit = false
+        webtoonLockedPageIndex = null
+        webtoonLockedPagePath = null
+        webtoonEditOffsets.clear()
+        syncWebtoonEditSession()
+        if (resetCurrentPage) {
+            currentImageFile = null
+            currentTranslation = null
+        }
+    }
+
+    private fun renderCurrentTranslation() {
+        if (isWebtoonEditSessionActive()) {
+            syncWebtoonEditSession()
+        } else {
+            binding.translationOverlay.setTranslations(currentTranslation)
+        }
+    }
+
+    private fun currentOverlayOffsets(): MutableMap<Int, Pair<Float, Float>> {
+        return if (isWebtoonEditSessionActive()) {
+            webtoonEditOffsets.toMutableMap()
+        } else {
+            binding.translationOverlay.getOffsets().toMutableMap()
+        }
+    }
+
+    private fun applyOverlayOffsets(offsets: Map<Int, Pair<Float, Float>>) {
+        if (isWebtoonEditSessionActive()) {
+            webtoonEditOffsets.clear()
+            webtoonEditOffsets.putAll(offsets)
+            syncWebtoonEditSession()
+        } else {
+            binding.translationOverlay.setOffsets(offsets)
+        }
+    }
+
+    private fun resolveLockedWebtoonIndex(): Int? {
+        val firstVisible = webtoonLayoutManager.findFirstVisibleItemPosition()
+        if (firstVisible != RecyclerView.NO_POSITION) {
+            return firstVisible
+        }
+        val images = readingSessionViewModel.images.value.orEmpty()
+        if (images.isEmpty()) return null
+        return (readingSessionViewModel.index.value ?: 0).coerceIn(0, images.lastIndex)
+    }
+
+    private suspend fun prepareWebtoonEditSession(index: Int): Boolean {
+        val images = readingSessionViewModel.images.value.orEmpty()
+        val imageFile = images.getOrNull(index) ?: return false
+        val snapshot = webtoonAdapter.findBoundPageSnapshot(imageFile.absolutePath)
+        val translation = snapshot?.translation ?: withContext(Dispatchers.IO) {
+            translationStore.load(imageFile)
+        }
+        val bounds = readImageBounds(imageFile)
+        val width = when {
+            translation != null && translation.width > 0 -> translation.width
+            snapshot != null && snapshot.sourceWidth > 0 -> snapshot.sourceWidth
+            else -> bounds.first
+        }
+        val height = when {
+            translation != null && translation.height > 0 -> translation.height
+            snapshot != null && snapshot.sourceHeight > 0 -> snapshot.sourceHeight
+            else -> bounds.second
+        }
+        if (width <= 0 || height <= 0) return false
+        currentImageFile = imageFile
+        currentTranslation = when {
+            translation == null -> TranslationResult(imageFile.name, width, height, emptyList())
+            translation.width == width && translation.height == height -> translation
+            else -> translation.copy(width = width, height = height)
+        }
+        webtoonLockedPageIndex = index
+        webtoonLockedPagePath = imageFile.absolutePath
+        webtoonEditOffsets.clear()
+        return true
+    }
+
+    private fun readImageBounds(imageFile: java.io.File): Pair<Int, Int> {
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        BitmapFactory.decodeFile(imageFile.absolutePath, options)
+        return options.outWidth to options.outHeight
     }
 
     private fun updateOverlay(translation: TranslationResult?, bitmap: Bitmap?) {
@@ -644,8 +783,42 @@ class ReadingFragment : Fragment() {
     }
 
     private fun toggleEditMode() {
-        if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) return
         if (isEmbeddedMode) return
+        if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) {
+            if (webtoonPreparingEdit) return
+            if (isEditMode) {
+                persistCurrentTranslation(forceSave = true)
+                setEditMode(false)
+                processEmptyBubbles()
+                clearWebtoonEditSession()
+            } else {
+                viewLifecycleOwner.lifecycleScope.launch {
+                    webtoonPreparingEdit = true
+                    try {
+                        val targetIndex = resolveLockedWebtoonIndex() ?: return@launch
+                        val prepared = prepareWebtoonEditSession(targetIndex)
+                        if (!prepared || !isAdded || _binding == null) return@launch
+                        setEditMode(true)
+                        webtoonProgrammaticScroll = true
+                        binding.readingWebtoonList.post {
+                            if (!isAdded || _binding == null || !isWebtoonEditSessionActive()) {
+                                webtoonProgrammaticScroll = false
+                                return@post
+                            }
+                            webtoonLayoutManager.scrollToPositionWithOffset(targetIndex, 0)
+                            updateWebtoonPageInfo()
+                            persistWebtoonProgress()
+                            binding.readingWebtoonList.post {
+                                webtoonProgrammaticScroll = false
+                            }
+                        }
+                    } finally {
+                        webtoonPreparingEdit = false
+                    }
+                }
+            }
+            return
+        }
         if (isEditMode) {
             persistCurrentTranslation(forceSave = true)
             setEditMode(false)
@@ -659,7 +832,8 @@ class ReadingFragment : Fragment() {
         val nextEnabled = enabled && !isEmbeddedMode
         if (isEditMode == nextEnabled) return
         isEditMode = nextEnabled
-        binding.translationOverlay.setEditMode(nextEnabled)
+        binding.translationOverlay.setEditMode(nextEnabled && folderReadingMode != FolderReadingMode.WEBTOON_SCROLL)
+        syncWebtoonEditSession()
         updateReadingInteractionState()
         if (!nextEnabled) {
             hideResizePanel()
@@ -668,7 +842,8 @@ class ReadingFragment : Fragment() {
     }
 
     private fun updateEditButtonState() {
-        if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL || isEmbeddedMode) {
+        val hasImages = readingSessionViewModel.images.value.orEmpty().isNotEmpty()
+        if (isEmbeddedMode || !hasImages) {
             binding.readingEditControls.visibility = View.GONE
             binding.readingAddButton.visibility = View.GONE
             updateReadingInteractionState()
@@ -692,9 +867,6 @@ class ReadingFragment : Fragment() {
 
     private fun applyFolderReadingMode() {
         val isWebtoon = folderReadingMode == FolderReadingMode.WEBTOON_SCROLL
-        if (isWebtoon && isEditMode) {
-            isEditMode = false
-        }
         binding.readingWebtoonList.visibility = if (isWebtoon) View.VISIBLE else View.GONE
         binding.readingScrollContainer.visibility = if (isWebtoon) View.GONE else View.VISIBLE
         binding.readingScrollContainer.scrollEnabled = isWebtoon && !isEditMode
@@ -708,8 +880,10 @@ class ReadingFragment : Fragment() {
         } else {
             stopWebtoonTranslationWatcher()
         }
+        syncWebtoonEditSession()
         updateReadingContentLayout(currentBitmap)
         updateReadingInteractionState()
+        updateEditButtonState()
     }
 
     private fun refreshWebtoonAdapterPresentation() {
@@ -721,6 +895,7 @@ class ReadingFragment : Fragment() {
             verticalLayoutEnabled = !settingsStore.loadUseHorizontalText(),
             bubbleOpacity = settingsStore.loadTranslationBubbleOpacity()
         )
+        syncWebtoonEditSession()
     }
 
     private fun updateReadingInteractionState() {
@@ -979,7 +1154,7 @@ class ReadingFragment : Fragment() {
         if (isEmbeddedMode) return
         val imageFile = currentImageFile ?: return
         val translation = currentTranslation ?: return
-        val offsets = binding.translationOverlay.getOffsets()
+        val offsets = currentOverlayOffsets()
         if (offsets.isEmpty() && !forceSave) return
         val updatedBubbles = translation.bubbles.map { bubble ->
             val offset = offsets[bubble.id] ?: (0f to 0f)
@@ -995,8 +1170,8 @@ class ReadingFragment : Fragment() {
         val updated = translation.copy(bubbles = updatedBubbles)
         translationStore.save(imageFile, updated)
         currentTranslation = updated
-        binding.translationOverlay.setTranslations(updated)
-        binding.translationOverlay.setOffsets(emptyMap())
+        applyOverlayOffsets(emptyMap())
+        renderCurrentTranslation()
     }
 
     private fun handleBubbleRemove(bubbleId: Int) {
@@ -1008,10 +1183,10 @@ class ReadingFragment : Fragment() {
             hideResizePanel()
         }
         currentTranslation = translation.copy(bubbles = remaining)
-        val offsets = binding.translationOverlay.getOffsets().toMutableMap()
+        val offsets = currentOverlayOffsets()
         offsets.remove(bubbleId)
-        binding.translationOverlay.setOffsets(offsets)
-        binding.translationOverlay.setTranslations(currentTranslation)
+        applyOverlayOffsets(offsets)
+        renderCurrentTranslation()
     }
 
     private fun handleBubbleEdit(bubbleId: Int) {
@@ -1045,10 +1220,8 @@ class ReadingFragment : Fragment() {
                 }
                 val updated = refreshed.copy(bubbles = updatedBubbles)
                 currentTranslation = updated
-                binding.translationOverlay.setTranslations(updated)
-                currentImageFile?.let { imageFile ->
-                    translationStore.save(imageFile, updated)
-                }
+                renderCurrentTranslation()
+                saveCurrentTranslation()
             }
             .show()
     }
@@ -1149,7 +1322,7 @@ class ReadingFragment : Fragment() {
         }
         val updated = translation.copy(bubbles = updatedBubbles)
         currentTranslation = updated
-        binding.translationOverlay.setTranslations(updated)
+        renderCurrentTranslation()
     }
 
     private fun saveCurrentTranslation() {
@@ -1157,6 +1330,9 @@ class ReadingFragment : Fragment() {
         val imageFile = currentImageFile ?: return
         val translation = currentTranslation ?: return
         translationStore.save(imageFile, translation)
+        if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) {
+            webtoonAdapter.notifyTranslationChanged(imageFile.absolutePath)
+        }
     }
 
     private fun addNewBubble() {
@@ -1176,7 +1352,7 @@ class ReadingFragment : Fragment() {
         val newBubble = BubbleTranslation(nextId, rect, "", BubbleSource.MANUAL)
         val updated = translation.copy(bubbles = translation.bubbles + newBubble)
         currentTranslation = updated
-        binding.translationOverlay.setTranslations(updated)
+        renderCurrentTranslation()
         saveCurrentTranslation()
         showResizePanel(nextId)
     }
@@ -1197,7 +1373,11 @@ class ReadingFragment : Fragment() {
             ) ?: return@launch
             if (currentImageFile?.absolutePath == imageFile.absolutePath) {
                 currentTranslation = outcome.updatedTranslation
-                binding.translationOverlay.setTranslations(outcome.updatedTranslation)
+                if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) {
+                    webtoonAdapter.notifyTranslationChanged(imageFile.absolutePath)
+                } else {
+                    binding.translationOverlay.setTranslations(outcome.updatedTranslation)
+                }
                 if (outcome.translatedByLlm) {
                     Toast.makeText(
                         requireContext(),
