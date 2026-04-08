@@ -14,7 +14,8 @@ import kotlin.math.max
 
 class MangaOcr(
     private val context: Context,
-    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT
+    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT,
+    private val settingsStore: SettingsStore = SettingsStore(context.applicationContext)
 ) : OcrEngine {
     private val env = OnnxRuntimeSupport.environment()
     private val encoderSession: OrtSession = createSession("encoder_model.onnx")
@@ -22,7 +23,6 @@ class MangaOcr(
     private val generationConfig = loadGenerationConfig()
     private val imageConfig = loadImageConfig()
     private val tokenizer = loadTokenizer()
-    private val settingsStore = SettingsStore(context.applicationContext)
 
     override fun recognize(bitmap: Bitmap): String {
         val imageTensor = preprocess(bitmap)

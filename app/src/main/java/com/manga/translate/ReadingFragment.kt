@@ -28,6 +28,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.manga.translate.databinding.FragmentReadingBinding
+import com.manga.translate.di.appContainer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -52,9 +53,12 @@ class ReadingFragment : Fragment() {
     private var _binding: FragmentReadingBinding? = null
     private val binding get() = _binding!!
     private val readingSessionViewModel: ReadingSessionViewModel by activityViewModels()
-    private val translationStore = TranslationStore()
-    private lateinit var settingsStore: SettingsStore
-    private lateinit var readingProgressStore: ReadingProgressStore
+    private val appContainer by lazy(LazyThreadSafetyMode.NONE) { requireContext().appContainer }
+    private val translationStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.translationStore }
+    private val settingsStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.settingsStore }
+    private val readingProgressStore by lazy(LazyThreadSafetyMode.NONE) {
+        appContainer.readingProgressStore
+    }
     private var currentImageFile: java.io.File? = null
     private var currentTranslation: TranslationResult? = null
     private var translationWatchJob: Job? = null
@@ -77,7 +81,7 @@ class ReadingFragment : Fragment() {
     private var resizeHeightPercent = 100
     private val resizeMinPercent = 50
     private val resizeMaxPercent = 500
-    private val glossaryStore = GlossaryStore()
+    private val glossaryStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.glossaryStore }
     private lateinit var emptyBubbleCoordinator: ReadingEmptyBubbleCoordinator
     private var emptyBubbleJob: Job? = null
     private lateinit var webtoonAdapter: WebtoonReadingAdapter
@@ -101,15 +105,7 @@ class ReadingFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        settingsStore = SettingsStore(requireContext())
-        readingProgressStore = ReadingProgressStore(requireContext())
-        emptyBubbleCoordinator = ReadingEmptyBubbleCoordinator(
-            context = requireContext(),
-            translationStore = translationStore,
-            glossaryStore = glossaryStore,
-            llmClient = LlmClient(requireContext()),
-            libraryPrefs = requireContext().getSharedPreferences("library_prefs", android.content.Context.MODE_PRIVATE)
-        )
+        emptyBubbleCoordinator = appContainer.createReadingEmptyBubbleCoordinator()
         webtoonLayoutManager = LinearLayoutManager(requireContext())
         webtoonLayoutManager.initialPrefetchItemCount = 3
         webtoonAdapter = WebtoonReadingAdapter(viewLifecycleOwner.lifecycleScope, translationStore)

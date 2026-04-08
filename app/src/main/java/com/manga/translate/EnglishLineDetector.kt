@@ -18,14 +18,14 @@ import kotlin.math.min
 class EnglishLineDetector(
     private val context: Context,
     private val modelAssetName: String = "Multilingual_PP-OCRv3_det_infer.onnx",
-    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT
+    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT,
+    private val settingsStore: SettingsStore = SettingsStore(context.applicationContext)
 ) {
     private val env = OnnxRuntimeSupport.environment()
     private val session: OrtSession = createSession()
     private val inputName: String
     private val inputWidth: Int
     private val inputHeight: Int
-    private val settingsStore = SettingsStore(context.applicationContext)
 
     init {
         val input = session.inputInfo.entries.first()

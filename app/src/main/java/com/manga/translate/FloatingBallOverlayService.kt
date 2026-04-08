@@ -32,6 +32,7 @@ import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.app.NotificationCompat
 import androidx.core.content.getSystemService
 import androidx.core.view.isVisible
+import com.manga.translate.di.appContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -54,25 +55,18 @@ class FloatingBallOverlayService : Service() {
     }
 
     private val scope = CoroutineScope(Dispatchers.Main + Job())
-    private val settingsStore by lazy { SettingsStore(applicationContext) }
-    private val floatingTranslationCacheStore by lazy {
-        FloatingTranslationCacheStore(applicationContext)
+    private val appContainer by lazy(LazyThreadSafetyMode.NONE) { applicationContext.appContainer }
+    private val settingsStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.settingsStore }
+    private val floatingTranslationCacheStore by lazy(LazyThreadSafetyMode.NONE) {
+        appContainer.floatingTranslationCacheStore
     }
-    private val emptyBubbleCoordinator by lazy {
-        FloatingEmptyBubbleCoordinator(
-            context = applicationContext,
-            llmClient = llmClient ?: LlmClient(applicationContext).also { llmClient = it },
-            floatingTranslationCacheStore = floatingTranslationCacheStore,
-            settingsStore = settingsStore
-        )
+    private val emptyBubbleCoordinator by lazy(LazyThreadSafetyMode.NONE) {
+        appContainer.createFloatingEmptyBubbleCoordinator()
     }
-    private val floatingBubbleTranslationCoordinator by lazy {
-        FloatingBubbleTranslationCoordinator(
-            llmClient = llmClient ?: LlmClient(applicationContext).also { llmClient = it },
-            floatingTranslationCacheStore = floatingTranslationCacheStore,
-            settingsStore = settingsStore
-        )
+    private val floatingBubbleTranslationCoordinator by lazy(LazyThreadSafetyMode.NONE) {
+        appContainer.createFloatingBubbleTranslationCoordinator()
     }
+    private val llmClient by lazy(LazyThreadSafetyMode.NONE) { appContainer.llmClient }
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var windowManager: WindowManager
     private var controllerRoot: LinearLayout? = null
@@ -99,7 +93,6 @@ class FloatingBallOverlayService : Service() {
     private var englishOcr: EnglishOcr? = null
     private var koreanOcr: KoreanOcr? = null
     private var englishLineDetector: EnglishLineDetector? = null
-    private var llmClient: LlmClient? = null
     private var detectJob: Job? = null
     private var editModeToggleButton: AppCompatButton? = null
     private var swipeTranslateButton: AppCompatButton? = null
@@ -196,9 +189,8 @@ class FloatingBallOverlayService : Service() {
         language: TranslationLanguage
     ): String = withContext(Dispatchers.Default) {
         val ocrSettings = settingsStore.loadOcrApiSettings()
-        val client = llmClient ?: LlmClient(applicationContext).also { llmClient = it }
         if (!ocrSettings.useLocalOcr) {
-            return@withContext client.recognizeImageText(crop)?.trim().orEmpty()
+            return@withContext llmClient.recognizeImageText(crop)?.trim().orEmpty()
         }
         when (language) {
             TranslationLanguage.JA_TO_ZH -> {
@@ -233,7 +225,7 @@ class FloatingBallOverlayService : Service() {
     private fun getFloatingMangaOcr(): MangaOcr? {
         if (mangaOcr != null) return mangaOcr
         return try {
-            MangaOcr(applicationContext).also { mangaOcr = it }
+            MangaOcr(applicationContext, settingsStore = settingsStore).also { mangaOcr = it }
         } catch (e: Exception) {
             AppLogger.log("FloatingOCR", "Failed to init MangaOCR", e)
             null
@@ -243,7 +235,7 @@ class FloatingBallOverlayService : Service() {
     private fun getFloatingEnglishOcr(): EnglishOcr? {
         if (englishOcr != null) return englishOcr
         return try {
-            EnglishOcr(applicationContext).also { englishOcr = it }
+            EnglishOcr(applicationContext, settingsStore = settingsStore).also { englishOcr = it }
         } catch (e: Exception) {
             AppLogger.log("FloatingOCR", "Failed to init English OCR", e)
             null
@@ -253,7 +245,7 @@ class FloatingBallOverlayService : Service() {
     private fun getFloatingKoreanOcr(): KoreanOcr? {
         if (koreanOcr != null) return koreanOcr
         return try {
-            KoreanOcr(applicationContext).also { koreanOcr = it }
+            KoreanOcr(applicationContext, settingsStore = settingsStore).also { koreanOcr = it }
         } catch (e: Exception) {
             AppLogger.log("FloatingOCR", "Failed to init Korean OCR", e)
             null
@@ -263,7 +255,9 @@ class FloatingBallOverlayService : Service() {
     private fun getFloatingEnglishLineDetector(): EnglishLineDetector? {
         if (englishLineDetector != null) return englishLineDetector
         return try {
-            EnglishLineDetector(applicationContext).also { englishLineDetector = it }
+            EnglishLineDetector(applicationContext, settingsStore = settingsStore).also {
+                englishLineDetector = it
+            }
         } catch (e: Exception) {
             AppLogger.log("FloatingOCR", "Failed to init English line detector", e)
             null
@@ -1022,7 +1016,10 @@ class FloatingBallOverlayService : Service() {
                 withContext(Dispatchers.Main) {
                     showProgressStatus(R.string.floating_progress_detecting)
                 }
-                val detector = textDetector ?: TextDetector(applicationContext).also { textDetector = it }
+                val detector = textDetector ?: TextDetector(
+                    applicationContext,
+                    settingsStore = settingsStore
+                ).also { textDetector = it }
                 val detections = detector.detect(bitmap)
                 AppLogger.log("FloatingOCR", "Raw detections count=${detections.size}")
                 val deduplicatedRects = RectGeometryDeduplicator.mergeSupplementRects(
@@ -1037,13 +1034,12 @@ class FloatingBallOverlayService : Service() {
                     )
                 }
                 AppLogger.log("FloatingOCR", "Deduplicated detections count=${deduplicatedRects.size}")
-                val client = llmClient ?: LlmClient(applicationContext).also { llmClient = it }
                 val floatingSettings = settingsStore.loadFloatingTranslateApiSettings()
                 val floatingApiSettings = settingsStore.loadResolvedFloatingTranslateApiSettings()
                 val floatingTimeoutMs = floatingSettings.timeoutSeconds * 1000
                 val useVlDirectTranslate =
                     floatingSettings.useVlDirectTranslate &&
-                        client.isConfigured(floatingApiSettings)
+                        llmClient.isConfigured(floatingApiSettings)
                 val vlOutcome = if (useVlDirectTranslate) {
                     withContext(Dispatchers.Main) {
                         showProgressStatus(

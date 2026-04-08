@@ -27,6 +27,7 @@ import com.manga.translate.databinding.DialogOcrSettingsBinding
 import com.manga.translate.databinding.DialogFloatingTranslateSettingsBinding
 import com.manga.translate.databinding.FragmentSettingsBinding
 import com.manga.translate.databinding.ItemCustomRequestParamBinding
+import com.manga.translate.di.appContainer
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +41,9 @@ import java.util.Locale
 class SettingsFragment : Fragment() {
     private var _binding: FragmentSettingsBinding? = null
     private val binding get() = _binding!!
-    private lateinit var settingsStore: SettingsStore
+    private val appContainer by lazy(LazyThreadSafetyMode.NONE) { requireContext().appContainer }
+    private val settingsStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.settingsStore }
+    private val llmClient by lazy(LazyThreadSafetyMode.NONE) { appContainer.llmClient }
     private lateinit var settingsPersistenceController: SettingsPersistenceController
     private val numberFormatter by lazy {
         NumberFormat.getNumberInstance(Locale.getDefault()).apply {
@@ -176,7 +179,6 @@ class SettingsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        settingsStore = SettingsStore(requireContext())
         settingsPersistenceController = SettingsPersistenceController(settingsStore)
         val settings = settingsStore.load()
         binding.apiUrlInput.setText(settings.apiUrl)
@@ -1008,7 +1010,7 @@ class SettingsFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val models = withContext(Dispatchers.IO) {
-                    LlmClient(requireContext()).fetchModelList(apiUrl, apiKey, apiFormat)
+                    llmClient.fetchModelList(apiUrl, apiKey, apiFormat)
                 }
                 if (models.isEmpty()) {
                     showModelFetchError("EMPTY_RESPONSE")

@@ -20,13 +20,13 @@ data class BubbleDetection(
 class BubbleDetector(
     private val context: Context,
     private val modelAssetName: String = "comic-speech-bubble-detector.onnx",
-    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT
+    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT,
+    private val settingsStore: SettingsStore = SettingsStore(context.applicationContext)
 ) {
     private val env = OnnxRuntimeSupport.environment()
     private val session: OrtSession = createSession()
     private val inputName: String
     private val inputShape: LongArray
-    private val settingsStore = SettingsStore(context.applicationContext)
 
     init {
         val input = session.inputInfo.entries.first()

@@ -12,18 +12,22 @@ import java.io.File
 import kotlin.math.max
 import kotlin.math.min
 
-class TranslationPipeline(context: Context) {
+internal class TranslationPipeline(
+    context: Context,
+    private val llmClient: LlmClient = LlmClient(context.applicationContext),
+    private val settingsStore: SettingsStore = SettingsStore(context.applicationContext),
+    private val store: TranslationStore = TranslationStore(),
+    private val ocrStore: OcrStore = OcrStore(),
+    private val floatingTranslationCacheStore: FloatingTranslationCacheStore =
+        FloatingTranslationCacheStore(context.applicationContext),
+    private val floatingBubbleTranslationCoordinator: FloatingBubbleTranslationCoordinator =
+        FloatingBubbleTranslationCoordinator(
+            llmClient = llmClient,
+            floatingTranslationCacheStore = floatingTranslationCacheStore,
+            settingsStore = settingsStore
+        )
+) {
     private val appContext = context.applicationContext
-    private val llmClient = LlmClient(appContext)
-    private val settingsStore = SettingsStore(appContext)
-    private val store = TranslationStore()
-    private val ocrStore = OcrStore()
-    private val floatingTranslationCacheStore = FloatingTranslationCacheStore(appContext)
-    private val floatingBubbleTranslationCoordinator = FloatingBubbleTranslationCoordinator(
-        llmClient = llmClient,
-        floatingTranslationCacheStore = floatingTranslationCacheStore,
-        settingsStore = settingsStore
-    )
     private var detector: BubbleDetector? = null
     private var ocr: MangaOcr? = null
     private var englishOcr: EnglishOcr? = null
@@ -394,7 +398,7 @@ class TranslationPipeline(context: Context) {
     private fun getDetector(): BubbleDetector? {
         if (detector != null) return detector
         return try {
-            detector = BubbleDetector(appContext)
+            detector = BubbleDetector(appContext, settingsStore = settingsStore)
             detector
         } catch (e: Exception) {
             AppLogger.log("Pipeline", "Failed to init bubble detector", e)
@@ -414,7 +418,7 @@ class TranslationPipeline(context: Context) {
     private fun getOcr(): MangaOcr? {
         if (ocr != null) return ocr
         return try {
-            ocr = MangaOcr(appContext)
+            ocr = MangaOcr(appContext, settingsStore = settingsStore)
             ocr
         } catch (e: Exception) {
             AppLogger.log("Pipeline", "Failed to init OCR", e)
@@ -425,7 +429,7 @@ class TranslationPipeline(context: Context) {
     private fun getEnglishOcr(): EnglishOcr? {
         if (englishOcr != null) return englishOcr
         return try {
-            englishOcr = EnglishOcr(appContext)
+            englishOcr = EnglishOcr(appContext, settingsStore = settingsStore)
             englishOcr
         } catch (e: Exception) {
             AppLogger.log("Pipeline", "Failed to init English OCR", e)
@@ -436,7 +440,7 @@ class TranslationPipeline(context: Context) {
     private fun getKoreanOcr(): KoreanOcr? {
         if (koreanOcr != null) return koreanOcr
         return try {
-            koreanOcr = KoreanOcr(appContext)
+            koreanOcr = KoreanOcr(appContext, settingsStore = settingsStore)
             koreanOcr
         } catch (e: Exception) {
             AppLogger.log("Pipeline", "Failed to init Korean OCR", e)
@@ -447,7 +451,7 @@ class TranslationPipeline(context: Context) {
     private fun getTextDetector(): TextDetector? {
         if (textDetector != null) return textDetector
         return try {
-            textDetector = TextDetector(appContext)
+            textDetector = TextDetector(appContext, settingsStore = settingsStore)
             textDetector
         } catch (e: Exception) {
             AppLogger.log("Pipeline", "Failed to init text detector", e)
@@ -458,7 +462,7 @@ class TranslationPipeline(context: Context) {
     private fun getEnglishLineDetector(): EnglishLineDetector? {
         if (englishLineDetector != null) return englishLineDetector
         return try {
-            englishLineDetector = EnglishLineDetector(appContext)
+            englishLineDetector = EnglishLineDetector(appContext, settingsStore = settingsStore)
             englishLineDetector
         } catch (e: Exception) {
             AppLogger.log("Pipeline", "Failed to init English line detector", e)

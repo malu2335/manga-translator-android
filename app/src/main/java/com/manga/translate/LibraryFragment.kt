@@ -26,6 +26,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
 import com.manga.translate.databinding.FragmentLibraryBinding
+import com.manga.translate.di.appContainer
 import java.io.File
 
 class LibraryFragment : Fragment() {
@@ -33,20 +34,21 @@ class LibraryFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val readingSessionViewModel: ReadingSessionViewModel by activityViewModels()
-    private lateinit var repository: LibraryRepository
-    private lateinit var translationPipeline: TranslationPipeline
-    private val translationStore = TranslationStore()
-    private val glossaryStore = GlossaryStore()
-    private val extractStateStore = ExtractStateStore()
-    private val ocrStore = OcrStore()
-    private val embeddedStateStore = EmbeddedStateStore()
-    private lateinit var readingProgressStore: ReadingProgressStore
-    private val settingsStore by lazy { SettingsStore(requireContext()) }
+    private val appContainer by lazy(LazyThreadSafetyMode.NONE) { requireContext().appContainer }
+    private val repository by lazy(LazyThreadSafetyMode.NONE) { appContainer.libraryRepository }
+    private val translationPipeline by lazy(LazyThreadSafetyMode.NONE) {
+        appContainer.createTranslationPipeline()
+    }
+    private val translationStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.translationStore }
+    private val glossaryStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.glossaryStore }
+    private val extractStateStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.extractStateStore }
+    private val ocrStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.ocrStore }
+    private val embeddedStateStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.embeddedStateStore }
+    private val readingProgressStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.readingProgressStore }
+    private val settingsStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.settingsStore }
     private val dialogs = LibraryDialogs()
 
-    private val prefs by lazy {
-        requireContext().getSharedPreferences("library_prefs", Context.MODE_PRIVATE)
-    }
+    private val prefs by lazy(LazyThreadSafetyMode.NONE) { appContainer.libraryPrefs }
 
     private lateinit var preferencesGateway: LibraryPreferencesGateway
     private lateinit var translationCoordinator: FolderTranslationCoordinator
@@ -253,18 +255,9 @@ class LibraryFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        repository = LibraryRepository(requireContext())
-        translationPipeline = TranslationPipeline(requireContext())
-        readingProgressStore = ReadingProgressStore(requireContext())
-
         preferencesGateway = LibraryPreferencesGateway(requireContext(), prefs)
-        translationCoordinator = FolderTranslationCoordinator(
-            context = requireContext(),
+        translationCoordinator = appContainer.createFolderTranslationCoordinator(
             translationPipeline = translationPipeline,
-            glossaryStore = glossaryStore,
-            extractStateStore = extractStateStore,
-            translationStore = translationStore,
-            settingsStore = settingsStore,
             ui = uiCallbacks
         )
         embedCoordinator = FolderEmbedCoordinator(

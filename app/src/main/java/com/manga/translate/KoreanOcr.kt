@@ -15,13 +15,13 @@ import java.nio.FloatBuffer
  */
 class KoreanOcr(
     private val context: Context,
-    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT
+    private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT,
+    private val settingsStore: SettingsStore = SettingsStore(context.applicationContext)
 ) : OcrEngine {
     private val env = OnnxRuntimeSupport.environment()
     private val session: OrtSession = createSession("korean_PP-OCRv3_rec_infer.onnx")
     private val charset: List<String> = readCharset()
     private val inputName: String = session.inputInfo.keys.first()
-    private val settingsStore = SettingsStore(context.applicationContext)
 
     /**
      * 识别裁剪后的文字图像

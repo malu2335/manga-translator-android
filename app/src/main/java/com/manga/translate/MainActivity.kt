@@ -25,14 +25,17 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 import kotlinx.coroutines.Job
 import com.google.android.material.tabs.TabLayoutMediator
 import com.manga.translate.databinding.ActivityMainBinding
+import com.manga.translate.di.appContainer
 import kotlinx.coroutines.launch
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var pagerAdapter: MainPagerAdapter
-    private lateinit var crashStateStore: CrashStateStore
-    private lateinit var updateIgnoreStore: UpdateIgnoreStore
+    private val appContainer by lazy(LazyThreadSafetyMode.NONE) { applicationContext.appContainer }
+    private val settingsStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.settingsStore }
+    private val crashStateStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.crashStateStore }
+    private val updateIgnoreStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.updateIgnoreStore }
     private val mainHandler = Handler(Looper.getMainLooper())
     private var progressHideJob: Job? = null
     private val hideGlobalProgressRunnable = Runnable {
@@ -54,7 +57,7 @@ class MainActivity : AppCompatActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        val themeMode = SettingsStore(this).loadThemeMode()
+        val themeMode = settingsStore.loadThemeMode()
         if (themeMode == ThemeMode.PASTEL) {
             setTheme(R.style.Theme_MangaTranslator_Pastel)
         } else if (themeMode == ThemeMode.DEEP_SEA) {
@@ -64,8 +67,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        crashStateStore = CrashStateStore(this)
-        updateIgnoreStore = UpdateIgnoreStore(this)
 
         pagerAdapter = MainPagerAdapter(this)
         binding.mainPager.adapter = pagerAdapter
@@ -193,7 +194,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resolveThemeButtonTextColor(): Int {
-        return when (SettingsStore(this).loadThemeMode()) {
+        return when (settingsStore.loadThemeMode()) {
             ThemeMode.PASTEL -> R.color.pastel_button_text
             ThemeMode.DEEP_SEA -> R.color.deep_sea_button_text
             else -> if (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
@@ -245,7 +246,7 @@ class MainActivity : AppCompatActivity() {
                 "https://github.com/jedzqer/manga-translator-android/releases/download/",
                 "https://gh-proxy.com/https://github.com/jedzqer/manga-translator-android/releases/download/"
             )
-        val source = SettingsStore(this).loadLinkSource()
+        val source = settingsStore.loadLinkSource()
         return if (source == LinkSource.GITHUB) githubUrl else giteeUrl
     }
 

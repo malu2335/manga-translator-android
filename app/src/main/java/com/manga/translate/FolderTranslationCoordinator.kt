@@ -26,6 +26,7 @@ internal class FolderTranslationCoordinator(
     private val extractStateStore: ExtractStateStore,
     private val translationStore: TranslationStore,
     private val settingsStore: SettingsStore,
+    private val llmClient: LlmClient,
     private val ui: LibraryUiCallbacks
 ) {
     private data class ResumeTranslationTask(
@@ -113,7 +114,6 @@ internal class FolderTranslationCoordinator(
             ui.setFolderStatus(appContext.getString(R.string.translation_done))
             return
         }
-        val llmClient = LlmClient(appContext)
         if (!llmClient.isConfigured()) {
             ui.setFolderStatus(appContext.getString(R.string.missing_api_settings))
             return
@@ -288,7 +288,6 @@ internal class FolderTranslationCoordinator(
             ui.setFolderStatus(appContext.getString(R.string.translation_done))
             return
         }
-        val llmClient = LlmClient(appContext)
         if (!llmClient.isConfigured()) {
             ui.setFolderStatus(appContext.getString(R.string.missing_api_settings))
             return

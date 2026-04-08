@@ -7,10 +7,10 @@ import kotlin.math.max
 
 class TextDetector(
     context: Context,
-    modelAssetName: String = "ysgyolo_1.2_OS1.0.onnx"
+    modelAssetName: String = "ysgyolo_1.2_OS1.0.onnx",
+    private val settingsStore: SettingsStore = SettingsStore(context.applicationContext)
 ) {
     private val detector = YsgYoloTextDetector(context, modelAssetName)
-    private val settingsStore = SettingsStore(context.applicationContext)
 
     fun detect(bitmap: Bitmap): List<RectF> {
         val detections = detector.detect(

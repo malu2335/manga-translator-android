@@ -14,10 +14,10 @@ class ReadingEmptyBubbleCoordinator(
     private val glossaryStore: GlossaryStore,
     private val llmClient: LlmClient,
     private val libraryPrefs: SharedPreferences,
+    private val settingsStore: SettingsStore = SettingsStore(context.applicationContext),
     private val languageKeyPrefix: String = "translation_language_"
 ) {
     private val appContext = context.applicationContext
-    private val settingsStore = SettingsStore(appContext)
     private var mangaOcr: MangaOcr? = null
     private var englishOcr: EnglishOcr? = null
     private var koreanOcr: KoreanOcr? = null
@@ -187,7 +187,7 @@ class ReadingEmptyBubbleCoordinator(
     private fun getMangaOcr(): MangaOcr? {
         if (mangaOcr != null) return mangaOcr
         return try {
-            mangaOcr = MangaOcr(appContext)
+            mangaOcr = MangaOcr(appContext, settingsStore = settingsStore)
             mangaOcr
         } catch (e: Exception) {
             AppLogger.log("Reading", "Failed to init OCR", e)
@@ -198,7 +198,7 @@ class ReadingEmptyBubbleCoordinator(
     private fun getEnglishOcr(): EnglishOcr? {
         if (englishOcr != null) return englishOcr
         return try {
-            englishOcr = EnglishOcr(appContext)
+            englishOcr = EnglishOcr(appContext, settingsStore = settingsStore)
             englishOcr
         } catch (e: Exception) {
             AppLogger.log("Reading", "Failed to init English OCR", e)
@@ -209,7 +209,7 @@ class ReadingEmptyBubbleCoordinator(
     private fun getKoreanOcr(): KoreanOcr? {
         if (koreanOcr != null) return koreanOcr
         return try {
-            koreanOcr = KoreanOcr(appContext)
+            koreanOcr = KoreanOcr(appContext, settingsStore = settingsStore)
             koreanOcr
         } catch (e: Exception) {
             AppLogger.log("Reading", "Failed to init Korean OCR", e)
@@ -220,7 +220,7 @@ class ReadingEmptyBubbleCoordinator(
     private fun getEnglishLineDetector(): EnglishLineDetector? {
         if (englishLineDetector != null) return englishLineDetector
         return try {
-            englishLineDetector = EnglishLineDetector(appContext)
+            englishLineDetector = EnglishLineDetector(appContext, settingsStore = settingsStore)
             englishLineDetector
         } catch (e: Exception) {
             AppLogger.log("Reading", "Failed to init English line detector", e)

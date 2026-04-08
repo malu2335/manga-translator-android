@@ -18,9 +18,11 @@ import java.net.URL
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicLong
 
-class LlmClient(context: Context) {
+class LlmClient(
+    context: Context,
+    private val settingsStore: SettingsStore = SettingsStore(context.applicationContext)
+) {
     private val appContext = context.applicationContext
-    private val settingsStore = SettingsStore(appContext)
     private val promptCache = mutableMapOf<String, LlmPromptConfig>()
 
     fun isConfigured(apiSettings: ApiSettings? = null): Boolean {
