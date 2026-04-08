@@ -69,6 +69,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     private val tempRect = RectF()
     private val deleteRect = RectF()
     private val drawingRect = RectF()
+    private val textLayoutCache = mutableMapOf<TextLayoutCacheKey, StaticLayout>()
     private var sourceWidth = 1
     private var sourceHeight = 1
     private var bubbles: List<BubbleTranslation> = emptyList()
@@ -111,6 +112,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         this.sourceWidth = sourceWidth.coerceAtLeast(1)
         this.sourceHeight = sourceHeight.coerceAtLeast(1)
         this.bubbles = bubbles
+        textLayoutCache.clear()
         draggingBubbleId = null
         isDragging = false
         cancelLongPressDelete()
@@ -119,6 +121,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
 
     fun clearDetections() {
         bubbles = emptyList()
+        textLayoutCache.clear()
         draggingBubbleId = null
         isDragging = false
         isDrawing = false
@@ -423,16 +426,31 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         availableWidth: Int,
         availableHeight: Int
     ): StaticLayout {
+        val safeWidth = availableWidth.coerceAtLeast(1)
+        val safeHeight = availableHeight.coerceAtLeast(1)
+        val cacheKey = TextLayoutCacheKey(text, safeWidth, safeHeight)
+        textLayoutCache[cacheKey]?.let { return it }
         val probePaint = TextPaint(textPaint)
-        var size = textPaint.textSize
-        var fitted = buildLayout(text, probePaint, availableWidth)
-        while (fitted.height > availableHeight && size > minTextSizePx) {
-            size = (size - textSizeStepPx).coerceAtLeast(minTextSizePx)
-            probePaint.textSize = size
-            fitted = buildLayout(text, probePaint, availableWidth)
-            if (size <= minTextSizePx) break
+        val minLayout = buildLayout(text, probePaint.apply { textSize = minTextSizePx }, safeWidth)
+        if (!layoutFits(minLayout, safeWidth, safeHeight)) {
+            textLayoutCache[cacheKey] = minLayout
+            return minLayout
         }
-        return fitted
+        var bestLayout = minLayout
+        var low = minTextSizePx
+        var high = maxOf(low, max(safeWidth, safeHeight).toFloat())
+        while (high - low > textSizeStepPx) {
+            val mid = (low + high) / 2f
+            val candidate = buildLayout(text, probePaint.apply { textSize = mid }, safeWidth)
+            if (layoutFits(candidate, safeWidth, safeHeight)) {
+                bestLayout = candidate
+                low = mid
+            } else {
+                high = mid
+            }
+        }
+        textLayoutCache[cacheKey] = bestLayout
+        return bestLayout
     }
 
     private fun buildLayout(text: String, paint: TextPaint, availableWidth: Int): StaticLayout {
@@ -441,6 +459,16 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
             .setIncludePad(false)
             .build()
+    }
+
+    private fun layoutFits(layout: StaticLayout, availableWidth: Int, availableHeight: Int): Boolean {
+        if (layout.height > availableHeight) return false
+        for (line in 0 until layout.lineCount) {
+            if (layout.getLineWidth(line) > availableWidth + 0.5f) {
+                return false
+            }
+        }
+        return true
     }
 
     private fun applyBubbleOpacity() {
@@ -458,4 +486,10 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     private fun scaleY(): Float = height.toFloat().coerceAtLeast(1f) / sourceHeight.coerceAtLeast(1)
 
     private fun cornerRadius(): Float = resources.displayMetrics.density * 8f
+
+    private data class TextLayoutCacheKey(
+        val text: String,
+        val availableWidth: Int,
+        val availableHeight: Int
+    )
 }
