@@ -36,6 +36,13 @@ class ReadingSessionViewModel : ViewModel() {
         _readingMode.value = readingMode
     }
 
+    fun updateReadingMode(folder: File, readingMode: FolderReadingMode) {
+        val currentFolder = _currentFolder.value ?: return
+        if (currentFolder.absolutePath != folder.absolutePath) return
+        if (_readingMode.value == readingMode) return
+        _readingMode.value = readingMode
+    }
+
     fun next() {
         val list = _images.value.orEmpty()
         if (list.isEmpty()) return

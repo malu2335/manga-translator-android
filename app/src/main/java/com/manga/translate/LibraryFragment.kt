@@ -1226,6 +1226,7 @@ class LibraryFragment : Fragment() {
         val currentMode = preferencesGateway.getReadingMode(folder)
         dialogs.showFolderReadingModeDialog(requireContext(), currentMode) { selectedMode ->
             preferencesGateway.setReadingMode(folder, selectedMode)
+            readingSessionViewModel.updateReadingMode(folder, selectedMode)
             updateReadingModeButton(folder)
             AppLogger.log("Library", "Set reading mode for ${folder.name}: ${selectedMode.prefValue}")
         }
