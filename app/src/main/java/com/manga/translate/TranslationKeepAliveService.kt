@@ -18,6 +18,10 @@ class TranslationKeepAliveService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_CANCEL_TRANSLATION) {
+            handleCancelTranslation()
+            return START_NOT_STICKY
+        }
         acquireWakeLock()
         val title = intent?.getStringExtra(EXTRA_TITLE)
             ?: getString(R.string.translation_keepalive_title)
@@ -45,6 +49,13 @@ class TranslationKeepAliveService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
+    private fun handleCancelTranslation() {
+        if (TranslationCancellationRegistry.requestCancel()) {
+            cancelActionEnabled = false
+            updateStatus(this, getString(R.string.translation_canceling))
+        }
+    }
+
     private fun acquireWakeLock() {
         if (wakeLock?.isHeld == true) return
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -70,12 +81,17 @@ class TranslationKeepAliveService : Service() {
         private const val CHANNEL_ID = "translation_keepalive"
         private const val NOTIFICATION_ID = 1001
         private const val NOTIFICATION_REQUEST_CODE = 0
+        private const val CANCEL_REQUEST_CODE = 1
         private const val WAKELOCK_TIMEOUT_MS = 60 * 60 * 1000L
         private const val EXTRA_TITLE = "extra_title"
         private const val EXTRA_MESSAGE = "extra_message"
         private const val EXTRA_CONTENT = "extra_content"
+        private const val ACTION_CANCEL_TRANSLATION = "com.manga.translate.action.CANCEL_TRANSLATION"
+        @Volatile
+        private var cancelActionEnabled: Boolean = false
 
         fun start(context: Context) {
+            cancelActionEnabled = true
             GlobalTaskProgressStore.show(
                 title = context.getString(R.string.translation_keepalive_title),
                 detail = context.getString(R.string.translation_preparing)
@@ -88,7 +104,14 @@ class TranslationKeepAliveService : Service() {
             }
         }
 
-        fun start(context: Context, title: String, message: String, content: String) {
+        fun start(
+            context: Context,
+            title: String,
+            message: String,
+            content: String,
+            showCancelAction: Boolean = false
+        ) {
+            cancelActionEnabled = showCancelAction
             GlobalTaskProgressStore.show(
                 title = title,
                 detail = content
@@ -106,6 +129,7 @@ class TranslationKeepAliveService : Service() {
         }
 
         fun stop(context: Context) {
+            cancelActionEnabled = false
             val intent = Intent(context, TranslationKeepAliveService::class.java)
             context.stopService(intent)
         }
@@ -200,6 +224,23 @@ class TranslationKeepAliveService : Service() {
                 .setSubText(message)
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
+                .setOnlyAlertOnce(true)
+            if (cancelActionEnabled) {
+                val cancelIntent = Intent(context, TranslationKeepAliveService::class.java).apply {
+                    action = ACTION_CANCEL_TRANSLATION
+                }
+                val cancelPendingIntent = PendingIntent.getService(
+                    context,
+                    CANCEL_REQUEST_CODE,
+                    cancelIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                builder.addAction(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    context.getString(R.string.translation_cancel_action),
+                    cancelPendingIntent
+                )
+            }
             if (progress != null && total != null && total > 0) {
                 builder.setProgress(total, progress.coerceAtMost(total), false)
             } else {

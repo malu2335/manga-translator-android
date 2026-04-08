@@ -368,6 +368,9 @@
     <string name="translation_keepalive_channel">后台翻译</string>
     <string name="translation_keepalive_title">翻译进行中</string>
     <string name="translation_keepalive_message">保持后台运行，请勿关闭应用</string>
+    <string name="translation_cancel_action">取消翻译</string>
+    <string name="translation_canceling">正在取消翻译…</string>
+    <string name="translation_canceled">已取消翻译</string>
     <string name="embed_keepalive_title">嵌字进行中</string>
     <string name="export_keepalive_title">导出进行中</string>
 

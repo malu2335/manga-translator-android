@@ -1,11 +1,14 @@
 package com.manga.translate
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Semaphore
@@ -37,6 +40,9 @@ internal class FolderTranslationCoordinator(
 
     private val appContext = context.applicationContext
     private val translationRunning = AtomicBoolean(false)
+    private val cancellationRequested = AtomicBoolean(false)
+    @Volatile
+    private var activeJob: Job? = null
     @Volatile
     private var resumableTask: ResumeTranslationTask? = null
 
@@ -117,6 +123,8 @@ internal class FolderTranslationCoordinator(
             return
         }
 
+        cancellationRequested.set(false)
+        TranslationCancellationRegistry.register { cancelActiveTranslation() }
         onTranslateEnabled(false)
         try {
             TranslationKeepAliveService.start(appContext)
@@ -129,13 +137,14 @@ internal class FolderTranslationCoordinator(
                 "Start translating folder ${folder.name}, ${pendingImages.size} images"
             )
 
-            scope.launch {
+            val job = scope.launch {
                 var failed = false
                 try {
                     val glossary = glossaryStore.load(folder)
                     var translatedCount = 0
                     ui.setFolderStatus(appContext.getString(R.string.translation_preparing))
                     for (image in pendingImages) {
+                        currentCoroutineContext().ensureActive()
                         val result = try {
                             if (useVlDirectTranslate) {
                                 val vlOutcome = translationPipeline.translateImageWithVl(image)
@@ -167,6 +176,8 @@ internal class FolderTranslationCoordinator(
                             }
                             failed = true
                             break
+                        } catch (e: CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             AppLogger.log("Library", "Translation failed for ${image.name}", e)
                             null
@@ -218,13 +229,36 @@ internal class FolderTranslationCoordinator(
                         resumableTask = null
                     }
                     ui.refreshImages(folder)
+                } catch (e: CancellationException) {
+                    if (cancellationRequested.get()) {
+                        AppLogger.log("Library", "Folder translation canceled: ${folder.name}")
+                        ui.setFolderStatus(appContext.getString(R.string.translation_canceled))
+                        ui.showToast(R.string.translation_canceled)
+                        GlobalTaskProgressStore.complete(
+                            appContext.getString(R.string.translation_keepalive_title),
+                            appContext.getString(R.string.translation_canceled)
+                        )
+                        ui.refreshImages(folder)
+                    } else {
+                        throw e
+                    }
                 } finally {
+                    activeJob = null
+                    TranslationCancellationRegistry.clear()
+                    cancellationRequested.set(false)
                     onTranslateEnabled(true)
                     TranslationKeepAliveService.stop(appContext)
                     translationRunning.set(false)
                 }
             }
+            activeJob = job
+            if (cancellationRequested.get()) {
+                job.cancel(CancellationException(USER_CANCELED_REASON))
+            }
         } catch (e: Exception) {
+            activeJob = null
+            TranslationCancellationRegistry.clear()
+            cancellationRequested.set(false)
             onTranslateEnabled(true)
             TranslationKeepAliveService.stop(appContext)
             translationRunning.set(false)
@@ -264,6 +298,8 @@ internal class FolderTranslationCoordinator(
             return
         }
 
+        cancellationRequested.set(false)
+        TranslationCancellationRegistry.register { cancelActiveTranslation() }
         onTranslateEnabled(false)
         try {
             TranslationKeepAliveService.start(appContext)
@@ -276,7 +312,7 @@ internal class FolderTranslationCoordinator(
                 "Start full-page translating folder ${folder.name}, ${pendingImages.size} images"
             )
 
-            scope.launch {
+            val job = scope.launch {
                 var failed = false
                 try {
                     val glossary = glossaryStore.load(folder).toMutableMap()
@@ -288,6 +324,7 @@ internal class FolderTranslationCoordinator(
                         total = pendingImages.size
                     )
                     for ((index, image) in pendingImages.withIndex()) {
+                        currentCoroutineContext().ensureActive()
                         reportPreprocessProgress(
                             stage = appContext.getString(R.string.folder_preprocess_stage_ocr),
                             processed = index,
@@ -296,6 +333,8 @@ internal class FolderTranslationCoordinator(
                         )
                         val result = try {
                             translationPipeline.ocrImage(image, force, language) { }
+                        } catch (e: CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             AppLogger.log("Library", "OCR failed for ${image.name}", e)
                             null
@@ -364,6 +403,7 @@ internal class FolderTranslationCoordinator(
                         val tasks = ocrResults.map { page ->
                             async {
                                 semaphore.withPermit {
+                                    currentCoroutineContext().ensureActive()
                                     if (requestFailed.get()) {
                                         return@withPermit
                                     }
@@ -399,6 +439,8 @@ internal class FolderTranslationCoordinator(
                                             e
                                         )
                                         null
+                                    } catch (e: CancellationException) {
+                                        throw e
                                     } catch (e: Exception) {
                                         AppLogger.log(
                                             "Library",
@@ -472,14 +514,36 @@ internal class FolderTranslationCoordinator(
                         appContext.getString(R.string.translation_keepalive_title),
                         appContext.getString(R.string.translation_failed)
                     )
+                } catch (e: CancellationException) {
+                    if (cancellationRequested.get()) {
+                        AppLogger.log("Library", "Full-page translation canceled: ${folder.name}")
+                        ui.setFolderStatus(appContext.getString(R.string.translation_canceled))
+                        ui.showToast(R.string.translation_canceled)
+                        GlobalTaskProgressStore.complete(
+                            appContext.getString(R.string.translation_keepalive_title),
+                            appContext.getString(R.string.translation_canceled)
+                        )
+                        ui.refreshImages(folder)
+                    } else {
+                        throw e
+                    }
                 } finally {
+                    activeJob = null
+                    TranslationCancellationRegistry.clear()
+                    cancellationRequested.set(false)
                     onTranslateEnabled(true)
                     TranslationKeepAliveService.stop(appContext)
                     translationRunning.set(false)
                 }
             }
-        }
-        catch (e: Exception) {
+            activeJob = job
+            if (cancellationRequested.get()) {
+                job.cancel(CancellationException(USER_CANCELED_REASON))
+            }
+        } catch (e: Exception) {
+            activeJob = null
+            TranslationCancellationRegistry.clear()
+            cancellationRequested.set(false)
             onTranslateEnabled(true)
             TranslationKeepAliveService.stop(appContext)
             translationRunning.set(false)
@@ -537,5 +601,18 @@ internal class FolderTranslationCoordinator(
             appContext.getString(R.string.translation_keepalive_title),
             appContext.getString(R.string.translation_keepalive_message)
         )
+    }
+
+    private fun cancelActiveTranslation(): Boolean {
+        if (!translationRunning.get()) {
+            return false
+        }
+        cancellationRequested.set(true)
+        activeJob?.cancel(CancellationException(USER_CANCELED_REASON))
+        return true
+    }
+
+    private companion object {
+        private const val USER_CANCELED_REASON = "user_canceled_translation"
     }
 }

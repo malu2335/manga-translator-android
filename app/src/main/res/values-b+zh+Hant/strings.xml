@@ -368,6 +368,9 @@
     <string name="translation_keepalive_channel">背景翻譯</string>
     <string name="translation_keepalive_title">翻譯進行中</string>
     <string name="translation_keepalive_message">保持背景執行，請勿關閉應用</string>
+    <string name="translation_cancel_action">取消翻譯</string>
+    <string name="translation_canceling">正在取消翻譯…</string>
+    <string name="translation_canceled">已取消翻譯</string>
     <string name="embed_keepalive_title">嵌字進行中</string>
     <string name="export_keepalive_title">匯出進行中</string>
 
