@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.ArrayAdapter
 import android.widget.ScrollView
 import android.widget.ProgressBar
@@ -22,6 +23,7 @@ import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.manga.translate.databinding.DialogCustomRequestParamsBinding
+import com.manga.translate.databinding.DialogAiProviderProfilesBinding
 import com.manga.translate.databinding.DialogLlmParamsBinding
 import com.manga.translate.databinding.DialogOcrSettingsBinding
 import com.manga.translate.databinding.DialogFloatingTranslateSettingsBinding
@@ -180,29 +182,7 @@ class SettingsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         settingsPersistenceController = SettingsPersistenceController(settingsStore)
-        val settings = settingsStore.load()
-        binding.apiUrlInput.setText(settings.apiUrl)
-        binding.apiKeyInput.setText(settings.apiKey)
-        binding.modelNameInput.setText(settings.modelName)
-        updateApiFormatButton(settings.apiFormat)
-        updateApiSettingsNote(settings.apiFormat)
-        binding.apiTimeoutInput.setText(formatNumber(settingsStore.loadApiTimeoutSeconds()))
-        binding.maxConcurrencyInput.setText(formatNumber(settingsStore.loadMaxConcurrency()))
-        binding.translationBubbleOpacityInput.setText(
-            formatNumber(settingsStore.loadTranslationBubbleOpacityPercent())
-        )
-        binding.textLayoutSwitch.isChecked = settingsStore.loadUseHorizontalText()
-        binding.modelIoLoggingSwitch.isChecked = settingsStore.loadModelIoLogging()
-        val appLanguage = settingsStore.loadAppLanguage()
-        updateLanguageButton(appLanguage)
-        val themeMode = settingsStore.loadThemeMode()
-        updateThemeButton(themeMode)
-        val readingMode = settingsStore.loadReadingDisplayMode()
-        updateReadingDisplayButton(readingMode)
-        updateReadingPageAnimationButton(settingsStore.loadReadingPageAnimationMode())
-        val linkSource = settingsStore.loadLinkSource()
-        updateLinkSourceButton(linkSource)
-        updateCustomRequestParamsButton(settingsStore.loadCustomRequestParameters())
+        reloadSettingsUiFromStore()
         binding.textLayoutSwitch.setOnCheckedChangeListener { _, isChecked ->
             settingsStore.saveUseHorizontalText(isChecked)
             AppLogger.log("Settings", "Text layout set to ${if (isChecked) "horizontal" else "vertical"}")
@@ -235,6 +215,11 @@ class SettingsFragment : Fragment() {
 
         binding.fetchModelsButton.setOnClickListener {
             fetchModelList()
+        }
+
+        binding.aiProviderProfilesButton.setOnClickListener {
+            persistSettings()
+            showAiProviderProfilesDialog()
         }
 
         binding.llmParamsButton.setOnClickListener {
@@ -544,6 +529,208 @@ class SettingsFragment : Fragment() {
             R.string.custom_request_params_button_format,
             parameters.count { it.key.isNotBlank() }
         )
+    }
+
+    private fun updateAiProviderProfilesButton() {
+        val state = settingsStore.loadAiProviderProfilesState()
+        binding.aiProviderProfilesButton.text = getString(
+            R.string.ai_provider_profiles_button_format,
+            state.activeProfileName ?: getString(R.string.ai_provider_profiles_none),
+            state.profiles.size
+        )
+    }
+
+    private fun reloadSettingsUiFromStore() {
+        val settings = settingsStore.load()
+        binding.apiUrlInput.setText(settings.apiUrl)
+        binding.apiKeyInput.setText(settings.apiKey)
+        binding.modelNameInput.setText(settings.modelName)
+        updateApiFormatButton(settings.apiFormat)
+        updateApiSettingsNote(settings.apiFormat)
+        binding.apiTimeoutInput.setText(formatNumber(settingsStore.loadApiTimeoutSeconds()))
+        binding.maxConcurrencyInput.setText(formatNumber(settingsStore.loadMaxConcurrency()))
+        binding.translationBubbleOpacityInput.setText(
+            formatNumber(settingsStore.loadTranslationBubbleOpacityPercent())
+        )
+        binding.textLayoutSwitch.isChecked = settingsStore.loadUseHorizontalText()
+        binding.modelIoLoggingSwitch.isChecked = settingsStore.loadModelIoLogging()
+        updateLanguageButton(settingsStore.loadAppLanguage())
+        updateThemeButton(settingsStore.loadThemeMode())
+        updateReadingDisplayButton(settingsStore.loadReadingDisplayMode())
+        updateReadingPageAnimationButton(settingsStore.loadReadingPageAnimationMode())
+        updateLinkSourceButton(settingsStore.loadLinkSource())
+        updateCustomRequestParamsButton(settingsStore.loadCustomRequestParameters())
+        updateAiProviderProfilesButton()
+    }
+
+    private fun showAiProviderProfilesDialog() {
+        val dialogBinding = DialogAiProviderProfilesBinding.inflate(layoutInflater)
+        val profileNames = ArrayList<String>()
+        val adapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_list_item_single_choice,
+            profileNames
+        )
+        dialogBinding.aiProviderProfilesList.adapter = adapter
+        var selectedName: String? = null
+
+        fun refreshProfiles(preferredSelection: String? = selectedName) {
+            val state = settingsStore.loadAiProviderProfilesState()
+            val names = state.profiles.map { it.name }
+            profileNames.clear()
+            profileNames.addAll(names)
+            adapter.notifyDataSetChanged()
+            selectedName = preferredSelection?.takeIf { it in names } ?: state.activeProfileName
+            val checkedIndex = selectedName?.let(names::indexOf) ?: -1
+            if (checkedIndex >= 0) {
+                dialogBinding.aiProviderProfilesList.setItemChecked(checkedIndex, true)
+            } else {
+                dialogBinding.aiProviderProfilesList.clearChoices()
+            }
+            dialogBinding.aiProviderProfilesCurrentText.text = state.activeProfileName?.let {
+                getString(R.string.ai_provider_profiles_current, it)
+            } ?: getString(R.string.ai_provider_profiles_current_none)
+            dialogBinding.aiProviderProfilesNoteText.text = if (names.isEmpty()) {
+                getString(R.string.ai_provider_profiles_empty)
+            } else {
+                getString(R.string.ai_provider_profiles_note)
+            }
+            dialogBinding.aiProviderProfilesApplyButton.isEnabled = names.isNotEmpty()
+            dialogBinding.aiProviderProfilesDeleteButton.isEnabled = selectedName != null
+            dialogBinding.aiProviderProfilesOverwriteButton.isEnabled = state.activeProfileName != null
+            updateAiProviderProfilesButton()
+        }
+
+        dialogBinding.aiProviderProfilesList.setOnItemClickListener { _, _, position, _ ->
+            selectedName = profileNames.getOrNull(position)
+            dialogBinding.aiProviderProfilesDeleteButton.isEnabled = selectedName != null
+        }
+
+        val dialog = AlertDialog.Builder(requireContext())
+            .setTitle(R.string.ai_provider_profiles_title)
+            .setView(dialogBinding.root)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+
+        dialogBinding.aiProviderProfilesSaveNewButton.setOnClickListener {
+            showCreateAiProviderProfileDialog { profileName ->
+                persistSettings()
+                val saved = settingsStore.saveCurrentAsAiProviderProfile(profileName)
+                if (!saved) {
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.ai_provider_profiles_name_duplicate,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return@showCreateAiProviderProfileDialog
+                }
+                reloadSettingsUiFromStore()
+                refreshProfiles(profileName)
+                Toast.makeText(requireContext(), R.string.ai_provider_profiles_saved, Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        dialogBinding.aiProviderProfilesOverwriteButton.setOnClickListener {
+            persistSettings()
+            if (!settingsStore.overwriteActiveAiProviderProfile()) {
+                Toast.makeText(
+                    requireContext(),
+                    R.string.ai_provider_profiles_overwrite_missing,
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@setOnClickListener
+            }
+            refreshProfiles()
+            Toast.makeText(requireContext(), R.string.ai_provider_profiles_overwritten, Toast.LENGTH_SHORT).show()
+        }
+
+        dialogBinding.aiProviderProfilesApplyButton.setOnClickListener {
+            val profileName = selectedName
+            if (profileName == null) {
+                Toast.makeText(
+                    requireContext(),
+                    R.string.ai_provider_profiles_select_required,
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@setOnClickListener
+            }
+            if (!settingsStore.applyAiProviderProfile(profileName)) {
+                Toast.makeText(
+                    requireContext(),
+                    R.string.ai_provider_profiles_select_required,
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@setOnClickListener
+            }
+            reloadSettingsUiFromStore()
+            Toast.makeText(
+                requireContext(),
+                getString(R.string.ai_provider_profiles_applied, profileName),
+                Toast.LENGTH_SHORT
+            ).show()
+            dialog.dismiss()
+        }
+
+        dialogBinding.aiProviderProfilesDeleteButton.setOnClickListener {
+            val profileName = selectedName
+            if (profileName == null) {
+                Toast.makeText(
+                    requireContext(),
+                    R.string.ai_provider_profiles_select_required,
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@setOnClickListener
+            }
+            AlertDialog.Builder(requireContext())
+                .setMessage(getString(R.string.ai_provider_profiles_delete_confirm, profileName))
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    if (settingsStore.deleteAiProviderProfile(profileName)) {
+                        if (settingsStore.loadAiProviderProfilesState().activeProfileName == null) {
+                            selectedName = null
+                        }
+                        refreshProfiles()
+                        Toast.makeText(
+                            requireContext(),
+                            R.string.ai_provider_profiles_deleted,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
+
+        refreshProfiles()
+        dialog.show()
+    }
+
+    private fun showCreateAiProviderProfileDialog(onConfirm: (String) -> Unit) {
+        val input = EditText(requireContext()).apply {
+            hint = getString(R.string.ai_provider_profiles_name_hint)
+            setSingleLine(true)
+        }
+        val dialog = AlertDialog.Builder(requireContext())
+            .setTitle(R.string.ai_provider_profiles_name_title)
+            .setView(input)
+            .setPositiveButton(android.R.string.ok, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val name = input.text?.toString()?.trim().orEmpty()
+                if (name.isBlank()) {
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.ai_provider_profiles_name_empty,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return@setOnClickListener
+                }
+                onConfirm(name)
+                dialog.dismiss()
+            }
+        }
+        dialog.show()
     }
 
     private fun showAboutDialog() {

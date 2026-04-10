@@ -124,6 +124,15 @@
             </com.google.android.material.textfield.TextInputLayout>
 
             <Button
+                android:id="@+id/ai_provider_profiles_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:layout_marginStart="2dp"
+                android:layout_marginEnd="2dp"
+                android:text="@string/ai_provider_profiles_button" />
+
+            <Button
                 android:id="@+id/fetch_models_button"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

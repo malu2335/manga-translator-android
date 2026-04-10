@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.core.content.edit
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 
 data class ApiSettings(
     val apiUrl: String,
@@ -50,8 +51,24 @@ data class CustomRequestParameter(
     val enabled: Boolean = true
 )
 
+data class AiProviderProfile(
+    val name: String,
+    val mainSettings: ApiSettings,
+    val apiTimeoutSeconds: Int,
+    val ocrSettings: OcrApiSettings,
+    val floatingTranslateSettings: FloatingTranslateApiSettings,
+    val llmParameters: LlmParameterSettings,
+    val customRequestParameters: List<CustomRequestParameter>
+)
+
+data class AiProviderProfilesState(
+    val activeProfileName: String?,
+    val profiles: List<AiProviderProfile>
+)
+
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val aiProviderProfilesFile = File(context.filesDir, AI_PROVIDER_PROFILES_FILE_NAME)
 
     fun load(): ApiSettings {
         val url = prefs.getString(KEY_API_URL, DEFAULT_API_URL) ?: DEFAULT_API_URL
@@ -381,6 +398,314 @@ class SettingsStore(context: Context) {
         }
     }
 
+    fun loadAiProviderProfilesState(): AiProviderProfilesState {
+        val raw = runCatching {
+            if (aiProviderProfilesFile.exists()) aiProviderProfilesFile.readText() else ""
+        }.getOrDefault("")
+        if (raw.isBlank()) return AiProviderProfilesState(activeProfileName = null, profiles = emptyList())
+        return runCatching {
+            val root = JSONObject(raw)
+            val profilesJson = root.optJSONArray("profiles") ?: JSONArray()
+            val profiles = buildList {
+                for (index in 0 until profilesJson.length()) {
+                    val item = profilesJson.optJSONObject(index) ?: continue
+                    parseAiProviderProfile(item)?.let(::add)
+                }
+            }
+            val activeProfileName = root.optString("activeProfileName").trim().ifBlank { null }
+            val normalizedActive = activeProfileName?.takeIf { active ->
+                profiles.any { it.name == active }
+            }
+            AiProviderProfilesState(
+                activeProfileName = normalizedActive,
+                profiles = profiles.sortedBy { it.name.lowercase() }
+            )
+        }.getOrDefault(AiProviderProfilesState(activeProfileName = null, profiles = emptyList()))
+    }
+
+    fun saveCurrentAsAiProviderProfile(name: String): Boolean {
+        val normalizedName = name.trim()
+        if (normalizedName.isBlank()) return false
+        val currentState = loadAiProviderProfilesState()
+        if (currentState.profiles.any { it.name == normalizedName }) return false
+        val updatedProfiles = currentState.profiles + captureCurrentAiProviderProfile(normalizedName)
+        writeAiProviderProfilesState(
+            AiProviderProfilesState(
+                activeProfileName = normalizedName,
+                profiles = updatedProfiles
+            )
+        )
+        return true
+    }
+
+    fun overwriteActiveAiProviderProfile(): Boolean {
+        val currentState = loadAiProviderProfilesState()
+        val activeProfileName = currentState.activeProfileName ?: return false
+        val updatedProfiles = currentState.profiles.map { profile ->
+            if (profile.name == activeProfileName) {
+                captureCurrentAiProviderProfile(activeProfileName)
+            } else {
+                profile
+            }
+        }
+        writeAiProviderProfilesState(
+            currentState.copy(
+                profiles = updatedProfiles
+            )
+        )
+        return true
+    }
+
+    fun applyAiProviderProfile(name: String): Boolean {
+        val currentState = loadAiProviderProfilesState()
+        val profile = currentState.profiles.firstOrNull { it.name == name } ?: return false
+        save(profile.mainSettings)
+        saveApiTimeoutSeconds(profile.apiTimeoutSeconds)
+        saveOcrApiSettings(profile.ocrSettings)
+        saveFloatingTranslateApiSettings(profile.floatingTranslateSettings)
+        saveLlmParameters(profile.llmParameters)
+        saveCustomRequestParameters(profile.customRequestParameters)
+        writeAiProviderProfilesState(
+            currentState.copy(
+                activeProfileName = profile.name
+            )
+        )
+        return true
+    }
+
+    fun deleteAiProviderProfile(name: String): Boolean {
+        val currentState = loadAiProviderProfilesState()
+        val updatedProfiles = currentState.profiles.filterNot { it.name == name }
+        if (updatedProfiles.size == currentState.profiles.size) return false
+        val updatedActive = currentState.activeProfileName?.takeIf { it != name }
+        writeAiProviderProfilesState(
+            AiProviderProfilesState(
+                activeProfileName = updatedActive,
+                profiles = updatedProfiles
+            )
+        )
+        return true
+    }
+
+    private fun captureCurrentAiProviderProfile(name: String): AiProviderProfile {
+        return AiProviderProfile(
+            name = name,
+            mainSettings = load(),
+            apiTimeoutSeconds = loadApiTimeoutSeconds(),
+            ocrSettings = loadOcrApiSettings(),
+            floatingTranslateSettings = loadFloatingTranslateApiSettings(),
+            llmParameters = loadLlmParameters(),
+            customRequestParameters = loadCustomRequestParameters()
+        )
+    }
+
+    private fun writeAiProviderProfilesState(state: AiProviderProfilesState) {
+        val root = JSONObject()
+        root.put("activeProfileName", state.activeProfileName.orEmpty())
+        val profilesArray = JSONArray()
+        state.profiles
+            .sortedBy { it.name.lowercase() }
+            .forEach { profile ->
+                profilesArray.put(serializeAiProviderProfile(profile))
+            }
+        root.put("profiles", profilesArray)
+        aiProviderProfilesFile.writeText(root.toString())
+    }
+
+    private fun serializeAiProviderProfile(profile: AiProviderProfile): JSONObject {
+        return JSONObject()
+            .put("name", profile.name)
+            .put(
+                "mainSettings",
+                JSONObject()
+                    .put("apiUrl", profile.mainSettings.apiUrl)
+                    .put("apiKey", profile.mainSettings.apiKey)
+                    .put("modelName", profile.mainSettings.modelName)
+                    .put("apiFormat", profile.mainSettings.apiFormat.prefValue)
+                    .put("apiTimeoutSeconds", profile.apiTimeoutSeconds)
+            )
+            .put(
+                "ocrSettings",
+                JSONObject()
+                    .put("useLocalOcr", profile.ocrSettings.useLocalOcr)
+                    .put("apiUrl", profile.ocrSettings.apiUrl)
+                    .put("apiKey", profile.ocrSettings.apiKey)
+                    .put("modelName", profile.ocrSettings.modelName)
+                    .put("timeoutSeconds", profile.ocrSettings.timeoutSeconds)
+            )
+            .put(
+                "floatingTranslateSettings",
+                JSONObject()
+                    .put("apiUrl", profile.floatingTranslateSettings.apiUrl)
+                    .put("apiKey", profile.floatingTranslateSettings.apiKey)
+                    .put("modelName", profile.floatingTranslateSettings.modelName)
+                    .put("language", profile.floatingTranslateSettings.language.name)
+                    .put("timeoutSeconds", profile.floatingTranslateSettings.timeoutSeconds)
+                    .put(
+                        "useVlDirectTranslate",
+                        profile.floatingTranslateSettings.useVlDirectTranslate
+                    )
+                    .put(
+                        "vlTranslateConcurrency",
+                        profile.floatingTranslateSettings.vlTranslateConcurrency
+                    )
+                    .put(
+                        "proofreadingModeEnabled",
+                        profile.floatingTranslateSettings.proofreadingModeEnabled
+                    )
+                    .put(
+                        "autoCloseOnScreenChangeEnabled",
+                        profile.floatingTranslateSettings.autoCloseOnScreenChangeEnabled
+                    )
+                    .put(
+                        "singleTapAction",
+                        profile.floatingTranslateSettings.singleTapAction.prefValue
+                    )
+                    .put(
+                        "doubleTapAction",
+                        profile.floatingTranslateSettings.doubleTapAction.prefValue
+                    )
+                    .put(
+                        "longPressAction",
+                        profile.floatingTranslateSettings.longPressAction.prefValue
+                    )
+                    .put(
+                        "tripleTapAction",
+                        profile.floatingTranslateSettings.tripleTapAction.prefValue
+                    )
+            )
+            .put(
+                "llmParameters",
+                JSONObject()
+                    .put("temperature", profile.llmParameters.temperature)
+                    .put("topP", profile.llmParameters.topP)
+                    .put("topK", profile.llmParameters.topK)
+                    .put("maxOutputTokens", profile.llmParameters.maxOutputTokens)
+                    .put("enableThinking", profile.llmParameters.enableThinking)
+                    .put("thinkingBudget", profile.llmParameters.thinkingBudget)
+                    .put("frequencyPenalty", profile.llmParameters.frequencyPenalty)
+                    .put("presencePenalty", profile.llmParameters.presencePenalty)
+            )
+            .put(
+                "customRequestParameters",
+                JSONArray().apply {
+                    profile.customRequestParameters.forEach { parameter ->
+                        put(
+                            JSONObject()
+                                .put("key", parameter.key)
+                                .put("value", parameter.value)
+                                .put("enabled", parameter.enabled)
+                        )
+                    }
+                }
+            )
+    }
+
+    private fun parseAiProviderProfile(item: JSONObject): AiProviderProfile? {
+        val name = item.optString("name").trim()
+        if (name.isBlank()) return null
+        val mainJson = item.optJSONObject("mainSettings") ?: JSONObject()
+        val ocrJson = item.optJSONObject("ocrSettings") ?: JSONObject()
+        val floatingJson = item.optJSONObject("floatingTranslateSettings") ?: JSONObject()
+        val llmJson = item.optJSONObject("llmParameters") ?: JSONObject()
+        val customParams = item.optJSONArray("customRequestParameters") ?: JSONArray()
+        return AiProviderProfile(
+            name = name,
+            mainSettings = ApiSettings(
+                apiUrl = mainJson.optString("apiUrl", DEFAULT_API_URL),
+                apiKey = mainJson.optString("apiKey"),
+                modelName = mainJson.optString("modelName", DEFAULT_MODEL),
+                apiFormat = ApiFormat.fromPref(mainJson.optStringOrNull("apiFormat"))
+            ),
+            apiTimeoutSeconds = mainJson.optInt(
+                "apiTimeoutSeconds",
+                DEFAULT_API_TIMEOUT_SECONDS
+            ).coerceIn(MIN_API_TIMEOUT_SECONDS, MAX_API_TIMEOUT_SECONDS),
+            ocrSettings = OcrApiSettings(
+                useLocalOcr = ocrJson.optBoolean("useLocalOcr", true),
+                apiUrl = ocrJson.optString("apiUrl", DEFAULT_OCR_API_URL),
+                apiKey = ocrJson.optString("apiKey"),
+                modelName = ocrJson.optString("modelName", DEFAULT_OCR_MODEL_NAME),
+                timeoutSeconds = ocrJson.optInt(
+                    "timeoutSeconds",
+                    DEFAULT_OCR_API_TIMEOUT_SECONDS
+                ).coerceIn(MIN_OCR_API_TIMEOUT_SECONDS, MAX_OCR_API_TIMEOUT_SECONDS)
+            ),
+            floatingTranslateSettings = FloatingTranslateApiSettings(
+                apiUrl = floatingJson.optString("apiUrl"),
+                apiKey = floatingJson.optString("apiKey"),
+                modelName = floatingJson.optString("modelName"),
+                language = TranslationLanguage.fromString(
+                    floatingJson.optString("language", TranslationLanguage.JA_TO_ZH.name)
+                ),
+                timeoutSeconds = floatingJson.optInt(
+                    "timeoutSeconds",
+                    DEFAULT_FLOATING_API_TIMEOUT_SECONDS
+                ).coerceIn(
+                    MIN_FLOATING_API_TIMEOUT_SECONDS,
+                    MAX_FLOATING_API_TIMEOUT_SECONDS
+                ),
+                useVlDirectTranslate = floatingJson.optBoolean("useVlDirectTranslate", false),
+                vlTranslateConcurrency = floatingJson.optInt(
+                    "vlTranslateConcurrency",
+                    DEFAULT_FLOATING_VL_TRANSLATE_CONCURRENCY
+                ).coerceIn(
+                    MIN_FLOATING_VL_TRANSLATE_CONCURRENCY,
+                    MAX_FLOATING_VL_TRANSLATE_CONCURRENCY
+                ),
+                proofreadingModeEnabled = floatingJson.optBoolean(
+                    "proofreadingModeEnabled",
+                    false
+                ),
+                autoCloseOnScreenChangeEnabled = floatingJson.optBoolean(
+                    "autoCloseOnScreenChangeEnabled",
+                    false
+                ),
+                singleTapAction = FloatingBallGestureAction.fromPref(
+                    floatingJson.optStringOrNull("singleTapAction"),
+                    DEFAULT_FLOATING_SINGLE_TAP_ACTION
+                ),
+                doubleTapAction = FloatingBallGestureAction.fromPref(
+                    floatingJson.optStringOrNull("doubleTapAction"),
+                    DEFAULT_FLOATING_DOUBLE_TAP_ACTION
+                ),
+                longPressAction = FloatingBallGestureAction.fromPref(
+                    floatingJson.optStringOrNull("longPressAction"),
+                    DEFAULT_FLOATING_LONG_PRESS_ACTION
+                ),
+                tripleTapAction = FloatingBallGestureAction.fromPref(
+                    floatingJson.optStringOrNull("tripleTapAction"),
+                    DEFAULT_FLOATING_TRIPLE_TAP_ACTION
+                )
+            ),
+            llmParameters = LlmParameterSettings(
+                temperature = llmJson.optOptionalDouble("temperature"),
+                topP = llmJson.optOptionalDouble("topP"),
+                topK = llmJson.optOptionalInt("topK"),
+                maxOutputTokens = llmJson.optOptionalInt("maxOutputTokens"),
+                enableThinking = llmJson.optBoolean("enableThinking", DEFAULT_LLM_ENABLE_THINKING),
+                thinkingBudget = llmJson.optOptionalInt("thinkingBudget"),
+                frequencyPenalty = llmJson.optOptionalDouble("frequencyPenalty"),
+                presencePenalty = llmJson.optOptionalDouble("presencePenalty")
+            ),
+            customRequestParameters = buildList {
+                for (index in 0 until customParams.length()) {
+                    val param = customParams.optJSONObject(index) ?: continue
+                    val key = param.optString("key").trim()
+                    val value = param.optString("value")
+                    if (key.isBlank() && value.isBlank()) continue
+                    add(
+                        CustomRequestParameter(
+                            key = key,
+                            value = value,
+                            enabled = param.optBoolean("enabled", true)
+                        )
+                    )
+                }
+            }
+        )
+    }
+
     private fun readDoubleWithDefault(key: String, defaultValue: Double): Double? {
         if (!prefs.contains(key)) return defaultValue
         val value = prefs.getString(key, null)
@@ -404,6 +729,7 @@ class SettingsStore(context: Context) {
 
     companion object {
         private const val PREFS_NAME = "manga_translate_settings"
+        private const val AI_PROVIDER_PROFILES_FILE_NAME = "ai_provider_profiles.json"
         private const val KEY_API_URL = "api_url"
         private const val KEY_API_KEY = "api_key"
         private const val KEY_MODEL_NAME = "model_name"
@@ -496,4 +822,27 @@ private fun android.content.SharedPreferences.Editor.putOptionalString(
 ): android.content.SharedPreferences.Editor {
     putString(key, value?.toString().orEmpty())
     return this
+}
+
+private fun JSONObject.optOptionalInt(key: String): Int? {
+    if (isNull(key)) return null
+    return when (val raw = opt(key)) {
+        is Number -> raw.toInt()
+        is String -> raw.toIntOrNull()
+        else -> null
+    }
+}
+
+private fun JSONObject.optOptionalDouble(key: String): Double? {
+    if (isNull(key)) return null
+    return when (val raw = opt(key)) {
+        is Number -> raw.toDouble()
+        is String -> raw.toDoubleOrNull()
+        else -> null
+    }
+}
+
+private fun JSONObject.optStringOrNull(key: String): String? {
+    if (isNull(key)) return null
+    return optString(key).takeIf { it.isNotBlank() }
 }

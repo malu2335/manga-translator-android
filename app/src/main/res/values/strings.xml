@@ -69,6 +69,29 @@
 
     <!-- Settings / Model & Params -->
     <string name="fetch_models">获取模型列表</string>
+    <string name="ai_provider_profiles_button">AI 供应商配置</string>
+    <string name="ai_provider_profiles_button_format">AI 供应商配置：%1$s（%2$d 个）</string>
+    <string name="ai_provider_profiles_none">未启用</string>
+    <string name="ai_provider_profiles_title">AI 供应商配置</string>
+    <string name="ai_provider_profiles_current">当前配置：%1$s</string>
+    <string name="ai_provider_profiles_current_none">当前配置：未启用</string>
+    <string name="ai_provider_profiles_note">配置文件会保存当前主模型、OCR、悬浮窗翻译覆盖、AI 参数和自定义请求参数，切换时会整体应用。</string>
+    <string name="ai_provider_profiles_empty">还没有已保存的配置。</string>
+    <string name="ai_provider_profiles_apply">切换到选中配置</string>
+    <string name="ai_provider_profiles_save_new">新建并保存当前配置</string>
+    <string name="ai_provider_profiles_overwrite">用当前设置覆盖当前配置</string>
+    <string name="ai_provider_profiles_delete">删除选中配置</string>
+    <string name="ai_provider_profiles_name_title">新建配置</string>
+    <string name="ai_provider_profiles_name_hint">配置名称</string>
+    <string name="ai_provider_profiles_name_empty">请输入配置名称</string>
+    <string name="ai_provider_profiles_name_duplicate">已存在同名配置，请更换名称</string>
+    <string name="ai_provider_profiles_saved">配置已保存</string>
+    <string name="ai_provider_profiles_overwritten">当前配置已更新</string>
+    <string name="ai_provider_profiles_overwrite_missing">当前没有激活的配置可更新</string>
+    <string name="ai_provider_profiles_applied">已切换配置：%1$s</string>
+    <string name="ai_provider_profiles_delete_confirm">确定删除配置“%1$s”吗？</string>
+    <string name="ai_provider_profiles_deleted">配置已删除</string>
+    <string name="ai_provider_profiles_select_required">请先选择一个配置</string>
     <string name="fetch_models_title">模型列表</string>
     <string name="fetch_models_loading">正在获取模型列表…</string>
     <string name="fetch_models_failed_title">获取模型列表失败</string>
