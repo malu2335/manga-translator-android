@@ -1,7 +1,7 @@
 {
   "versionCode": 39,
   "versionName": "2.4.1",
-  "releaseChannel": "preview",
+  "releaseChannel": "stable",
   "releasedAt": "2026-04-10",
   "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v2.4.1/app-release.apk",
   "changelog": "新增 AI 配置快捷切换，支持 PDF 导入导出和 AVIF 格式导入翻译，新增取消翻译与条漫状态可编辑功能，支持自动重载条漫/普通模式，修复悬浮窗排版并优化 ZIP 导入兼容性。",
