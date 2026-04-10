@@ -193,11 +193,11 @@ class LibraryFragment : Fragment() {
         }
     }
 
-    private val pickCbzFile = registerForActivityResult(
+    private val pickArchiveOrPdfFile = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            importFromCbz(uri)
+            importFromArchiveOrPdf(uri)
         }
     }
 
@@ -316,11 +316,12 @@ class LibraryFragment : Fragment() {
         binding.importEhviewerButton.setOnClickListener { importFromEhViewer() }
         binding.floatingTranslateButton.setOnClickListener { handleFloatingTranslateClick() }
         binding.importCbzButton.setOnClickListener {
-            pickCbzFile.launch(
+            pickArchiveOrPdfFile.launch(
                 arrayOf(
                     "application/vnd.comicbook+zip",
                     "application/x-cbz",
-                    "application/zip"
+                    "application/zip",
+                    "application/pdf"
                 )
             )
         }
@@ -859,8 +860,8 @@ class LibraryFragment : Fragment() {
         }
     }
 
-    private fun importFromCbz(uri: Uri) {
-        importExportCoordinator.importFromCbz(
+    private fun importFromArchiveOrPdf(uri: Uri) {
+        importExportCoordinator.importFromArchiveOrPdf(
             uiContext = requireContext(),
             uri = uri,
             scope = viewLifecycleOwner.lifecycleScope,
@@ -982,17 +983,17 @@ class LibraryFragment : Fragment() {
         dialogs.showExportOptionsDialog(
             context = requireContext(),
             defaultThreads = importExportCoordinator.getExportThreadCount(),
-            defaultExportAsCbz = importExportCoordinator.getExportAsCbzDefault(),
+            defaultExportFormat = importExportCoordinator.getExportFormatDefault(),
             hasEmbeddedImages = hasEmbeddedImages,
             exportRootPathHint = importExportCoordinator.buildExportRootPathPreview()
-        ) { exportThreads, exportAsCbz, exportEmbeddedImages ->
+        ) { exportThreads, exportFormat, exportEmbeddedImages ->
             importExportCoordinator.exportFolder(
                 uiContext = requireContext(),
                 folder = folder,
                 images = images,
                 scope = viewLifecycleOwner.lifecycleScope,
                 exportThreads = exportThreads,
-                exportAsCbz = exportAsCbz,
+                exportFormat = exportFormat,
                 exportEmbeddedImages = exportEmbeddedImages,
                 requestExportDirectoryPermission = { initialUri -> pickExportTree.launch(initialUri) },
                 requestLegacyPermission = {

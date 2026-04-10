@@ -169,6 +169,29 @@ class LibraryRepository(private val context: Context) {
         return CbzImportResult(folder = folder, importedCount = importedCount)
     }
 
+    fun importPdf(uri: Uri): CbzImportResult? {
+        val pdfName = queryDisplayName(uri) ?: "pdf_import_${System.currentTimeMillis()}.pdf"
+        val folderName = pdfName.substringBeforeLast('.', pdfName).trim().ifEmpty { "pdf_import" }
+        val folder = createUniqueFolder(folderName) ?: return null
+        return try {
+            val importedCount = PdfImageCodec.renderPdfToImages(
+                contentResolver = context.contentResolver,
+                uri = uri,
+                outputDir = folder
+            )
+            if (importedCount <= 0) {
+                folder.deleteRecursively()
+                CbzImportResult(folder = null, importedCount = 0)
+            } else {
+                CbzImportResult(folder = folder, importedCount = importedCount)
+            }
+        } catch (e: Exception) {
+            AppLogger.log("LibraryRepo", "PDF import failed: $pdfName", e)
+            folder.deleteRecursively()
+            null
+        }
+    }
+
     fun deleteFolder(folder: File): Boolean {
         if (!folder.exists()) return false
         return folder.deleteRecursively()

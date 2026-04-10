@@ -220,7 +220,7 @@
     <string name="create_chapter">新建子章節</string>
     <string name="create_entry_title">建立項目</string>
     <string name="import_ehviewer">從漫畫資料夾匯入</string>
-    <string name="import_cbz">從 CBZ/ZIP 匯入</string>
+    <string name="import_cbz">從 CBZ/ZIP/PDF 匯入</string>
     <string name="folder_name_hint">資料夾名稱</string>
     <string name="folder_create_failed">建立失敗，請檢查名稱</string>
     <string name="folder_empty">暫無漫畫資料夾</string>
@@ -323,6 +323,9 @@
     <string name="cbz_import_failed">CBZ/ZIP 匯入失敗，請重試</string>
     <string name="cbz_import_no_images">壓縮包中未找到可匯入圖片</string>
     <string name="cbz_import_done">CBZ/ZIP 匯入完成，已匯入 %1$d 張圖片</string>
+    <string name="pdf_import_failed">PDF 匯入失敗，請重試</string>
+    <string name="pdf_import_no_images">PDF 中未找到可匯入頁面</string>
+    <string name="pdf_import_done">PDF 匯入完成，已拆分 %1$d 頁圖片</string>
 
     <!-- Export -->
     <string name="exporting_progress">匯出中…(%1$d/%2$d)</string>
@@ -335,7 +338,9 @@
     <string name="export_options_title">匯出參數</string>
     <string name="export_thread_hint">匯出執行緒數 (1–16)</string>
     <string name="export_thread_invalid">執行緒數無效，請輸入 1–16</string>
-    <string name="export_as_cbz_option">匯出為 CBZ</string>
+    <string name="export_format_images_option">匯出為圖片目錄</string>
+    <string name="export_format_cbz_option">匯出為 CBZ</string>
+    <string name="export_format_pdf_option">匯出為 PDF</string>
     <string name="export_embedded_images_option">匯出嵌入圖片</string>
     <string name="export_path_hint_format">匯出路徑：%1$s</string>
 

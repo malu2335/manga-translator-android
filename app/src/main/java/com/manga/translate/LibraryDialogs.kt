@@ -9,6 +9,8 @@ import android.view.inputmethod.EditorInfo
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -322,10 +324,10 @@ internal class LibraryDialogs {
     fun showExportOptionsDialog(
         context: Context,
         defaultThreads: Int,
-        defaultExportAsCbz: Boolean,
+        defaultExportFormat: LibraryImportExportCoordinator.ExportFormat,
         hasEmbeddedImages: Boolean,
         exportRootPathHint: String,
-        onConfirm: (Int, Boolean, Boolean) -> Unit
+        onConfirm: (Int, LibraryImportExportCoordinator.ExportFormat, Boolean) -> Unit
     ) {
         val input = EditText(context).apply {
             hint = context.getString(R.string.export_thread_hint)
@@ -335,11 +337,32 @@ internal class LibraryDialogs {
             imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
         }
         applyDialogTextColors(context, input)
-        val cbzCheckBox = CheckBox(context).apply {
-            text = context.getString(R.string.export_as_cbz_option)
-            isChecked = defaultExportAsCbz
+        val formatGroup = RadioGroup(context).apply {
+            orientation = RadioGroup.VERTICAL
         }
-        applyDialogTextColors(context, cbzCheckBox)
+        val imageDirRadio = RadioButton(context).apply {
+            id = android.view.View.generateViewId()
+            text = context.getString(R.string.export_format_images_option)
+        }
+        val cbzRadio = RadioButton(context).apply {
+            id = android.view.View.generateViewId()
+            text = context.getString(R.string.export_format_cbz_option)
+        }
+        val pdfRadio = RadioButton(context).apply {
+            id = android.view.View.generateViewId()
+            text = context.getString(R.string.export_format_pdf_option)
+        }
+        listOf(imageDirRadio, cbzRadio, pdfRadio).forEach { radio ->
+            applyDialogTextColors(context, radio)
+            formatGroup.addView(radio, matchWrapLayoutParams())
+        }
+        formatGroup.check(
+            when (defaultExportFormat) {
+                LibraryImportExportCoordinator.ExportFormat.IMAGE_DIR -> imageDirRadio.id
+                LibraryImportExportCoordinator.ExportFormat.CBZ -> cbzRadio.id
+                LibraryImportExportCoordinator.ExportFormat.PDF -> pdfRadio.id
+            }
+        )
         val embeddedCheckBox = CheckBox(context).apply {
             text = context.getString(R.string.export_embedded_images_option)
             isChecked = hasEmbeddedImages
@@ -356,7 +379,7 @@ internal class LibraryDialogs {
         applyDialogTextColors(context, pathHintView, useHintColor = true)
         val container = buildDialogContainer(context).apply {
             addView(input, matchWrapLayoutParams())
-            addView(cbzCheckBox, matchWrapLayoutParams())
+            addView(formatGroup, matchWrapLayoutParams())
             addView(embeddedCheckBox, matchWrapLayoutParams())
             addView(pathHintView, matchWrapLayoutParams())
         }
@@ -370,7 +393,12 @@ internal class LibraryDialogs {
                     Toast.makeText(context, R.string.export_thread_invalid, Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
-                onConfirm(threadCount, cbzCheckBox.isChecked, embeddedCheckBox.isChecked)
+                val exportFormat = when (formatGroup.checkedRadioButtonId) {
+                    cbzRadio.id -> LibraryImportExportCoordinator.ExportFormat.CBZ
+                    pdfRadio.id -> LibraryImportExportCoordinator.ExportFormat.PDF
+                    else -> LibraryImportExportCoordinator.ExportFormat.IMAGE_DIR
+                }
+                onConfirm(threadCount, exportFormat, embeddedCheckBox.isChecked)
             }
             .show()
     }

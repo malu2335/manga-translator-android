@@ -220,7 +220,7 @@
     <string name="create_chapter">新建子章节</string>
     <string name="create_entry_title">创建项目</string>
     <string name="import_ehviewer">从漫画文件夹导入</string>
-    <string name="import_cbz">从 CBZ/ZIP 导入</string>
+    <string name="import_cbz">从 CBZ/ZIP/PDF 导入</string>
     <string name="folder_name_hint">文件夹名称</string>
     <string name="folder_create_failed">创建失败，请检查名称</string>
     <string name="folder_empty">暂无漫画文件夹</string>
@@ -323,6 +323,9 @@
     <string name="cbz_import_failed">CBZ/ZIP 导入失败，请重试</string>
     <string name="cbz_import_no_images">压缩包中未找到可导入图片</string>
     <string name="cbz_import_done">CBZ/ZIP 导入完成，已导入 %1$d 张图片</string>
+    <string name="pdf_import_failed">PDF 导入失败，请重试</string>
+    <string name="pdf_import_no_images">PDF 中未找到可导入页面</string>
+    <string name="pdf_import_done">PDF 导入完成，已拆分 %1$d 页图片</string>
 
     <!-- Export -->
     <string name="exporting_progress">导出中…(%1$d/%2$d)</string>
@@ -335,7 +338,9 @@
     <string name="export_options_title">导出参数</string>
     <string name="export_thread_hint">导出线程数 (1–16)</string>
     <string name="export_thread_invalid">线程数无效，请输入 1–16</string>
-    <string name="export_as_cbz_option">导出为 CBZ</string>
+    <string name="export_format_images_option">导出为图片目录</string>
+    <string name="export_format_cbz_option">导出为 CBZ</string>
+    <string name="export_format_pdf_option">导出为 PDF</string>
     <string name="export_embedded_images_option">导出嵌入图片</string>
     <string name="export_path_hint_format">导出路径：%1$s</string>
 
