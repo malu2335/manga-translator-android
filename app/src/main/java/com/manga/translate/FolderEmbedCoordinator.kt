@@ -192,7 +192,7 @@ internal class FolderEmbedCoordinator(
             if (translation == null) {
                 continue
             }
-            val target = File(embeddedDir, image.name)
+            val target = File(embeddedDir, ImageFileSupport.resolveRenderedOutputName(image.name))
             if (target.exists()) {
                 continue
             }
@@ -200,7 +200,10 @@ internal class FolderEmbedCoordinator(
         }
 
         if (pending.isEmpty()) {
-            if (images.all { File(embeddedDir, it.name).exists() }) {
+            if (images.all {
+                    File(embeddedDir, ImageFileSupport.resolveRenderedOutputName(it.name)).exists()
+                }
+            ) {
                 embeddedStateStore.writeEmbeddedState(folder, images.size)
             }
             return@withContext EmbedResult.Success
@@ -303,7 +306,10 @@ internal class FolderEmbedCoordinator(
             return@withContext EmbedResult.Failure(appContext.getString(R.string.folder_embed_failed))
         }
 
-        if (images.all { File(embeddedDir, it.name).exists() }) {
+        if (images.all {
+                File(embeddedDir, ImageFileSupport.resolveRenderedOutputName(it.name)).exists()
+            }
+        ) {
             embeddedStateStore.writeEmbeddedState(folder, images.size)
         }
         EmbedResult.Success
@@ -368,8 +374,8 @@ internal class FolderEmbedCoordinator(
             verticalLayoutEnabled = verticalLayoutEnabled,
             shouldDrawTextBackground = { true }
         )
-        val outputFile = File(outputDir, sourceImage.name)
-        val saved = saveBitmap(outputFile, rendered, sourceImage.name)
+        val outputFile = File(outputDir, ImageFileSupport.resolveRenderedOutputName(sourceImage.name))
+        val saved = saveBitmap(outputFile, rendered)
 
         if (rendered !== repaired) {
             rendered.recycle()
@@ -576,8 +582,8 @@ internal class FolderEmbedCoordinator(
         return current
     }
 
-    private fun saveBitmap(target: File, bitmap: Bitmap, sourceName: String): Boolean {
-        val ext = sourceName.substringAfterLast('.', "").lowercase()
+    private fun saveBitmap(target: File, bitmap: Bitmap): Boolean {
+        val ext = target.name.substringAfterLast('.', "").lowercase()
         val format = when (ext) {
             "png" -> Bitmap.CompressFormat.PNG
             "webp" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

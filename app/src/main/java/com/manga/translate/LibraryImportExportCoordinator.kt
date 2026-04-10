@@ -658,10 +658,12 @@ internal class LibraryImportExportCoordinator(
         if (!embeddedStateStore.isEmbedded(folder)) {
             return originalImages
         }
-        val embeddedByName = embeddedStateStore.listEmbeddedImages(folder).associateBy { it.name }
+        val embeddedByName = ImageFileSupport.buildNameLookup(
+            embeddedStateStore.listEmbeddedImages(folder)
+        )
         val ordered = ArrayList<File>(originalImages.size)
         for (image in originalImages) {
-            val embedded = embeddedByName[image.name]
+            val embedded = ImageFileSupport.findRenderedImageForSource(image.name, embeddedByName)
             if (embedded == null) {
                 AppLogger.log("Library", "Embedded export fallback to source image: ${image.name}")
                 return originalImages
@@ -710,11 +712,8 @@ internal class LibraryImportExportCoordinator(
     }
 
     private fun isImageDocument(file: DocumentFile): Boolean {
-        val name = file.name?.lowercase().orEmpty()
-        return name.endsWith(".jpg") ||
-            name.endsWith(".jpeg") ||
-            name.endsWith(".png") ||
-            name.endsWith(".webp")
+        val name = file.name.orEmpty()
+        return ImageFileSupport.isSupportedSourceImageFileName(name)
     }
 
     private fun ensureNoMediaFile(context: Context, folderName: String) {
@@ -914,7 +913,6 @@ internal class LibraryImportExportCoordinator(
 
     private fun resolveExportSpec(fileName: String): ExportSpec {
         val ext = fileName.substringAfterLast('.', "").lowercase()
-        val baseName = fileName.substringBeforeLast('.', fileName)
         val format = when (ext) {
             "png" -> Bitmap.CompressFormat.PNG
             "webp" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -922,23 +920,24 @@ internal class LibraryImportExportCoordinator(
             } else {
                 Bitmap.CompressFormat.WEBP
             }
+            "avif" -> Bitmap.CompressFormat.PNG
             "jpg", "jpeg" -> Bitmap.CompressFormat.JPEG
             else -> Bitmap.CompressFormat.JPEG
         }
         val mimeType = when (ext) {
             "png" -> "image/png"
             "webp" -> "image/webp"
+            "avif" -> "image/png"
             "jpg", "jpeg" -> "image/jpeg"
             else -> "image/jpeg"
         }
-        val normalizedExt = when (ext) {
-            "png", "webp", "jpg", "jpeg" -> ext
-            else -> "jpg"
-        }
-        val displayName = if (ext == normalizedExt && ext.isNotEmpty()) {
-            fileName
-        } else {
-            "$baseName.$normalizedExt"
+        val displayName = when (ext) {
+            "png", "webp", "jpg", "jpeg" -> fileName
+            "avif" -> ImageFileSupport.resolveRenderedOutputName(fileName)
+            else -> {
+                val baseName = fileName.substringBeforeLast('.', fileName)
+                "$baseName.jpg"
+            }
         }
         val quality = when (format) {
             Bitmap.CompressFormat.PNG -> 100

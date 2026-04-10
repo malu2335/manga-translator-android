@@ -197,11 +197,7 @@ class LibraryRepository(private val context: Context) {
     }
 
     private fun isImageFile(name: String): Boolean {
-        val lower = name.lowercase(Locale.getDefault())
-        return lower.endsWith(".jpg") ||
-            lower.endsWith(".jpeg") ||
-            lower.endsWith(".png") ||
-            lower.endsWith(".webp")
+        return ImageFileSupport.isSupportedSourceImageFileName(name)
     }
 
     private fun resolveUniqueFile(folder: File, fileName: String): File {
@@ -284,13 +280,7 @@ class LibraryRepository(private val context: Context) {
                 return null
             }
             val sanitized = fileName.replace(CONTROL_CHARS_REGEX, "_")
-            val lower = sanitized.lowercase(Locale.getDefault())
-            return if (
-                lower.endsWith(".jpg") ||
-                lower.endsWith(".jpeg") ||
-                lower.endsWith(".png") ||
-                lower.endsWith(".webp")
-            ) {
+            return if (ImageFileSupport.isSupportedSourceImageFileName(sanitized)) {
                 sanitized
             } else {
                 null

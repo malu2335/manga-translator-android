@@ -46,11 +46,7 @@ class EmbeddedStateStore {
     }
 
     private fun isImageFile(name: String): Boolean {
-        val lower = name.lowercase()
-        return lower.endsWith(".jpg") ||
-            lower.endsWith(".jpeg") ||
-            lower.endsWith(".png") ||
-            lower.endsWith(".webp")
+        return ImageFileSupport.isSupportedRenderedImageFileName(name)
     }
 
     companion object {

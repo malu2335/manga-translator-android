@@ -712,12 +712,12 @@ class LibraryFragment : Fragment() {
         val images = repository.listImages(folder)
         val embeddedByName = embeddedStateStore
             .listEmbeddedImages(folder)
-            .associateBy { it.name }
+            .let(ImageFileSupport::buildNameLookup)
         val items = images.map { file ->
             ImageItem(
                 file = file,
                 translated = translationStore.translationFileFor(file).exists(),
-                embedded = embeddedByName[file.name] != null
+                embedded = ImageFileSupport.findRenderedImageForSource(file.name, embeddedByName) != null
             )
         }
         imageAdapter.submit(items)
@@ -1126,10 +1126,10 @@ class LibraryFragment : Fragment() {
                 forcedBubbleMode = false
             )
         }
-        val embeddedByName = embeddedImages.associateBy { it.name }
+        val embeddedByName = ImageFileSupport.buildNameLookup(embeddedImages)
         val ordered = ArrayList<File>(originalImages.size)
         for (image in originalImages) {
-            val embedded = embeddedByName[image.name]
+            val embedded = ImageFileSupport.findRenderedImageForSource(image.name, embeddedByName)
             if (embedded == null) {
                 AppLogger.log("Library", "Embedded image missing for ${image.name} in ${folder.name}")
                 return ReadingImagesResolution(
@@ -1156,8 +1156,10 @@ class LibraryFragment : Fragment() {
         }
         val embeddedByName = embeddedStateStore
             .listEmbeddedImages(folder)
-            .associateBy { it.name }
-        return originalImages.all { embeddedByName[it.name] != null }
+            .let(ImageFileSupport::buildNameLookup)
+        return originalImages.all {
+            ImageFileSupport.findRenderedImageForSource(it.name, embeddedByName) != null
+        }
     }
 
     private fun setEmbedActionsEnabled(enabled: Boolean) {
