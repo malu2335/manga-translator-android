@@ -25,7 +25,7 @@ object ImageFileSupport {
 
     fun resolveRenderedOutputName(sourceName: String): String {
         return if (extensionOf(sourceName) == AVIF_EXTENSION) {
-            "$sourceName.$PNG_EXTENSION"
+            "${sourceName.substringBeforeLast('.', sourceName)}.$PNG_EXTENSION"
         } else {
             sourceName
         }

@@ -1013,16 +1013,14 @@ class LibraryFragment : Fragment() {
             context = requireContext(),
             defaultThreads = embedCoordinator.getEmbedThreadCount(),
             defaultUseWhiteBubbleCover = embedCoordinator.getUseWhiteBubbleCover(),
-            defaultUseEllipseLimit = embedCoordinator.getUseBubbleEllipseLimit(),
             defaultUseImageRepair = embedCoordinator.getUseImageRepair()
-        ) { embedThreads, useWhiteBubbleCover, useBubbleEllipseLimit, useImageRepair ->
+        ) { embedThreads, useWhiteBubbleCover, useImageRepair ->
             embedCoordinator.embedFolder(
                 scope = viewLifecycleOwner.lifecycleScope,
                 folder = folder,
                 images = images,
                 embedThreads = embedThreads,
                 useWhiteBubbleCover = useWhiteBubbleCover,
-                useBubbleEllipseLimit = useBubbleEllipseLimit,
                 useImageRepair = useImageRepair,
                 onSetActionsEnabled = { enabled ->
                     setEmbedActionsEnabled(enabled)

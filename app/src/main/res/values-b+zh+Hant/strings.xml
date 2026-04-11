@@ -375,7 +375,6 @@
     <string name="embed_thread_warning_title">執行緒數偏高</string>
     <string name="embed_thread_warning_message">目前設定為 %1$d 執行緒，已超過裝置建議警戒值 %2$d；推薦執行緒數為 %3$d。繼續使用較高執行緒數可能導致明顯卡頓、發熱或系統介面失去回應。是否仍要繼續？</string>
     <string name="embed_white_cover_option">使用白色覆蓋氣泡內文字</string>
-    <string name="embed_ellipse_limit_option">限制白色覆蓋在氣泡橢圓內</string>
     <string name="embed_image_repair_option">啟用圖像修復（非氣泡）</string>
 
     <!-- Error Dialogs -->

@@ -46,10 +46,6 @@ internal class FolderEmbedCoordinator(
         return prefs.getBoolean(KEY_EMBED_WHITE_BUBBLE_COVER, DEFAULT_EMBED_WHITE_BUBBLE_COVER)
     }
 
-    fun getUseBubbleEllipseLimit(): Boolean {
-        return prefs.getBoolean(KEY_EMBED_BUBBLE_ELLIPSE_LIMIT, DEFAULT_EMBED_BUBBLE_ELLIPSE_LIMIT)
-    }
-
     fun getUseImageRepair(): Boolean {
         return prefs.getBoolean(KEY_EMBED_IMAGE_REPAIR, DEFAULT_EMBED_IMAGE_REPAIR)
     }
@@ -60,7 +56,6 @@ internal class FolderEmbedCoordinator(
         images: List<File>,
         embedThreads: Int,
         useWhiteBubbleCover: Boolean,
-        useBubbleEllipseLimit: Boolean,
         useImageRepair: Boolean,
         onSetActionsEnabled: (Boolean) -> Unit
     ) {
@@ -74,11 +69,9 @@ internal class FolderEmbedCoordinator(
         }
 
         val normalizedThreads = normalizeEmbedThreads(embedThreads)
-        val effectiveBubbleEllipseLimit = useWhiteBubbleCover && useBubbleEllipseLimit
         prefs.edit() {
                 putInt(KEY_EMBED_THREADS, normalizedThreads)
                 .putBoolean(KEY_EMBED_WHITE_BUBBLE_COVER, useWhiteBubbleCover)
-                .putBoolean(KEY_EMBED_BUBBLE_ELLIPSE_LIMIT, effectiveBubbleEllipseLimit)
                 .putBoolean(KEY_EMBED_IMAGE_REPAIR, useImageRepair)
             }
 
@@ -102,7 +95,6 @@ internal class FolderEmbedCoordinator(
                     images = images,
                     embedThreads = normalizedThreads,
                     useWhiteBubbleCover = useWhiteBubbleCover,
-                    useBubbleEllipseLimit = effectiveBubbleEllipseLimit,
                     useImageRepair = useImageRepair
                 ) { done, total ->
                     withContext(Dispatchers.Main) {
@@ -179,7 +171,6 @@ internal class FolderEmbedCoordinator(
         images: List<File>,
         embedThreads: Int,
         useWhiteBubbleCover: Boolean,
-        useBubbleEllipseLimit: Boolean,
         useImageRepair: Boolean,
         onProgress: suspend (done: Int, total: Int) -> Unit
     ): EmbedResult = withContext(Dispatchers.IO) {
@@ -259,7 +250,6 @@ internal class FolderEmbedCoordinator(
                                     renderer = renderer,
                                     verticalLayoutEnabled = verticalLayoutEnabled,
                                     useWhiteBubbleCover = useWhiteBubbleCover,
-                                    useBubbleEllipseLimit = useBubbleEllipseLimit,
                                     useImageRepair = useImageRepair,
                                     outputDir = embeddedDir
                                 )
@@ -315,7 +305,6 @@ internal class FolderEmbedCoordinator(
         renderer: EmbeddedTextRenderer,
         verticalLayoutEnabled: Boolean,
         useWhiteBubbleCover: Boolean,
-        useBubbleEllipseLimit: Boolean,
         useImageRepair: Boolean,
         outputDir: File
     ): Boolean {
@@ -324,8 +313,7 @@ internal class FolderEmbedCoordinator(
             val bubbleCoverMask = buildBubbleInteriorMask(
                 translation = translation,
                 width = bitmap.width,
-                height = bitmap.height,
-                useEllipse = useBubbleEllipseLimit
+                height = bitmap.height
             )
             applyPureWhiteCover(bitmap, bubbleCoverMask)
         } else {
@@ -360,47 +348,6 @@ internal class FolderEmbedCoordinator(
         }
         bitmap.recycle()
         return saved
-    }
-
-    private fun buildTextMaskBySource(
-        bitmap: Bitmap,
-        translation: TranslationResult,
-        detector: TextMaskDetector,
-        includeBubble: (BubbleTranslation) -> Boolean
-    ): BooleanArray {
-        val width = bitmap.width
-        val height = bitmap.height
-        val mask = BooleanArray(width * height)
-
-        for (bubble in translation.bubbles) {
-            if (!includeBubble(bubble)) continue
-            val left = bubble.rect.left.toInt().coerceIn(0, width - 1)
-            val top = bubble.rect.top.toInt().coerceIn(0, height - 1)
-            val right = bubble.rect.right.toInt().coerceIn(left + 1, width)
-            val bottom = bubble.rect.bottom.toInt().coerceIn(top + 1, height)
-            val cropW = right - left
-            val cropH = bottom - top
-            if (cropW <= 1 || cropH <= 1) continue
-
-            val crop = try {
-                Bitmap.createBitmap(bitmap, left, top, cropW, cropH)
-            } catch (e: Exception) {
-                AppLogger.log("Embed", "Create crop failed", e)
-                continue
-            }
-
-            val cropMask = detector.detectMask(crop)
-            for (y in 0 until cropH) {
-                val cropRow = y * cropW
-                val fullRow = (top + y) * width + left
-                for (x in 0 until cropW) {
-                    if (!cropMask[cropRow + x]) continue
-                    mask[fullRow + x] = true
-                }
-            }
-            crop.recycle()
-        }
-        return mask
     }
 
     private fun repairNonBubbleTextRegions(
@@ -466,8 +413,7 @@ internal class FolderEmbedCoordinator(
     private fun buildBubbleInteriorMask(
         translation: TranslationResult,
         width: Int,
-        height: Int,
-        useEllipse: Boolean
+        height: Int
     ): BooleanArray {
         val scaleX = if (translation.width > 0) width.toFloat() / translation.width.toFloat() else 1f
         val scaleY = if (translation.height > 0) height.toFloat() / translation.height.toFloat() else 1f
@@ -480,11 +426,7 @@ internal class FolderEmbedCoordinator(
                 bubble.rect.right * scaleX,
                 bubble.rect.bottom * scaleY
             )
-            if (useEllipse) {
-                markBubbleInteriorEllipse(mask, scaled, width, height)
-            } else {
-                markBubbleInteriorRect(mask, scaled, width, height)
-            }
+            markBubbleInteriorEllipse(mask, scaled, width, height)
         }
         return mask
     }
@@ -529,120 +471,6 @@ internal class FolderEmbedCoordinator(
         }
     }
 
-    private fun markBubbleInteriorRect(
-        mask: BooleanArray,
-        rect: android.graphics.RectF,
-        width: Int,
-        height: Int
-    ) {
-        val rectW = rect.width()
-        val rectH = rect.height()
-        if (rectW <= 1f || rectH <= 1f) return
-        val inset = max(BUBBLE_FILL_MIN_INSET_PX, min(rectW, rectH) * BUBBLE_FILL_INSET_RATIO)
-        val left = (rect.left + inset).toInt().coerceIn(0, width - 1)
-        val top = (rect.top + inset).toInt().coerceIn(0, height - 1)
-        val right = (rect.right - inset).toInt().coerceIn(0, width - 1)
-        val bottom = (rect.bottom - inset).toInt().coerceIn(0, height - 1)
-        if (left >= right || top >= bottom) return
-        for (y in top..bottom) {
-            val row = y * width
-            for (x in left..right) {
-                mask[row + x] = true
-            }
-        }
-    }
-
-    private fun limitMaskToShrunkenBubbleEllipses(
-        mask: BooleanArray,
-        translation: TranslationResult,
-        width: Int,
-        height: Int
-    ): BooleanArray {
-        val allowedArea = BooleanArray(width * height)
-        for (bubble in translation.bubbles) {
-            if (bubble.source != BubbleSource.BUBBLE_DETECTOR) continue
-            markShrunkenInscribedEllipse(
-                allowedArea = allowedArea,
-                rect = bubble.rect,
-                width = width,
-                height = height
-            )
-        }
-        val output = mask.clone()
-        for (i in output.indices) {
-            if (output[i] && !allowedArea[i]) {
-                output[i] = false
-            }
-        }
-        return output
-    }
-
-    private fun markShrunkenInscribedEllipse(
-        allowedArea: BooleanArray,
-        rect: android.graphics.RectF,
-        width: Int,
-        height: Int
-    ) {
-        val left = rect.left.coerceIn(0f, (width - 1).toFloat())
-        val top = rect.top.coerceIn(0f, (height - 1).toFloat())
-        val right = rect.right.coerceIn((left + 1f).coerceAtMost(width.toFloat()), width.toFloat())
-        val bottom = rect.bottom.coerceIn((top + 1f).coerceAtMost(height.toFloat()), height.toFloat())
-        val rectW = right - left
-        val rectH = bottom - top
-        if (rectW <= 1f || rectH <= 1f) return
-
-        val cx = (left + right) * 0.5f
-        val cy = (top + bottom) * 0.5f
-        val radiusX = rectW * 0.5f * ELLIPSE_SHRINK_FACTOR
-        val radiusY = rectH * 0.5f * ELLIPSE_SHRINK_FACTOR
-        if (radiusX <= 0f || radiusY <= 0f) return
-
-        val minX = (cx - radiusX).toInt().coerceIn(0, width - 1)
-        val maxX = (cx + radiusX).toInt().coerceIn(0, width - 1)
-        val minY = (cy - radiusY).toInt().coerceIn(0, height - 1)
-        val maxY = (cy + radiusY).toInt().coerceIn(0, height - 1)
-        val invRX2 = 1f / (radiusX * radiusX)
-        val invRY2 = 1f / (radiusY * radiusY)
-
-        for (y in minY..maxY) {
-            val py = y + 0.5f - cy
-            val pyTerm = py * py * invRY2
-            val row = y * width
-            for (x in minX..maxX) {
-                val px = x + 0.5f - cx
-                val ellipseValue = px * px * invRX2 + pyTerm
-                if (ellipseValue <= 1f) {
-                    allowedArea[row + x] = true
-                }
-            }
-        }
-    }
-
-    private fun dilateMask(mask: BooleanArray, width: Int, height: Int, iterations: Int): BooleanArray {
-        var current = mask
-        repeat(iterations.coerceAtLeast(1)) {
-            val out = current.clone()
-            for (y in 0 until height) {
-                val row = y * width
-                for (x in 0 until width) {
-                    if (!current[row + x]) continue
-                    for (dy in -1..1) {
-                        val ny = y + dy
-                        if (ny !in 0 until height) continue
-                        val nrow = ny * width
-                        for (dx in -1..1) {
-                            val nx = x + dx
-                            if (nx !in 0 until width) continue
-                            out[nrow + nx] = true
-                        }
-                    }
-                }
-            }
-            current = out
-        }
-        return current
-    }
-
     private fun saveBitmap(target: File, bitmap: Bitmap): Boolean {
         val ext = target.name.substringAfterLast('.', "").lowercase()
         val format = when (ext) {
@@ -673,16 +501,12 @@ internal class FolderEmbedCoordinator(
     companion object {
         private const val BUBBLE_FILL_INSET_RATIO = 0.025f
         private const val BUBBLE_FILL_MIN_INSET_PX = 2f
-        private const val BUBBLE_TEXT_COVER_DILATE_ITERATIONS = 1
         private const val KEY_EMBED_THREADS = "embed_threads"
         private const val KEY_EMBED_WHITE_BUBBLE_COVER = "embed_white_bubble_cover"
-        private const val KEY_EMBED_BUBBLE_ELLIPSE_LIMIT = "embed_bubble_ellipse_limit"
         private const val KEY_EMBED_IMAGE_REPAIR = "embed_image_repair"
         private const val DEFAULT_EMBED_THREADS = 2
         private const val DEFAULT_EMBED_WHITE_BUBBLE_COVER = true
-        private const val DEFAULT_EMBED_BUBBLE_ELLIPSE_LIMIT = true
         private const val DEFAULT_EMBED_IMAGE_REPAIR = false
-        private const val ELLIPSE_SHRINK_FACTOR = 0.99f
         private const val MIN_EMBED_THREADS = 1
         private const val MAX_EMBED_THREADS = 16
     }

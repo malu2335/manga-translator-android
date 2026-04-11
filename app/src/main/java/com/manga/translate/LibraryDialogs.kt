@@ -407,9 +407,8 @@ internal class LibraryDialogs {
         context: Context,
         defaultThreads: Int,
         defaultUseWhiteBubbleCover: Boolean,
-        defaultUseEllipseLimit: Boolean,
         defaultUseImageRepair: Boolean,
-        onConfirm: (Int, Boolean, Boolean, Boolean) -> Unit
+        onConfirm: (Int, Boolean, Boolean) -> Unit
     ) {
         val note = TextView(context).apply {
             text = context.getString(R.string.embed_thread_note)
@@ -430,13 +429,6 @@ internal class LibraryDialogs {
             isChecked = defaultUseWhiteBubbleCover
         }
         applyDialogTextColors(context, whiteCoverCheckBox)
-        val ellipseLimitCheckBox = CheckBox(context).apply {
-            text = context.getString(R.string.embed_ellipse_limit_option)
-            isChecked = defaultUseEllipseLimit
-            isEnabled = defaultUseWhiteBubbleCover
-            alpha = if (defaultUseWhiteBubbleCover) 1f else 0.5f
-        }
-        applyDialogTextColors(context, ellipseLimitCheckBox)
         val imageRepairCheckBox = CheckBox(context).apply {
             text = context.getString(R.string.embed_image_repair_option)
             isChecked = defaultUseImageRepair
@@ -450,13 +442,6 @@ internal class LibraryDialogs {
         }
         fun refreshRecommendation() {
             recommendationView.text = currentAdvice().summary
-        }
-        whiteCoverCheckBox.setOnCheckedChangeListener { _, isChecked ->
-            ellipseLimitCheckBox.isEnabled = isChecked
-            ellipseLimitCheckBox.alpha = if (isChecked) 1f else 0.5f
-            if (!isChecked) {
-                ellipseLimitCheckBox.isChecked = false
-            }
         }
         imageRepairCheckBox.setOnCheckedChangeListener { _, _ ->
             refreshRecommendation()
@@ -483,7 +468,6 @@ internal class LibraryDialogs {
                     topMargin = dp(context, 10f)
                 }
             )
-            addView(ellipseLimitCheckBox, matchWrapLayoutParams())
             addView(imageRepairCheckBox, matchWrapLayoutParams())
         }
         val dialog = AlertDialog.Builder(context)
@@ -504,7 +488,6 @@ internal class LibraryDialogs {
                     onConfirm(
                         threadCount,
                         whiteCoverCheckBox.isChecked,
-                        ellipseLimitCheckBox.isChecked,
                         imageRepairCheckBox.isChecked
                     )
                     dialog.dismiss()
