@@ -91,7 +91,6 @@ class ReadingFragment : Fragment() {
     private var webtoonLockedPagePath: String? = null
     private val webtoonEditOffsets = mutableMapOf<Int, Pair<Float, Float>>()
     private var webtoonPreparingEdit = false
-    private val visibleWebtoonTranslationModified = mutableMapOf<String, Long>()
     private var displayedPageIndex: Int? = null
     private var displayedImagePath: String? = null
     private var pageTransitionGeneration: Int = 0
@@ -136,7 +135,6 @@ class ReadingFragment : Fragment() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 if (folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) return
                 updateWebtoonPageInfo()
-                refreshVisibleWebtoonTranslations()
                 if (!webtoonProgrammaticScroll) {
                     persistWebtoonProgress()
                 }
@@ -875,7 +873,6 @@ class ReadingFragment : Fragment() {
             binding.readingWebtoonList.post {
                 if (!isAdded || _binding == null || folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) return@post
                 startWebtoonTranslationWatcher()
-                refreshVisibleWebtoonTranslations()
             }
         } else {
             stopWebtoonTranslationWatcher()
@@ -1034,12 +1031,13 @@ class ReadingFragment : Fragment() {
         if (isEmbeddedMode) return
         if (webtoonTranslationWatchJob?.isActive == true) return
         webtoonTranslationWatchJob = viewLifecycleOwner.lifecycleScope.launch {
-            while (isActive) {
+            translationStore.updates.collect { path ->
                 if (!isAdded || _binding == null || folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) {
-                    return@launch
+                    return@collect
                 }
-                refreshVisibleWebtoonTranslations()
-                delay(800)
+                if (isVisibleWebtoonPath(path)) {
+                    webtoonAdapter.notifyTranslationChanged(path)
+                }
             }
         }
     }
@@ -1047,38 +1045,21 @@ class ReadingFragment : Fragment() {
     private fun stopWebtoonTranslationWatcher(clearCache: Boolean = true) {
         webtoonTranslationWatchJob?.cancel()
         webtoonTranslationWatchJob = null
-        if (clearCache) {
-            visibleWebtoonTranslationModified.clear()
-        }
     }
 
-    private fun refreshVisibleWebtoonTranslations() {
+    private fun isVisibleWebtoonPath(path: String): Boolean {
         val images = readingSessionViewModel.images.value.orEmpty()
-        if (images.isEmpty()) {
-            visibleWebtoonTranslationModified.clear()
-            return
-        }
+        if (images.isEmpty()) return false
         val firstVisible = webtoonLayoutManager.findFirstVisibleItemPosition()
         val lastVisible = webtoonLayoutManager.findLastVisibleItemPosition()
-        if (firstVisible == RecyclerView.NO_POSITION || lastVisible == RecyclerView.NO_POSITION) {
-            return
-        }
+        if (firstVisible == RecyclerView.NO_POSITION || lastVisible == RecyclerView.NO_POSITION) return false
         val start = firstVisible.coerceAtLeast(0)
         val end = lastVisible.coerceAtMost(images.lastIndex)
-        if (start > end) return
-        val visiblePaths = HashSet<String>(end - start + 1)
+        if (start > end) return false
         for (index in start..end) {
-            val imageFile = images[index]
-            val path = imageFile.absolutePath
-            visiblePaths.add(path)
-            val translationFile = translationStore.translationFileFor(imageFile)
-            val modified = if (translationFile.exists()) translationFile.lastModified() else Long.MIN_VALUE
-            val previous = visibleWebtoonTranslationModified.put(path, modified)
-            if (previous == null || previous != modified) {
-                webtoonAdapter.notifyTranslationChanged(path)
-            }
+            if (images[index].absolutePath == path) return true
         }
-        visibleWebtoonTranslationModified.keys.retainAll(visiblePaths)
+        return false
     }
 
     private fun startTranslationWatcher(imageFile: java.io.File) {
@@ -1086,32 +1067,28 @@ class ReadingFragment : Fragment() {
         if (isEmbeddedMode) return
         translationWatchJob?.cancel()
         translationWatchJob = viewLifecycleOwner.lifecycleScope.launch {
-            val jsonFile = translationStore.translationFileFor(imageFile)
-            while (isActive) {
-                if (currentImageFile?.absolutePath != imageFile.absolutePath) return@launch
-                if (jsonFile.exists()) {
-                    val translation = withContext(Dispatchers.IO) {
-                        translationStore.load(imageFile)
-                    }
-                    if (currentImageFile?.absolutePath != imageFile.absolutePath) return@launch
-                    val decoded = binding.readingImage.drawable?.let { _ ->
-                        loadBitmap(imageFile)
-                    }
-                    val bitmap = decoded?.bitmap
-                    if (bitmap != null) {
-                        binding.readingImage.setImageBitmap(bitmap)
-                        currentBitmap = bitmap
-                        currentImageWidth = decoded.sourceWidth
-                        currentImageHeight = decoded.sourceHeight
-                        imageTransformController.setCurrentBitmap(bitmap)
-                    }
-                    binding.readingImage.post {
-                        updateOverlay(translation, bitmap)
-                    }
-                    return@launch
-                }
-                delay(800)
+            if (translationStore.translationFileFor(imageFile).exists()) {
+                reloadCurrentImageTranslation(imageFile)
+                return@launch
             }
+            translationStore.updates.collect { path ->
+                if (path == imageFile.absolutePath) {
+                    reloadCurrentImageTranslation(imageFile)
+                    return@collect
+                }
+            }
+        }
+    }
+
+    private suspend fun reloadCurrentImageTranslation(imageFile: java.io.File) {
+        if (currentImageFile?.absolutePath != imageFile.absolutePath) return
+        val translation = withContext(Dispatchers.IO) {
+            translationStore.load(imageFile)
+        }
+        if (currentImageFile?.absolutePath != imageFile.absolutePath) return
+        currentTranslation = translation
+        binding.readingImage.post {
+            updateOverlay(translation, currentBitmap)
         }
     }
 

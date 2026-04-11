@@ -48,6 +48,13 @@ internal class TranslationPipeline(
             return@withContext null
         }
         val page = ocrImage(imageFile, forceOcr, language, onProgress) ?: return@withContext null
+        val metadata = buildTranslationMetadata(
+            imageFile = imageFile,
+            language = language,
+            mode = TranslationMetadata.MODE_STANDARD,
+            promptAsset = STANDARD_PROMPT_ASSET,
+            ocrCacheMode = page.cacheMode
+        )
         AppLogger.log("Pipeline", "Translate image ${imageFile.name}")
         val translatable = page.bubbles.filter { it.text.isNotBlank() }
         if (translatable.isEmpty()) {
@@ -58,7 +65,8 @@ internal class TranslationPipeline(
                 imageFile.name,
                 page.width,
                 page.height,
-                emptyTranslations
+                emptyTranslations,
+                metadata
             )
         }
         onProgress(appContext.getString(R.string.translating_bubbles))
@@ -66,7 +74,7 @@ internal class TranslationPipeline(
             val text = normalizeOcrText(bubble.text, language)
             "<b>$text</b>"
         }
-        val promptAsset = "llm_prompts.json"
+        val promptAsset = STANDARD_PROMPT_ASSET
         val translated = llmClient.translate(pageText, glossary, promptAsset)
         if (translated == null) {
             val fallback = page.bubbles.map { bubble ->
@@ -77,7 +85,8 @@ internal class TranslationPipeline(
                 imageFile.name,
                 page.width,
                 page.height,
-                fallback
+                fallback,
+                metadata
             )
         }
         if (translated.glossaryUsed.isNotEmpty()) {
@@ -105,7 +114,7 @@ internal class TranslationPipeline(
             BubbleTranslation(bubble.id, bubble.rect, text, bubble.source)
         }
         AppLogger.log("Pipeline", "Translation finished for ${imageFile.name}")
-        TranslationResult(imageFile.name, page.width, page.height, bubbles)
+        TranslationResult(imageFile.name, page.width, page.height, bubbles, metadata)
     }
 
     suspend fun ocrImage(
@@ -114,19 +123,17 @@ internal class TranslationPipeline(
         language: TranslationLanguage = TranslationLanguage.JA_TO_ZH,
         onProgress: (String) -> Unit
     ): PageOcrResult? = withContext(Dispatchers.Default) {
-        val cacheMode = buildOcrCacheMode(
-            settingsStore.loadOcrApiSettings().useLocalOcr,
-            language
-        )
+        val ocrSettings = settingsStore.loadOcrApiSettings()
+        val cacheMode = buildOcrCacheMode(ocrSettings.useLocalOcr, language)
+        val expectedMetadata = buildOcrMetadata(imageFile, language, ocrSettings, cacheMode)
         if (!forceOcr) {
-            val cached = ocrStore.load(imageFile, expectedCacheMode = cacheMode)
+            val cached = ocrStore.load(imageFile, expectedMetadata = expectedMetadata)
             if (cached != null) {
                 AppLogger.log("Pipeline", "Reuse OCR for ${imageFile.name}")
                 return@withContext cached
             }
         }
         val detector = getDetector() ?: return@withContext null
-        val ocrSettings = settingsStore.loadOcrApiSettings()
         val useLocalOcr = ocrSettings.useLocalOcr
         val ocrEngine: OcrEngine? = if (useLocalOcr) {
             when (language) {
@@ -179,7 +186,14 @@ internal class TranslationPipeline(
                         bubbles.add(OcrBubble(bubbleId, rect, text, BubbleSource.BUBBLE_DETECTOR))
                     }
                 }
-                val result = PageOcrResult(imageFile, bitmap.width, bitmap.height, bubbles, cacheMode)
+                val result = PageOcrResult(
+                    imageFile,
+                    bitmap.width,
+                    bitmap.height,
+                    bubbles,
+                    cacheMode,
+                    expectedMetadata
+                )
                 ocrStore.save(imageFile, result)
                 return@withContext result
             }
@@ -206,7 +220,14 @@ internal class TranslationPipeline(
                         bubbles.add(OcrBubble(bubbleId, rect, text, BubbleSource.BUBBLE_DETECTOR))
                     }
                 }
-                val result = PageOcrResult(imageFile, bitmap.width, bitmap.height, bubbles, cacheMode)
+                val result = PageOcrResult(
+                    imageFile,
+                    bitmap.width,
+                    bitmap.height,
+                    bubbles,
+                    cacheMode,
+                    expectedMetadata
+                )
                 ocrStore.save(imageFile, result)
                 return@withContext result
             }
@@ -228,7 +249,8 @@ internal class TranslationPipeline(
                     bitmap.width,
                     bitmap.height,
                     emptyList(),
-                    cacheMode
+                    cacheMode,
+                    expectedMetadata
                 )
                 ocrStore.save(imageFile, emptyResult)
                 return@withContext emptyResult
@@ -259,7 +281,14 @@ internal class TranslationPipeline(
                 }
                 bubbles.add(OcrBubble(bubbleId, rect, text, source))
             }
-            val result = PageOcrResult(imageFile, bitmap.width, bitmap.height, bubbles, cacheMode)
+            val result = PageOcrResult(
+                imageFile,
+                bitmap.width,
+                bitmap.height,
+                bubbles,
+                cacheMode,
+                expectedMetadata
+            )
             ocrStore.save(imageFile, result)
             result
         } finally {
@@ -274,6 +303,13 @@ internal class TranslationPipeline(
         language: TranslationLanguage = TranslationLanguage.JA_TO_ZH,
         onProgress: (String) -> Unit
     ): TranslationResult? = withContext(Dispatchers.Default) {
+        val metadata = buildTranslationMetadata(
+            imageFile = page.imageFile,
+            language = language,
+            mode = TranslationMetadata.MODE_FULL_PAGE,
+            promptAsset = promptAsset,
+            ocrCacheMode = page.cacheMode
+        )
         val translatable = page.bubbles.filter { it.text.isNotBlank() }
         if (translatable.isEmpty()) {
             val emptyTranslations = page.bubbles.map {
@@ -283,7 +319,8 @@ internal class TranslationPipeline(
                 page.imageFile.name,
                 page.width,
                 page.height,
-                emptyTranslations
+                emptyTranslations,
+                metadata
             )
         }
         onProgress(appContext.getString(R.string.translating_bubbles))
@@ -300,7 +337,8 @@ internal class TranslationPipeline(
                 page.imageFile.name,
                 page.width,
                 page.height,
-                fallback
+                fallback,
+                metadata
             )
         }
         val translatedSegments = extractTaggedSegments(
@@ -324,7 +362,7 @@ internal class TranslationPipeline(
             val text = translationMap[bubble.id] ?: ""
             BubbleTranslation(bubble.id, bubble.rect, text, bubble.source)
         }
-        TranslationResult(page.imageFile.name, page.width, page.height, bubbles)
+        TranslationResult(page.imageFile.name, page.width, page.height, bubbles, metadata)
     }
 
     suspend fun translateImageWithVl(imageFile: File): FolderVlTranslateOutcome =
@@ -340,7 +378,14 @@ internal class TranslationPipeline(
                         imageFile.name,
                         page.width,
                         page.height,
-                        emptyList()
+                        emptyList(),
+                        buildTranslationMetadata(
+                            imageFile = imageFile,
+                            language = TranslationLanguage.JA_TO_ZH,
+                            mode = TranslationMetadata.MODE_VL_DIRECT,
+                            promptAsset = VL_PROMPT_ASSET,
+                            ocrCacheMode = ""
+                        )
                     )
                 )
             }
@@ -350,6 +395,7 @@ internal class TranslationPipeline(
                     return@withContext FolderVlTranslateOutcome()
                 }
             try {
+                val floatingSettings = settingsStore.loadFloatingTranslateApiSettings()
                 val outcome = floatingBubbleTranslationCoordinator.translateImageBubbles(
                     bitmap = bitmap,
                     bubbles = page.bubbles.map { bubble ->
@@ -357,9 +403,9 @@ internal class TranslationPipeline(
                     },
                     timeoutMs = settingsStore.loadApiTimeoutMs(),
                     retryCount = 3,
-                    promptAsset = "vl_bubble_prompts.json",
+                    promptAsset = VL_PROMPT_ASSET,
                     apiSettings = settingsStore.load(),
-                    concurrency = 1,
+                    concurrency = floatingSettings.vlTranslateConcurrency,
                     maxConcurrency = 16,
                     logTag = "Pipeline"
                 )
@@ -374,13 +420,35 @@ internal class TranslationPipeline(
                         imageFile.name,
                         page.width,
                         page.height,
-                        outcome.bubbles
+                        outcome.bubbles,
+                        buildTranslationMetadata(
+                            imageFile = imageFile,
+                            language = TranslationLanguage.JA_TO_ZH,
+                            mode = TranslationMetadata.MODE_VL_DIRECT,
+                            promptAsset = VL_PROMPT_ASSET,
+                            ocrCacheMode = ""
+                        )
                     )
                 )
             } finally {
                 bitmap.recycleSafely()
             }
         }
+
+    fun hasValidTranslation(
+        imageFile: File,
+        fullTranslate: Boolean,
+        useVlDirectTranslate: Boolean,
+        language: TranslationLanguage
+    ): Boolean {
+        val expected = buildExpectedTranslationMetadata(
+            imageFile = imageFile,
+            fullTranslate = fullTranslate,
+            useVlDirectTranslate = useVlDirectTranslate,
+            language = language
+        )
+        return store.load(imageFile, expectedMetadata = expected) != null
+    }
 
     fun saveResult(imageFile: File, result: TranslationResult): File {
         val saved = store.save(imageFile, result)
@@ -590,6 +658,80 @@ internal class TranslationPipeline(
         private const val TEXT_IOU_THRESHOLD = 0.2f
         private const val MASK_EXPAND_RATIO = 0.1f
         private const val MASK_EXPAND_MIN = 4f
+        private const val STANDARD_PROMPT_ASSET = "llm_prompts.json"
+        private const val FULL_TRANS_PROMPT_ASSET = "llm_prompts_FullTrans.json"
+        private const val VL_PROMPT_ASSET = "vl_bubble_prompts.json"
+    }
+
+    private fun buildExpectedTranslationMetadata(
+        imageFile: File,
+        fullTranslate: Boolean,
+        useVlDirectTranslate: Boolean,
+        language: TranslationLanguage
+    ): TranslationMetadata {
+        return when {
+            useVlDirectTranslate -> buildTranslationMetadata(
+                imageFile = imageFile,
+                language = TranslationLanguage.JA_TO_ZH,
+                mode = TranslationMetadata.MODE_VL_DIRECT,
+                promptAsset = VL_PROMPT_ASSET,
+                ocrCacheMode = ""
+            )
+            fullTranslate -> buildTranslationMetadata(
+                imageFile = imageFile,
+                language = language,
+                mode = TranslationMetadata.MODE_FULL_PAGE,
+                promptAsset = FULL_TRANS_PROMPT_ASSET,
+                ocrCacheMode = buildOcrCacheMode(settingsStore.loadOcrApiSettings().useLocalOcr, language)
+            )
+            else -> buildTranslationMetadata(
+                imageFile = imageFile,
+                language = language,
+                mode = TranslationMetadata.MODE_STANDARD,
+                promptAsset = STANDARD_PROMPT_ASSET,
+                ocrCacheMode = buildOcrCacheMode(settingsStore.loadOcrApiSettings().useLocalOcr, language)
+            )
+        }
+    }
+
+    private fun buildTranslationMetadata(
+        imageFile: File,
+        language: TranslationLanguage,
+        mode: String,
+        promptAsset: String,
+        ocrCacheMode: String
+    ): TranslationMetadata {
+        val apiSettings = settingsStore.load()
+        return TranslationMetadata(
+            sourceLastModified = imageFile.lastModified(),
+            sourceFileSize = imageFile.length(),
+            mode = mode,
+            language = language.name,
+            promptAsset = promptAsset,
+            modelName = apiSettings.modelName,
+            apiFormat = apiSettings.apiFormat.prefValue,
+            ocrCacheMode = ocrCacheMode
+        )
+    }
+
+    private fun buildOcrMetadata(
+        imageFile: File,
+        language: TranslationLanguage,
+        ocrSettings: OcrApiSettings,
+        cacheMode: String
+    ): OcrMetadata {
+        val engineModel = if (ocrSettings.useLocalOcr) {
+            "local:$cacheMode"
+        } else {
+            "api:${ocrSettings.modelName}"
+        }
+        return OcrMetadata(
+            sourceLastModified = imageFile.lastModified(),
+            sourceFileSize = imageFile.length(),
+            cacheMode = cacheMode,
+            language = language.name,
+            engineModel = engineModel
+        )
     }
 
     private fun buildOcrCacheMode(
@@ -620,7 +762,8 @@ data class PageOcrResult(
     val width: Int,
     val height: Int,
     val bubbles: List<OcrBubble>,
-    val cacheMode: String = ""
+    val cacheMode: String = "",
+    val metadata: OcrMetadata = OcrMetadata()
 )
 
 data class FolderVlTranslateOutcome(

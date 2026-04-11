@@ -1,16 +1,30 @@
 package com.manga.translate
 
 import android.graphics.RectF
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
 class TranslationStore {
-    fun load(imageFile: File): TranslationResult? {
+    private val updatesFlow = MutableSharedFlow<String>(
+        replay = 0,
+        extraBufferCapacity = 64
+    )
+
+    val updates: SharedFlow<String> = updatesFlow.asSharedFlow()
+
+    fun load(imageFile: File, expectedMetadata: TranslationMetadata? = null): TranslationResult? {
         val jsonFile = translationFileFor(imageFile)
         if (!jsonFile.exists()) return null
         return try {
             val json = JSONObject(jsonFile.readText())
+            val metadata = parseMetadata(json.optJSONObject("metadata"))
+            if (expectedMetadata != null && !isMetadataUsable(imageFile, metadata, expectedMetadata)) {
+                return null
+            }
             val bubblesJson = json.optJSONArray("bubbles") ?: JSONArray()
             val bubbles = ArrayList<BubbleTranslation>(bubblesJson.length())
             for (i in 0 until bubblesJson.length()) {
@@ -30,7 +44,8 @@ class TranslationStore {
                 imageName = json.optString("image", imageFile.name),
                 width = json.optInt("width", 0),
                 height = json.optInt("height", 0),
-                bubbles = bubbles
+                bubbles = bubbles,
+                metadata = metadata
             )
         } catch (e: Exception) {
             AppLogger.log("TranslationStore", "Failed to load ${jsonFile.name}", e)
@@ -40,10 +55,22 @@ class TranslationStore {
 
     fun save(imageFile: File, result: TranslationResult): File {
         val jsonFile = translationFileFor(imageFile)
+        val metadata = normalizeMetadata(imageFile, result.metadata)
         val json = JSONObject()
             .put("image", result.imageName)
             .put("width", result.width)
             .put("height", result.height)
+            .put("metadata", JSONObject().apply {
+                put("sourceLastModified", metadata.sourceLastModified)
+                put("sourceFileSize", metadata.sourceFileSize)
+                put("mode", metadata.mode)
+                put("language", metadata.language)
+                put("promptAsset", metadata.promptAsset)
+                put("modelName", metadata.modelName)
+                put("apiFormat", metadata.apiFormat)
+                put("ocrCacheMode", metadata.ocrCacheMode)
+                put("version", metadata.version)
+            })
         val bubbles = JSONArray()
         for (bubble in result.bubbles) {
             val item = JSONObject()
@@ -58,11 +85,56 @@ class TranslationStore {
         }
         json.put("bubbles", bubbles)
         jsonFile.writeText(json.toString())
+        updatesFlow.tryEmit(imageFile.absolutePath)
         return jsonFile
     }
 
     fun translationFileFor(imageFile: File): File {
         val name = imageFile.nameWithoutExtension + ".json"
         return File(imageFile.parentFile, name)
+    }
+
+    private fun parseMetadata(json: JSONObject?): TranslationMetadata {
+        return TranslationMetadata(
+            sourceLastModified = json?.optLong("sourceLastModified") ?: 0L,
+            sourceFileSize = json?.optLong("sourceFileSize") ?: 0L,
+            mode = json?.optString("mode").orEmpty(),
+            language = json?.optString("language").orEmpty(),
+            promptAsset = json?.optString("promptAsset").orEmpty(),
+            modelName = json?.optString("modelName").orEmpty(),
+            apiFormat = json?.optString("apiFormat").orEmpty(),
+            ocrCacheMode = json?.optString("ocrCacheMode").orEmpty(),
+            version = json?.let { it.optInt("version", TranslationMetadata.CURRENT_VERSION) }
+                ?: TranslationMetadata.CURRENT_VERSION
+        )
+    }
+
+    private fun normalizeMetadata(imageFile: File, metadata: TranslationMetadata): TranslationMetadata {
+        val fingerprinted = metadata.withSourceFingerprint(imageFile)
+        return if (fingerprinted.mode.isNotBlank()) {
+            fingerprinted
+        } else {
+            fingerprinted.copy(mode = TranslationMetadata.MODE_MANUAL)
+        }
+    }
+
+    private fun isMetadataUsable(
+        imageFile: File,
+        actual: TranslationMetadata,
+        expected: TranslationMetadata
+    ): Boolean {
+        if (!actual.matchesSource(imageFile)) {
+            return false
+        }
+        if (actual.isManual()) {
+            return true
+        }
+        return actual.version == expected.version &&
+            actual.mode == expected.mode &&
+            actual.language == expected.language &&
+            actual.promptAsset == expected.promptAsset &&
+            actual.modelName == expected.modelName &&
+            actual.apiFormat == expected.apiFormat &&
+            actual.ocrCacheMode == expected.ocrCacheMode
     }
 }

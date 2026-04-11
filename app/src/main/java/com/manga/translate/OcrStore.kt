@@ -6,13 +6,17 @@ import org.json.JSONObject
 import java.io.File
 
 class OcrStore {
-    fun load(imageFile: File, expectedCacheMode: String? = null): PageOcrResult? {
+    fun load(imageFile: File, expectedMetadata: OcrMetadata? = null): PageOcrResult? {
         val jsonFile = ocrFileFor(imageFile)
         if (!jsonFile.exists()) return null
         return try {
             val json = JSONObject(jsonFile.readText())
-            val cacheMode = json.optString("ocrCacheMode", "")
-            if (expectedCacheMode != null && cacheMode != expectedCacheMode) {
+            val legacyCacheMode = json.optString("ocrCacheMode", "")
+            val metadata = parseMetadata(json.optJSONObject("metadata"), legacyCacheMode)
+            if (expectedMetadata != null && !metadata.matchesSource(imageFile)) {
+                return null
+            }
+            if (expectedMetadata != null && !metadata.matches(expectedMetadata)) {
                 return null
             }
             val bubblesJson = json.optJSONArray("bubbles") ?: JSONArray()
@@ -35,7 +39,8 @@ class OcrStore {
                 width = json.optInt("width", 0),
                 height = json.optInt("height", 0),
                 bubbles = bubbles,
-                cacheMode = cacheMode
+                cacheMode = metadata.cacheMode,
+                metadata = metadata
             )
         } catch (e: Exception) {
             AppLogger.log("OcrStore", "Failed to load ${jsonFile.name}", e)
@@ -45,11 +50,24 @@ class OcrStore {
 
     fun save(imageFile: File, result: PageOcrResult): File {
         val jsonFile = ocrFileFor(imageFile)
+        val metadata = result.metadata.copy(
+            sourceLastModified = imageFile.lastModified(),
+            sourceFileSize = imageFile.length(),
+            cacheMode = result.cacheMode.ifBlank { result.metadata.cacheMode }
+        )
         val json = JSONObject()
             .put("image", result.imageFile.name)
             .put("width", result.width)
             .put("height", result.height)
-            .put("ocrCacheMode", result.cacheMode)
+            .put("ocrCacheMode", metadata.cacheMode)
+            .put("metadata", JSONObject().apply {
+                put("sourceLastModified", metadata.sourceLastModified)
+                put("sourceFileSize", metadata.sourceFileSize)
+                put("cacheMode", metadata.cacheMode)
+                put("language", metadata.language)
+                put("engineModel", metadata.engineModel)
+                put("version", metadata.version)
+            })
         val bubbles = JSONArray()
         for (bubble in result.bubbles) {
             val item = JSONObject()
@@ -70,5 +88,17 @@ class OcrStore {
     fun ocrFileFor(imageFile: File): File {
         val name = imageFile.nameWithoutExtension + ".ocr.json"
         return File(imageFile.parentFile, name)
+    }
+
+    private fun parseMetadata(json: JSONObject?, legacyCacheMode: String): OcrMetadata {
+        return OcrMetadata(
+            sourceLastModified = json?.optLong("sourceLastModified") ?: 0L,
+            sourceFileSize = json?.optLong("sourceFileSize") ?: 0L,
+            cacheMode = json?.optString("cacheMode").orEmpty().ifBlank { legacyCacheMode },
+            language = json?.optString("language").orEmpty(),
+            engineModel = json?.optString("engineModel").orEmpty(),
+            version = json?.let { it.optInt("version", OcrMetadata.CURRENT_VERSION) }
+                ?: OcrMetadata.CURRENT_VERSION
+        )
     }
 }

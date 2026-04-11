@@ -109,7 +109,13 @@ internal class FolderTranslationCoordinator(
             ui.setFolderStatus(appContext.getString(R.string.folder_images_empty))
             return
         }
-        val pendingImages = resolvePendingImages(images, force)
+        val pendingImages = resolvePendingImages(
+            images = images,
+            force = force,
+            fullTranslate = false,
+            useVlDirectTranslate = useVlDirectTranslate,
+            language = language
+        )
         if (pendingImages.isEmpty()) {
             ui.setFolderStatus(appContext.getString(R.string.translation_done))
             return
@@ -283,7 +289,13 @@ internal class FolderTranslationCoordinator(
             ui.setFolderStatus(appContext.getString(R.string.folder_images_empty))
             return
         }
-        val pendingImages = resolvePendingImages(images, force)
+        val pendingImages = resolvePendingImages(
+            images = images,
+            force = force,
+            fullTranslate = true,
+            useVlDirectTranslate = false,
+            language = language
+        )
         if (pendingImages.isEmpty()) {
             ui.setFolderStatus(appContext.getString(R.string.translation_done))
             return
@@ -352,7 +364,12 @@ internal class FolderTranslationCoordinator(
                     }
 
                     val glossaryPages = ocrResults.filterNot {
-                        translationStore.translationFileFor(it.imageFile).exists() ||
+                        translationPipeline.hasValidTranslation(
+                            imageFile = it.imageFile,
+                            fullTranslate = true,
+                            useVlDirectTranslate = false,
+                            language = language
+                        ) ||
                             extractState.contains(it.imageFile.name)
                     }
                     val glossaryText = buildGlossaryText(glossaryPages)
@@ -568,11 +585,24 @@ internal class FolderTranslationCoordinator(
         return builder.toString().trim()
     }
 
-    private fun resolvePendingImages(images: List<File>, force: Boolean): List<File> {
+    private fun resolvePendingImages(
+        images: List<File>,
+        force: Boolean,
+        fullTranslate: Boolean,
+        useVlDirectTranslate: Boolean,
+        language: TranslationLanguage
+    ): List<File> {
         return if (force) {
             images
         } else {
-            images.filterNot { translationStore.translationFileFor(it).exists() }
+            images.filterNot {
+                translationPipeline.hasValidTranslation(
+                    imageFile = it,
+                    fullTranslate = fullTranslate,
+                    useVlDirectTranslate = useVlDirectTranslate,
+                    language = language
+                )
+            }
         }
     }
 
