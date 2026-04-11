@@ -23,6 +23,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.Executors
+import kotlin.math.max
+import kotlin.math.min
 
 internal class FolderEmbedCoordinator(
     context: Context,
@@ -224,14 +226,6 @@ internal class FolderEmbedCoordinator(
         }.asCoroutineDispatcher()
 
         try {
-            val detector = try {
-                TextMaskDetector(appContext, threadProfile = onnxThreadProfile)
-            } catch (e: Exception) {
-                AppLogger.log("Embed", "Failed to init text mask detector", e)
-                initFailed.set(true)
-                failed.set(true)
-                null
-            }
             val inpainter = try {
                 MiganInpainter(appContext, threadProfile = onnxThreadProfile)
             } catch (e: Exception) {
@@ -240,7 +234,7 @@ internal class FolderEmbedCoordinator(
                 failed.set(true)
                 null
             }
-            if (detector == null || inpainter == null) {
+            if (inpainter == null) {
                 return@withContext EmbedResult.Failure(appContext.getString(R.string.folder_embed_failed))
             }
 
@@ -261,7 +255,6 @@ internal class FolderEmbedCoordinator(
                                 processSingleImage(
                                     sourceImage = image,
                                     translation = translation,
-                                    detector = detector,
                                     inpainter = inpainter,
                                     renderer = renderer,
                                     verticalLayoutEnabled = verticalLayoutEnabled,
@@ -318,7 +311,6 @@ internal class FolderEmbedCoordinator(
     private fun processSingleImage(
         sourceImage: File,
         translation: TranslationResult,
-        detector: TextMaskDetector,
         inpainter: MiganInpainter,
         renderer: EmbeddedTextRenderer,
         verticalLayoutEnabled: Boolean,
@@ -329,33 +321,13 @@ internal class FolderEmbedCoordinator(
     ): Boolean {
         val bitmap = BitmapFactory.decodeFile(sourceImage.absolutePath) ?: return false
         val covered = if (useWhiteBubbleCover) {
-            val bubbleCoverMask = buildTextMaskBySource(
-                bitmap = bitmap,
+            val bubbleCoverMask = buildBubbleInteriorMask(
                 translation = translation,
-                detector = detector,
-                includeBubble = { it.source == BubbleSource.BUBBLE_DETECTOR }
+                width = bitmap.width,
+                height = bitmap.height,
+                useEllipse = useBubbleEllipseLimit
             )
-            val expandedBubbleCoverMask = if (bubbleCoverMask.any { it }) {
-                dilateMask(
-                    bubbleCoverMask,
-                    bitmap.width,
-                    bitmap.height,
-                    BUBBLE_TEXT_COVER_DILATE_ITERATIONS
-                )
-            } else {
-                bubbleCoverMask
-            }
-            val finalBubbleCoverMask = if (useBubbleEllipseLimit) {
-                limitMaskToShrunkenBubbleEllipses(
-                    mask = expandedBubbleCoverMask,
-                    translation = translation,
-                    width = bitmap.width,
-                    height = bitmap.height
-                )
-            } else {
-                expandedBubbleCoverMask
-            }
-            applyPureWhiteCover(bitmap, finalBubbleCoverMask)
+            applyPureWhiteCover(bitmap, bubbleCoverMask)
         } else {
             bitmap.copy(Bitmap.Config.ARGB_8888, true)
         }
@@ -491,6 +463,95 @@ internal class FolderEmbedCoordinator(
         return prepared
     }
 
+    private fun buildBubbleInteriorMask(
+        translation: TranslationResult,
+        width: Int,
+        height: Int,
+        useEllipse: Boolean
+    ): BooleanArray {
+        val scaleX = if (translation.width > 0) width.toFloat() / translation.width.toFloat() else 1f
+        val scaleY = if (translation.height > 0) height.toFloat() / translation.height.toFloat() else 1f
+        val mask = BooleanArray(width * height)
+        for (bubble in translation.bubbles) {
+            if (bubble.source != BubbleSource.BUBBLE_DETECTOR) continue
+            val scaled = android.graphics.RectF(
+                bubble.rect.left * scaleX,
+                bubble.rect.top * scaleY,
+                bubble.rect.right * scaleX,
+                bubble.rect.bottom * scaleY
+            )
+            if (useEllipse) {
+                markBubbleInteriorEllipse(mask, scaled, width, height)
+            } else {
+                markBubbleInteriorRect(mask, scaled, width, height)
+            }
+        }
+        return mask
+    }
+
+    private fun markBubbleInteriorEllipse(
+        mask: BooleanArray,
+        rect: android.graphics.RectF,
+        width: Int,
+        height: Int
+    ) {
+        val left = rect.left.coerceIn(0f, (width - 1).toFloat())
+        val top = rect.top.coerceIn(0f, (height - 1).toFloat())
+        val right = rect.right.coerceIn((left + 1f).coerceAtMost(width.toFloat()), width.toFloat())
+        val bottom = rect.bottom.coerceIn((top + 1f).coerceAtMost(height.toFloat()), height.toFloat())
+        val rectW = right - left
+        val rectH = bottom - top
+        if (rectW <= 1f || rectH <= 1f) return
+
+        val cx = (left + right) * 0.5f
+        val cy = (top + bottom) * 0.5f
+        val inset = max(BUBBLE_FILL_MIN_INSET_PX, min(rectW, rectH) * BUBBLE_FILL_INSET_RATIO)
+        val radiusX = (rectW * 0.5f - inset).coerceAtLeast(1f)
+        val radiusY = (rectH * 0.5f - inset).coerceAtLeast(1f)
+
+        val minX = (cx - radiusX).toInt().coerceIn(0, width - 1)
+        val maxX = (cx + radiusX).toInt().coerceIn(0, width - 1)
+        val minY = (cy - radiusY).toInt().coerceIn(0, height - 1)
+        val maxY = (cy + radiusY).toInt().coerceIn(0, height - 1)
+        val invRX2 = 1f / (radiusX * radiusX)
+        val invRY2 = 1f / (radiusY * radiusY)
+
+        for (y in minY..maxY) {
+            val py = y + 0.5f - cy
+            val pyTerm = py * py * invRY2
+            val row = y * width
+            for (x in minX..maxX) {
+                val px = x + 0.5f - cx
+                if (px * px * invRX2 + pyTerm <= 1f) {
+                    mask[row + x] = true
+                }
+            }
+        }
+    }
+
+    private fun markBubbleInteriorRect(
+        mask: BooleanArray,
+        rect: android.graphics.RectF,
+        width: Int,
+        height: Int
+    ) {
+        val rectW = rect.width()
+        val rectH = rect.height()
+        if (rectW <= 1f || rectH <= 1f) return
+        val inset = max(BUBBLE_FILL_MIN_INSET_PX, min(rectW, rectH) * BUBBLE_FILL_INSET_RATIO)
+        val left = (rect.left + inset).toInt().coerceIn(0, width - 1)
+        val top = (rect.top + inset).toInt().coerceIn(0, height - 1)
+        val right = (rect.right - inset).toInt().coerceIn(0, width - 1)
+        val bottom = (rect.bottom - inset).toInt().coerceIn(0, height - 1)
+        if (left >= right || top >= bottom) return
+        for (y in top..bottom) {
+            val row = y * width
+            for (x in left..right) {
+                mask[row + x] = true
+            }
+        }
+    }
+
     private fun limitMaskToShrunkenBubbleEllipses(
         mask: BooleanArray,
         translation: TranslationResult,
@@ -610,6 +671,8 @@ internal class FolderEmbedCoordinator(
     }
 
     companion object {
+        private const val BUBBLE_FILL_INSET_RATIO = 0.025f
+        private const val BUBBLE_FILL_MIN_INSET_PX = 2f
         private const val BUBBLE_TEXT_COVER_DILATE_ITERATIONS = 1
         private const val KEY_EMBED_THREADS = "embed_threads"
         private const val KEY_EMBED_WHITE_BUBBLE_COVER = "embed_white_bubble_cover"
