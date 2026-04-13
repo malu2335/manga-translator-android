@@ -151,7 +151,8 @@ internal class FolderEmbedCoordinator(
         activeJob = scope.launch {
             val success = withContext(Dispatchers.IO) {
                 embeddedStateStore.clearEmbeddedState(folder)
-                !embeddedStateStore.isEmbedded(folder)
+                !embeddedStateStore.markerFile(folder).exists() &&
+                    embeddedStateStore.listEmbeddedImages(folder).isEmpty()
             }
             onSetActionsEnabled(true)
             if (success) {
