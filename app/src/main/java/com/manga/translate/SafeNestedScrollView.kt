@@ -10,7 +10,7 @@ open class SafeNestedScrollView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
 ) : NestedScrollView(context, attrs, defStyleAttr) {
-    private var scrollBarCrashRecovered = false
+    private var scrollBarCrashOccurred = false
 
     override fun draw(canvas: Canvas) {
         try {
@@ -19,19 +19,14 @@ open class SafeNestedScrollView @JvmOverloads constructor(
             if (!isFrameworkScrollBarCrash(e)) {
                 throw e
             }
-            disableScrollBarsAfterCrash(e)
-            try {
-                super.draw(canvas)
-            } catch (retryError: NullPointerException) {
-                if (!isFrameworkScrollBarCrash(retryError)) {
-                    throw retryError
-                }
-                AppLogger.log(
-                    "SafeNestedScrollView",
-                    "Skipped redraw after repeated framework scrollbar crash",
-                    retryError
-                )
+            if (!scrollBarCrashOccurred) {
+                // First crash: disable scroll bars and request a fresh draw.
+                // Do NOT retry within the same frame — the scrollbar state hasn't
+                // been cleared yet, so a retry would crash again.
+                disableScrollBarsAfterCrash(e)
+                postInvalidate()
             }
+            // Subsequent crashes (or the re-entrant retry): silently skip this frame.
         }
     }
 
@@ -41,14 +36,12 @@ open class SafeNestedScrollView @JvmOverloads constructor(
     }
 
     private fun disableScrollBarsAfterCrash(error: NullPointerException) {
-        if (!scrollBarCrashRecovered) {
-            scrollBarCrashRecovered = true
-            AppLogger.log(
-                "SafeNestedScrollView",
-                "Recovered from framework scrollbar crash by disabling scrollbars",
-                error
-            )
-        }
+        scrollBarCrashOccurred = true
+        AppLogger.log(
+            "SafeNestedScrollView",
+            "Recovered from framework scrollbar crash by disabling scrollbars",
+            error
+        )
         isVerticalScrollBarEnabled = false
         isHorizontalScrollBarEnabled = false
     }
