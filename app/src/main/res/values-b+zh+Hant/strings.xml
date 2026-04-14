@@ -303,6 +303,8 @@
     <string name="folder_preprocess_stage_ocr">預處理 OCR</string>
     <string name="folder_preprocess_stage_glossary">預處理 譯名提取</string>
     <string name="folder_translation_count">%1$d/%2$d</string>
+    <string name="folder_collection_translation_progress">子章節 %1$d/%2$d · 圖片 %3$d/%4$d</string>
+    <string name="folder_collection_translation_target">%1$s · %2$s</string>
     <string name="translation_done">翻譯完成</string>
     <string name="translation_failed">翻譯失敗</string>
     <string name="folder_embed_progress">嵌字中…(%1$d/%2$d)</string>

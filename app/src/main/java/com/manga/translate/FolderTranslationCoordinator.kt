@@ -19,6 +19,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
+internal data class FolderTranslationTask(
+    val folder: File,
+    val images: List<File>,
+    val force: Boolean,
+    val fullTranslate: Boolean,
+    val useVlDirectTranslate: Boolean,
+    val language: TranslationLanguage
+)
+
 internal class FolderTranslationCoordinator(
     context: Context,
     private val translationPipeline: TranslationPipeline,
@@ -38,6 +47,21 @@ internal class FolderTranslationCoordinator(
         val language: TranslationLanguage,
         val onTranslateEnabled: (Boolean) -> Unit
     )
+
+    private data class PreparedCollectionTask(
+        val folder: File,
+        val pendingImages: List<File>,
+        val force: Boolean,
+        val fullTranslate: Boolean,
+        val useVlDirectTranslate: Boolean,
+        val language: TranslationLanguage
+    )
+
+    private enum class CollectionTaskResult {
+        SUCCESS,
+        FAILED,
+        ABORTED
+    }
 
     private val appContext = context.applicationContext
     private val translationRunning = AtomicBoolean(false)
@@ -94,6 +118,164 @@ internal class FolderTranslationCoordinator(
             onTranslateEnabled = task.onTranslateEnabled
         )
         return true
+    }
+
+    fun translateCollection(
+        scope: CoroutineScope,
+        collectionFolder: File,
+        tasks: List<FolderTranslationTask>,
+        onTranslateEnabled: (Boolean) -> Unit
+    ) {
+        if (tasks.isEmpty()) {
+            ui.setFolderStatus(appContext.getString(R.string.folder_chapters_empty))
+            return
+        }
+        val preparedTasks = tasks.mapNotNull { task ->
+            val pendingImages = resolvePendingImages(
+                images = task.images,
+                force = task.force,
+                fullTranslate = task.fullTranslate,
+                useVlDirectTranslate = task.useVlDirectTranslate,
+                language = task.language
+            )
+            if (pendingImages.isEmpty()) {
+                null
+            } else {
+                PreparedCollectionTask(
+                    folder = task.folder,
+                    pendingImages = pendingImages,
+                    force = task.force,
+                    fullTranslate = task.fullTranslate,
+                    useVlDirectTranslate = task.useVlDirectTranslate,
+                    language = task.language
+                )
+            }
+        }
+        if (preparedTasks.isEmpty()) {
+            ui.setFolderStatus(appContext.getString(R.string.translation_done))
+            return
+        }
+        if (!llmClient.isConfigured()) {
+            ui.setFolderStatus(appContext.getString(R.string.missing_api_settings))
+            return
+        }
+        if (!translationRunning.compareAndSet(false, true)) {
+            ui.setFolderStatus(appContext.getString(R.string.translation_preparing))
+            return
+        }
+
+        resumableTask = null
+        cancellationRequested.set(false)
+        TranslationCancellationRegistry.register { cancelActiveTranslation() }
+        onTranslateEnabled(false)
+        try {
+            TranslationKeepAliveService.start(appContext)
+            TranslationKeepAliveService.updateStatus(
+                appContext,
+                appContext.getString(R.string.translation_preparing)
+            )
+            AppLogger.log(
+                "Library",
+                "Start translating collection ${collectionFolder.name}, ${preparedTasks.size} chapters"
+            )
+
+            val totalImages = preparedTasks.sumOf { it.pendingImages.size }.coerceAtLeast(1)
+            val job = scope.launch {
+                var failed = false
+                try {
+                    var translatedImages = 0
+                    for ((index, task) in preparedTasks.withIndex()) {
+                        currentCoroutineContext().ensureActive()
+                        val result = if (task.fullTranslate) {
+                            translateCollectionFolderFull(
+                                scope = scope,
+                                task = task,
+                                chapterIndex = index,
+                                chapterTotal = preparedTasks.size,
+                                translatedImages = translatedImages,
+                                totalImages = totalImages
+                            )
+                        } else {
+                            translateCollectionFolderStandard(
+                                scope = scope,
+                                task = task,
+                                chapterIndex = index,
+                                chapterTotal = preparedTasks.size,
+                                translatedImages = translatedImages,
+                                totalImages = totalImages
+                            )
+                        }
+                        when (result) {
+                            CollectionTaskResult.SUCCESS -> {
+                                translatedImages += task.pendingImages.size
+                            }
+                            CollectionTaskResult.FAILED -> {
+                                translatedImages += task.pendingImages.size
+                                failed = true
+                            }
+                            CollectionTaskResult.ABORTED -> {
+                                failed = true
+                                break
+                            }
+                        }
+                    }
+                    ui.setFolderStatus(
+                        if (failed) appContext.getString(R.string.translation_failed) else appContext.getString(
+                            R.string.translation_done
+                        )
+                    )
+                    if (failed) {
+                        GlobalTaskProgressStore.fail(
+                            appContext.getString(R.string.translation_keepalive_title),
+                            appContext.getString(R.string.translation_failed)
+                        )
+                    } else {
+                        GlobalTaskProgressStore.complete(
+                            appContext.getString(R.string.translation_keepalive_title),
+                            appContext.getString(R.string.translation_done)
+                        )
+                    }
+                    ui.refreshImages(collectionFolder)
+                } catch (e: CancellationException) {
+                    if (cancellationRequested.get()) {
+                        AppLogger.log("Library", "Collection translation canceled: ${collectionFolder.name}")
+                        ui.setFolderStatus(appContext.getString(R.string.translation_canceled))
+                        ui.showToast(R.string.translation_canceled)
+                        GlobalTaskProgressStore.complete(
+                            appContext.getString(R.string.translation_keepalive_title),
+                            appContext.getString(R.string.translation_canceled)
+                        )
+                        ui.refreshImages(collectionFolder)
+                    } else {
+                        throw e
+                    }
+                } finally {
+                    activeJob = null
+                    TranslationCancellationRegistry.clear()
+                    cancellationRequested.set(false)
+                    onTranslateEnabled(true)
+                    TranslationKeepAliveService.stop(appContext)
+                    translationRunning.set(false)
+                }
+            }
+            activeJob = job
+            if (cancellationRequested.get()) {
+                job.cancel(CancellationException(USER_CANCELED_REASON))
+            }
+        } catch (e: Exception) {
+            activeJob = null
+            TranslationCancellationRegistry.clear()
+            cancellationRequested.set(false)
+            onTranslateEnabled(true)
+            TranslationKeepAliveService.stop(appContext)
+            translationRunning.set(false)
+            AppLogger.log("Library", "Failed to start collection translation ${collectionFolder.name}", e)
+            ui.setFolderStatus(appContext.getString(R.string.translation_failed))
+            GlobalTaskProgressStore.fail(
+                appContext.getString(R.string.translation_keepalive_title),
+                appContext.getString(R.string.translation_failed)
+            )
+        }
     }
 
     private fun translateFolderStandard(
@@ -570,6 +752,248 @@ internal class FolderTranslationCoordinator(
                 appContext.getString(R.string.translation_failed)
             )
         }
+    }
+
+    private suspend fun translateCollectionFolderStandard(
+        scope: CoroutineScope,
+        task: PreparedCollectionTask,
+        chapterIndex: Int,
+        chapterTotal: Int,
+        translatedImages: Int,
+        totalImages: Int
+    ): CollectionTaskResult {
+        var failed = false
+        val glossary = glossaryStore.load(task.folder)
+        for ((imageIndex, image) in task.pendingImages.withIndex()) {
+            currentCoroutineContext().ensureActive()
+            reportCollectionProgress(
+                chapterIndex = chapterIndex,
+                chapterTotal = chapterTotal,
+                imageIndex = translatedImages + imageIndex,
+                imageTotal = totalImages,
+                chapterName = task.folder.name,
+                imageName = image.name
+            )
+            val result = try {
+                if (task.useVlDirectTranslate) {
+                    val vlOutcome = translationPipeline.translateImageWithVl(image)
+                    when {
+                        vlOutcome.requiresVlModel -> {
+                            ui.showToast(R.string.folder_vl_model_required)
+                            return CollectionTaskResult.ABORTED
+                        }
+                        vlOutcome.timedOut -> {
+                            ui.showToast(R.string.floating_translate_timeout)
+                            return CollectionTaskResult.ABORTED
+                        }
+                        else -> vlOutcome.result
+                    }
+                } else {
+                    translationPipeline.translateImage(
+                        image,
+                        glossary,
+                        task.force,
+                        task.language
+                    ) { }
+                }
+            } catch (e: LlmRequestException) {
+                AppLogger.log("Library", "Collection translation aborted for ${image.name}", e)
+                ui.showApiError(e.errorCode, e.responseBody)
+                return CollectionTaskResult.ABORTED
+            } catch (e: LlmResponseException) {
+                AppLogger.log("Library", "Invalid model response for ${image.name}", e)
+                ui.showModelError(e.responseContent) {
+                    resumeFailedTranslation(scope)
+                }
+                return CollectionTaskResult.ABORTED
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLogger.log("Library", "Collection translation failed for ${image.name}", e)
+                null
+            }
+            if (result != null) {
+                translationPipeline.saveResult(image, result)
+            } else {
+                failed = true
+            }
+            if (glossary.isNotEmpty()) {
+                glossaryStore.save(task.folder, glossary)
+            }
+            reportCollectionProgress(
+                chapterIndex = chapterIndex,
+                chapterTotal = chapterTotal,
+                imageIndex = translatedImages + imageIndex + 1,
+                imageTotal = totalImages,
+                chapterName = task.folder.name,
+                imageName = image.name
+            )
+        }
+        return if (failed) CollectionTaskResult.FAILED else CollectionTaskResult.SUCCESS
+    }
+
+    private suspend fun translateCollectionFolderFull(
+        scope: CoroutineScope,
+        task: PreparedCollectionTask,
+        chapterIndex: Int,
+        chapterTotal: Int,
+        translatedImages: Int,
+        totalImages: Int
+    ): CollectionTaskResult {
+        var failed = false
+        val glossary = glossaryStore.load(task.folder).toMutableMap()
+        val extractState = extractStateStore.load(task.folder)
+        val ocrResults = ArrayList<PageOcrResult>(task.pendingImages.size)
+        for ((index, image) in task.pendingImages.withIndex()) {
+            currentCoroutineContext().ensureActive()
+            reportCollectionProgress(
+                chapterIndex = chapterIndex,
+                chapterTotal = chapterTotal,
+                imageIndex = translatedImages + index,
+                imageTotal = totalImages,
+                chapterName = task.folder.name,
+                imageName = image.name
+            )
+            val result = try {
+                translationPipeline.ocrImage(image, task.force, task.language) { }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLogger.log("Library", "Collection OCR failed for ${image.name}", e)
+                null
+            }
+            if (result != null) {
+                ocrResults.add(result)
+            } else {
+                failed = true
+            }
+        }
+
+        val glossaryPages = ocrResults.filterNot {
+            translationPipeline.hasValidTranslation(
+                imageFile = it.imageFile,
+                fullTranslate = true,
+                useVlDirectTranslate = false,
+                language = task.language
+            ) || extractState.contains(it.imageFile.name)
+        }
+        val glossaryText = buildGlossaryText(glossaryPages)
+        if (glossaryText.isNotBlank()) {
+            try {
+                val abstractPromptAsset = "llm_prompts_abstract.json"
+                val extracted = llmClient.extractGlossary(glossaryText, glossary, abstractPromptAsset)
+                if (extracted != null) {
+                    if (extracted.isNotEmpty()) {
+                        for ((key, value) in extracted) {
+                            if (!glossary.containsKey(key)) {
+                                glossary[key] = value
+                            }
+                        }
+                        glossaryStore.save(task.folder, glossary)
+                    }
+                    for (page in glossaryPages) {
+                        extractState.add(page.imageFile.name)
+                    }
+                    extractStateStore.save(task.folder, extractState)
+                }
+            } catch (e: LlmRequestException) {
+                AppLogger.log("Library", "Collection glossary extraction aborted", e)
+                ui.showApiError(e.errorCode, e.responseBody)
+                return CollectionTaskResult.ABORTED
+            } catch (e: LlmResponseException) {
+                AppLogger.log("Library", "Collection glossary response invalid", e)
+                ui.showModelError(e.responseContent) {
+                    resumeFailedTranslation(scope)
+                }
+                return CollectionTaskResult.ABORTED
+            }
+        }
+
+        for ((index, page) in ocrResults.withIndex()) {
+            currentCoroutineContext().ensureActive()
+            reportCollectionProgress(
+                chapterIndex = chapterIndex,
+                chapterTotal = chapterTotal,
+                imageIndex = translatedImages + index,
+                imageTotal = totalImages,
+                chapterName = task.folder.name,
+                imageName = page.imageFile.name
+            )
+            val fullTransPromptAsset = "llm_prompts_FullTrans.json"
+            val result = try {
+                translationPipeline.translateFullPage(
+                    page,
+                    glossary,
+                    fullTransPromptAsset,
+                    task.language
+                ) { }
+            } catch (e: LlmResponseException) {
+                AppLogger.log("Library", "Invalid collection model response for ${page.imageFile.name}", e)
+                ui.showModelError(e.responseContent) {
+                    resumeFailedTranslation(scope)
+                }
+                return CollectionTaskResult.ABORTED
+            } catch (e: LlmRequestException) {
+                AppLogger.log("Library", "Collection full translation aborted for ${page.imageFile.name}", e)
+                ui.showApiError(e.errorCode, e.responseBody)
+                return CollectionTaskResult.ABORTED
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLogger.log("Library", "Collection full translation failed for ${page.imageFile.name}", e)
+                null
+            }
+            if (result != null) {
+                translationPipeline.saveResult(page.imageFile, result)
+            } else {
+                failed = true
+            }
+            reportCollectionProgress(
+                chapterIndex = chapterIndex,
+                chapterTotal = chapterTotal,
+                imageIndex = translatedImages + index + 1,
+                imageTotal = totalImages,
+                chapterName = task.folder.name,
+                imageName = page.imageFile.name
+            )
+        }
+
+        return if (failed) CollectionTaskResult.FAILED else CollectionTaskResult.SUCCESS
+    }
+
+    private fun reportCollectionProgress(
+        chapterIndex: Int,
+        chapterTotal: Int,
+        imageIndex: Int,
+        imageTotal: Int,
+        chapterName: String,
+        imageName: String
+    ) {
+        val safeChapterIndex = (chapterIndex + 1).coerceIn(1, chapterTotal.coerceAtLeast(1))
+        val safeChapterTotal = chapterTotal.coerceAtLeast(1)
+        val safeImageIndex = imageIndex.coerceIn(0, imageTotal.coerceAtLeast(1))
+        val safeImageTotal = imageTotal.coerceAtLeast(1)
+        val left = appContext.getString(
+            R.string.folder_collection_translation_progress,
+            safeChapterIndex,
+            safeChapterTotal,
+            safeImageIndex,
+            safeImageTotal
+        )
+        val right = appContext.getString(
+            R.string.folder_collection_translation_target,
+            chapterName,
+            imageName
+        )
+        ui.setFolderStatus(left, right)
+        TranslationKeepAliveService.updateProgress(
+            appContext,
+            safeImageIndex,
+            safeImageTotal,
+            "$left  $chapterName / $imageName",
+            appContext.getString(R.string.translation_keepalive_title),
+            appContext.getString(R.string.translation_keepalive_message)
+        )
     }
 
     private fun buildGlossaryText(pages: List<PageOcrResult>): String {

@@ -330,6 +330,7 @@ class LibraryFragment : Fragment() {
         binding.folderBackButton.setOnClickListener { navigateBackFromDetail() }
         binding.folderAddImages.setOnClickListener { handleAddContentClick() }
         binding.folderImportChapters.setOnClickListener { importChildChapters() }
+        binding.folderTranslateCollection.setOnClickListener { translateFolder() }
         binding.folderExport.setOnClickListener { exportFolder() }
         binding.folderTranslate.setOnClickListener { translateFolder() }
         binding.folderRead.setOnClickListener { startReading() }
@@ -1013,6 +1014,10 @@ class LibraryFragment : Fragment() {
     private fun translateFolder() {
         val folder = currentFolder ?: return
         selectionController.exitSelectionMode()
+        if (repository.isCollectionFolder(folder)) {
+            runCollectionTranslation(folder, force = false)
+            return
+        }
         runTranslation(folder, repository.listImages(folder), force = false)
     }
 
@@ -1034,6 +1039,38 @@ class LibraryFragment : Fragment() {
             useVlDirectTranslate = useVlDirectTranslate,
             language = language,
             onTranslateEnabled = { enabled -> _binding?.folderTranslate?.isEnabled = enabled }
+        )
+    }
+
+    private fun runCollectionTranslation(collectionFolder: File, force: Boolean) {
+        val chapters = repository.listChildFolders(collectionFolder)
+        val tasks = chapters.map { chapter ->
+            val images = repository.listImages(chapter)
+            val fullTranslate = preferencesGateway.isFullTranslateEnabled(chapter)
+            val useVlDirectTranslate = preferencesGateway.isVlDirectTranslateEnabled(chapter)
+            val useLocalOcr = settingsStore.loadOcrApiSettings().useLocalOcr
+            val language = if (useLocalOcr) {
+                preferencesGateway.getTranslationLanguage(chapter)
+            } else {
+                TranslationLanguage.JA_TO_ZH
+            }
+            FolderTranslationTask(
+                folder = chapter,
+                images = images,
+                force = force,
+                fullTranslate = fullTranslate,
+                useVlDirectTranslate = useVlDirectTranslate,
+                language = language
+            )
+        }
+        translationCoordinator.translateCollection(
+            scope = viewLifecycleOwner.lifecycleScope,
+            collectionFolder = collectionFolder,
+            tasks = tasks,
+            onTranslateEnabled = { enabled ->
+                _binding?.folderImportChapters?.isEnabled = enabled
+                _binding?.folderTranslateCollection?.isEnabled = enabled
+            }
         )
     }
 
@@ -1316,7 +1353,7 @@ class LibraryFragment : Fragment() {
         binding.folderAddImages.text = getString(
             if (isCollection) R.string.folder_add_chapter else R.string.folder_add_images
         )
-        binding.folderImportChapters.visibility = if (isCollection) View.VISIBLE else View.GONE
+        binding.folderCollectionActions.visibility = if (isCollection) View.VISIBLE else View.GONE
         binding.folderExport.visibility = if (isCollection) View.GONE else View.VISIBLE
         binding.folderTranslate.visibility = if (isCollection) View.GONE else View.VISIBLE
         binding.folderEmbed.visibility = if (isCollection) View.GONE else View.VISIBLE
