@@ -7,12 +7,13 @@ internal fun showModelErrorDialog(
     context: Context,
     responseContent: String,
     onContinue: (() -> Unit)? = null,
+    onCancel: (() -> Unit)? = null,
     windowType: Int? = null
 ): AlertDialog {
     val dialog = AlertDialog.Builder(context)
         .setTitle(R.string.model_response_failed_title)
         .setMessage(ErrorDialogFormatter.formatModelErrorMessage(context, responseContent))
-        .setNegativeButton(android.R.string.cancel, null)
+        .setNegativeButton(android.R.string.cancel) { _, _ -> onCancel?.invoke() }
         .apply {
             if (onContinue != null) {
                 setPositiveButton(R.string.translation_continue) { _, _ -> onContinue.invoke() }

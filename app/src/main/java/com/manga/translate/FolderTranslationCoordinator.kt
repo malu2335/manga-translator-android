@@ -387,9 +387,25 @@ internal class FolderTranslationCoordinator(
                             break
                         } catch (e: LlmResponseException) {
                             AppLogger.log("Library", "Invalid model response for ${image.name}", e)
-                            ui.showModelError(e.responseContent) {
-                                resumeFailedTranslation(scope)
-                            }
+                            ui.showModelError(
+                                content = e.responseContent,
+                                onContinue = {
+                                    resumeFailedTranslation(scope)
+                                },
+                                onCancel = {
+                                    scope.launch {
+                                        val blank = translationPipeline.buildBlankTranslationResult(
+                                            imageFile = image,
+                                            forceOcr = force,
+                                            language = language
+                                        ) ?: return@launch
+                                        translationPipeline.saveResult(image, blank)
+                                        withContext(Dispatchers.Main) {
+                                            ui.refreshImages(folder)
+                                        }
+                                    }
+                                }
+                            )
                             failed = true
                             break
                         } catch (e: CancellationException) {
@@ -650,9 +666,26 @@ internal class FolderTranslationCoordinator(
                                         hasFailures.set(true)
                                         if (reportedModelError.compareAndSet(false, true)) {
                                             withContext(Dispatchers.Main) {
-                                                ui.showModelError(e.responseContent) {
-                                                    resumeFailedTranslation(scope)
-                                                }
+                                                ui.showModelError(
+                                                    content = e.responseContent,
+                                                    onContinue = {
+                                                        resumeFailedTranslation(scope)
+                                                    },
+                                                    onCancel = {
+                                                        scope.launch {
+                                                            val blank = translationPipeline.buildBlankTranslationResult(
+                                                                page = page,
+                                                                mode = TranslationMetadata.MODE_FULL_PAGE,
+                                                                promptAsset = fullTransPromptAsset,
+                                                                language = language
+                                                            )
+                                                            translationPipeline.saveResult(page.imageFile, blank)
+                                                            withContext(Dispatchers.Main) {
+                                                                ui.refreshImages(folder)
+                                                            }
+                                                        }
+                                                    }
+                                                )
                                             }
                                         }
                                         null
@@ -830,9 +863,25 @@ internal class FolderTranslationCoordinator(
                 return CollectionTaskResult.ABORTED
             } catch (e: LlmResponseException) {
                 AppLogger.log("Library", "Invalid model response for ${image.name}", e)
-                ui.showModelError(e.responseContent) {
-                    resumeFailedTranslation(scope)
-                }
+                ui.showModelError(
+                    content = e.responseContent,
+                    onContinue = {
+                        resumeFailedTranslation(scope)
+                    },
+                    onCancel = {
+                        scope.launch {
+                            val blank = translationPipeline.buildBlankTranslationResult(
+                                imageFile = image,
+                                forceOcr = task.force,
+                                language = task.language
+                            ) ?: return@launch
+                            translationPipeline.saveResult(image, blank)
+                            withContext(Dispatchers.Main) {
+                                ui.refreshImages(task.folder)
+                            }
+                        }
+                    }
+                )
                 return CollectionTaskResult.ABORTED
             } catch (e: CancellationException) {
                 throw e
@@ -930,9 +979,12 @@ internal class FolderTranslationCoordinator(
                 return CollectionTaskResult.ABORTED
             } catch (e: LlmResponseException) {
                 AppLogger.log("Library", "Collection glossary response invalid", e)
-                ui.showModelError(e.responseContent) {
-                    resumeFailedTranslation(scope)
-                }
+                ui.showModelError(
+                    content = e.responseContent,
+                    onContinue = {
+                        resumeFailedTranslation(scope)
+                    }
+                )
                 return CollectionTaskResult.ABORTED
             }
         }
@@ -957,9 +1009,26 @@ internal class FolderTranslationCoordinator(
                 ) { }
             } catch (e: LlmResponseException) {
                 AppLogger.log("Library", "Invalid collection model response for ${page.imageFile.name}", e)
-                ui.showModelError(e.responseContent) {
-                    resumeFailedTranslation(scope)
-                }
+                ui.showModelError(
+                    content = e.responseContent,
+                    onContinue = {
+                        resumeFailedTranslation(scope)
+                    },
+                    onCancel = {
+                        scope.launch {
+                            val blank = translationPipeline.buildBlankTranslationResult(
+                                page = page,
+                                mode = TranslationMetadata.MODE_FULL_PAGE,
+                                promptAsset = fullTransPromptAsset,
+                                language = task.language
+                            )
+                            translationPipeline.saveResult(page.imageFile, blank)
+                            withContext(Dispatchers.Main) {
+                                ui.refreshImages(task.folder)
+                            }
+                        }
+                    }
+                )
                 return CollectionTaskResult.ABORTED
             } catch (e: LlmRequestException) {
                 AppLogger.log("Library", "Collection full translation aborted for ${page.imageFile.name}", e)

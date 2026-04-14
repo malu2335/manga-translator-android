@@ -124,9 +124,13 @@ class LibraryFragment : Fragment() {
             dialogs.showApiErrorDialog(requireContext(), code, detail)
         }
 
-        override fun showModelError(content: String, onContinue: (() -> Unit)?) {
+        override fun showModelError(
+            content: String,
+            onContinue: (() -> Unit)?,
+            onCancel: (() -> Unit)?
+        ) {
             if (!isAdded) return
-            dialogs.showModelErrorDialog(requireContext(), content, onContinue)
+            dialogs.showModelErrorDialog(requireContext(), content, onContinue, onCancel)
         }
 
         override fun refreshFolders() {

@@ -244,12 +244,14 @@ internal class LibraryDialogs {
     fun showModelErrorDialog(
         context: Context,
         responseContent: String,
-        onContinue: (() -> Unit)? = null
+        onContinue: (() -> Unit)? = null,
+        onCancel: (() -> Unit)? = null
     ) {
         com.manga.translate.showModelErrorDialog(
             context = context,
             responseContent = responseContent,
             onContinue = onContinue,
+            onCancel = onCancel,
             windowType = null
         )
     }
