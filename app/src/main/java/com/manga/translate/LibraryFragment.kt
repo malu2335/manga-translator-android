@@ -1327,17 +1327,36 @@ class LibraryFragment : Fragment() {
     private fun buildFolderItem(folder: File): FolderItem {
         val chapters = repository.listChildFolders(folder)
         val isCollection = repository.isCollectionFolder(folder)
-        val imageCount = if (isCollection) {
-            chapters.sumOf { repository.listImages(it).size }
+        val images = if (isCollection) {
+            chapters.flatMap { repository.listImages(it) }
         } else {
-            repository.listImages(folder).size
+            repository.listImages(folder)
         }
         return FolderItem(
             folder = folder,
-            imageCount = imageCount,
+            imageCount = images.size,
             chapterCount = chapters.size,
-            isCollection = isCollection
+            isCollection = isCollection,
+            status = resolveFolderStatus(folder, images)
         )
+    }
+
+    private fun resolveFolderStatus(folder: File, images: List<File>): FolderStatus {
+        if (images.isEmpty()) return FolderStatus.UNTRANSLATED
+        val allEmbedded = embeddedStateStore.isEmbedded(folder) || images.all(::isImageEmbedded)
+        if (allEmbedded) return FolderStatus.EMBEDDED
+        val allTranslated = images.all(::isImageTranslated)
+        return if (allTranslated) FolderStatus.TRANSLATED else FolderStatus.UNTRANSLATED
+    }
+
+    private fun isImageTranslated(image: File): Boolean {
+        return translationStore.load(image) != null
+    }
+
+    private fun isImageEmbedded(image: File): Boolean {
+        val parent = image.parentFile ?: return false
+        if (!embeddedStateStore.isEmbedded(parent)) return false
+        return File(embeddedStateStore.embeddedDir(parent), image.name).exists()
     }
 
     private fun buildFolderTitle(folder: File): String {

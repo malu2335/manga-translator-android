@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -151,6 +152,8 @@ class LibraryFolderAdapter(
             } else {
                 context.getString(R.string.folder_image_count, item.imageCount)
             }
+            binding.folderStatus.setText(item.status.labelRes)
+            binding.folderStatus.isVisible = item.imageCount > 0 || item.status == FolderStatus.UNTRANSLATED
             binding.folderCheck.visibility = if (selectionMode) View.VISIBLE else View.GONE
             binding.folderCheck.setOnCheckedChangeListener(null)
             binding.folderCheck.isChecked = selected
