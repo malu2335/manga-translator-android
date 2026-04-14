@@ -28,7 +28,6 @@ class WebtoonReadingAdapter(
     )
 
     private data class PresentationConfig(
-        val embeddedMode: Boolean,
         val verticalLayoutEnabled: Boolean,
         val bubbleOpacity: Float
     )
@@ -40,7 +39,6 @@ class WebtoonReadingAdapter(
     }
 
     private var items: List<File> = emptyList()
-    private var isEmbeddedMode: Boolean = false
     private var verticalLayoutEnabled: Boolean = true
     private var bubbleOpacity: Float = 1f
     private val rememberedPageHeights = mutableMapOf<String, Int>()
@@ -58,18 +56,15 @@ class WebtoonReadingAdapter(
 
     fun submit(
         images: List<File>,
-        embeddedMode: Boolean,
         verticalLayoutEnabled: Boolean,
         bubbleOpacity: Float
     ) {
         val previousItems = items
         val previousConfig = PresentationConfig(
-            embeddedMode = isEmbeddedMode,
             verticalLayoutEnabled = this.verticalLayoutEnabled,
             bubbleOpacity = this.bubbleOpacity
         )
         val newConfig = PresentationConfig(
-            embeddedMode = embeddedMode,
             verticalLayoutEnabled = verticalLayoutEnabled,
             bubbleOpacity = bubbleOpacity
         )
@@ -90,9 +85,8 @@ class WebtoonReadingAdapter(
                 override fun getChangePayload(oldItemPosition: Int, newItemPosition: Int): Any? {
                     if (!areItemsTheSame(oldItemPosition, newItemPosition)) return null
                     return if (
-                        previousConfig.embeddedMode == newConfig.embeddedMode &&
-                        (previousConfig.verticalLayoutEnabled != newConfig.verticalLayoutEnabled ||
-                            previousConfig.bubbleOpacity != newConfig.bubbleOpacity)
+                        previousConfig.verticalLayoutEnabled != newConfig.verticalLayoutEnabled ||
+                        previousConfig.bubbleOpacity != newConfig.bubbleOpacity
                     ) {
                         PAYLOAD_PRESENTATION_ONLY
                     } else {
@@ -102,7 +96,6 @@ class WebtoonReadingAdapter(
             }
         )
         items = images
-        isEmbeddedMode = embeddedMode
         this.verticalLayoutEnabled = verticalLayoutEnabled
         this.bubbleOpacity = bubbleOpacity
         diffResult.dispatchUpdatesTo(this)
@@ -144,7 +137,6 @@ class WebtoonReadingAdapter(
     override fun onBindViewHolder(holder: WebtoonPageViewHolder, position: Int) {
         holder.bind(
             imageFile = items[position],
-            embeddedMode = isEmbeddedMode,
             verticalLayoutEnabled = verticalLayoutEnabled,
             bubbleOpacity = bubbleOpacity
         )
@@ -199,7 +191,6 @@ class WebtoonReadingAdapter(
         private var overlayReloadJob: Job? = null
         private var boundPath: String? = null
         private var boundFile: File? = null
-        private var boundEmbeddedMode: Boolean = false
         private var currentBitmap: Bitmap? = null
         private var currentImageWidth: Int = 0
         private var currentImageHeight: Int = 0
@@ -207,7 +198,6 @@ class WebtoonReadingAdapter(
 
         fun bind(
             imageFile: File,
-            embeddedMode: Boolean,
             verticalLayoutEnabled: Boolean,
             bubbleOpacity: Float
         ) {
@@ -217,7 +207,6 @@ class WebtoonReadingAdapter(
             }
             boundPath = imageFile.absolutePath
             boundFile = imageFile
-            boundEmbeddedMode = embeddedMode
             currentBitmap = null
             currentImageWidth = 0
             currentImageHeight = 0
@@ -240,7 +229,7 @@ class WebtoonReadingAdapter(
             binding.readingPageImage.setImageDrawable(null)
             binding.root.doOnLayout {
                 if (boundPath != imageFile.absolutePath) return@doOnLayout
-                loadPage(imageFile, embeddedMode)
+                loadPage(imageFile)
             }
         }
 
@@ -265,7 +254,7 @@ class WebtoonReadingAdapter(
             )
         }
 
-        private fun loadPage(imageFile: File, embeddedMode: Boolean) {
+        private fun loadPage(imageFile: File) {
             bindJob?.cancel()
             bindJob = scope.launch {
                 val targetWidth = resolveTargetWidth()
@@ -274,11 +263,7 @@ class WebtoonReadingAdapter(
                     ReadingBitmapDecoder.decode(imageFile, targetWidth, targetHeight)
                 }
                 val bitmap = decoded?.bitmap
-                val translation = if (embeddedMode) {
-                    null
-                } else {
-                    withContext(Dispatchers.IO) { translationStore.load(imageFile) }
-                }
+                val translation = withContext(Dispatchers.IO) { translationStore.load(imageFile) }
                 if (boundPath != imageFile.absolutePath) return@launch
                 if (bitmap == null) {
                     currentTranslation = translation
@@ -391,7 +376,6 @@ class WebtoonReadingAdapter(
 
         fun reloadTranslationOverlay() {
             val imageFile = boundFile ?: return
-            if (boundEmbeddedMode) return
             val bitmap = currentBitmap ?: return
             overlayReloadJob?.cancel()
             overlayReloadJob = scope.launch {
@@ -421,7 +405,6 @@ class WebtoonReadingAdapter(
 
         private fun isLockedEditPage(): Boolean {
             return editModeEnabled &&
-                !boundEmbeddedMode &&
                 boundPath != null &&
                 boundPath == lockedPagePath
         }

@@ -43,7 +43,6 @@ class LibraryFragment : Fragment() {
     private val glossaryStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.glossaryStore }
     private val extractStateStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.extractStateStore }
     private val ocrStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.ocrStore }
-    private val embeddedStateStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.embeddedStateStore }
     private val readingProgressStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.readingProgressStore }
     private val settingsStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.settingsStore }
     private val dialogs = LibraryDialogs()
@@ -52,14 +51,12 @@ class LibraryFragment : Fragment() {
 
     private lateinit var preferencesGateway: LibraryPreferencesGateway
     private lateinit var translationCoordinator: FolderTranslationCoordinator
-    private lateinit var embedCoordinator: FolderEmbedCoordinator
     private lateinit var importExportCoordinator: LibraryImportExportCoordinator
     private lateinit var selectionController: LibrarySelectionController
 
     private var currentFolder: File? = null
     private var currentParentFolder: File? = null
     private var pendingChapterImportParent: File? = null
-    private var embedActionsEnabled: Boolean = true
     private var isFolderTransitionRunning: Boolean = false
     private var isFolderTopBarVisible: Boolean = true
     private var lastFolderDetailScrollY: Int = 0
@@ -267,19 +264,10 @@ class LibraryFragment : Fragment() {
             translationPipeline = translationPipeline,
             ui = uiCallbacks
         )
-        embedCoordinator = FolderEmbedCoordinator(
-            context = requireContext(),
-            translationStore = translationStore,
-            settingsStore = settingsStore,
-            prefs = prefs,
-            embeddedStateStore = embeddedStateStore,
-            ui = uiCallbacks
-        )
         importExportCoordinator = LibraryImportExportCoordinator(
             context = requireContext(),
             repository = repository,
             translationStore = translationStore,
-            embeddedStateStore = embeddedStateStore,
             settingsStore = settingsStore,
             prefs = prefs,
             preferencesGateway = preferencesGateway,
@@ -344,8 +332,6 @@ class LibraryFragment : Fragment() {
         binding.folderExport.setOnClickListener { exportFolder() }
         binding.folderTranslate.setOnClickListener { translateFolder() }
         binding.folderRead.setOnClickListener { startReading() }
-        binding.folderEmbed.setOnClickListener { embedFolder() }
-        binding.folderUnembed.setOnClickListener { cancelEmbed() }
         binding.folderSelectAll.setOnClickListener { handleSelectAllClick() }
         binding.folderDeleteSelected.setOnClickListener { handleDeleteSelectedClick() }
         binding.folderCancelSelection.setOnClickListener { exitActiveSelectionMode() }
@@ -483,7 +469,6 @@ class LibraryFragment : Fragment() {
     private fun showFolderList() {
         currentFolder = null
         currentParentFolder = null
-        embedActionsEnabled = true
         resetFolderTopBar(forceVisible = true)
         uiCallbacks.clearFolderStatus()
         exitActiveSelectionMode()
@@ -508,7 +493,6 @@ class LibraryFragment : Fragment() {
             preferencesGateway.isVlDirectTranslateEnabled(folder)
         updateLanguageSettingButton(folder)
         updateReadingModeButton(folder)
-        updateEmbedButtonState(folder)
         updateFolderContentMode(folder)
         exitActiveSelectionMode()
         loadImages(folder)
@@ -731,14 +715,10 @@ class LibraryFragment : Fragment() {
             return
         }
         val images = repository.listImages(folder)
-        val embeddedByName = embeddedStateStore
-            .listEmbeddedImages(folder)
-            .let(ImageFileSupport::buildNameLookup)
         val items = images.map { file ->
             ImageItem(
                 file = file,
-                translated = translationStore.translationFileFor(file).exists(),
-                embedded = ImageFileSupport.findRenderedImageForSource(file.name, embeddedByName) != null
+                translated = translationStore.translationFileFor(file).exists()
             )
         }
         imageAdapter.submit(items)
@@ -746,7 +726,6 @@ class LibraryFragment : Fragment() {
         binding.folderChapterList.visibility = View.GONE
         binding.folderImageList.visibility = View.VISIBLE
         binding.folderImagesEmpty.text = getString(R.string.folder_images_empty)
-        updateEmbedButtonState(folder)
         binding.folderImagesEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
         if (selectionController.isSelectionMode) {
             selectionController.updateSelectionActions()
@@ -1070,14 +1049,12 @@ class LibraryFragment : Fragment() {
     private fun exportFolder() {
         val folder = currentFolder ?: return
         val images = repository.listImages(folder)
-        val hasEmbeddedImages = hasCompleteEmbeddedImagesForExport(folder, images)
         dialogs.showExportOptionsDialog(
             context = requireContext(),
             defaultThreads = importExportCoordinator.getExportThreadCount(),
             defaultExportFormat = importExportCoordinator.getExportFormatDefault(),
-            hasEmbeddedImages = hasEmbeddedImages,
             exportRootPathHint = importExportCoordinator.buildExportRootPathPreview()
-        ) { exportThreads, exportFormat, exportEmbeddedImages ->
+        ) { exportThreads, exportFormat ->
             importExportCoordinator.exportFolder(
                 uiContext = requireContext(),
                 folder = folder,
@@ -1085,7 +1062,6 @@ class LibraryFragment : Fragment() {
                 scope = viewLifecycleOwner.lifecycleScope,
                 exportThreads = exportThreads,
                 exportFormat = exportFormat,
-                exportEmbeddedImages = exportEmbeddedImages,
                 requestExportDirectoryPermission = { initialUri -> pickExportTree.launch(initialUri) },
                 requestLegacyPermission = {
                     requestStoragePermission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
@@ -1094,40 +1070,6 @@ class LibraryFragment : Fragment() {
                 onSetExportEnabled = { enabled -> _binding?.folderExport?.isEnabled = enabled }
             )
         }
-    }
-
-    private fun embedFolder() {
-        val folder = currentFolder ?: return
-        selectionController.exitSelectionMode()
-        val images = repository.listImages(folder)
-        dialogs.showEmbedOptionsDialog(
-            context = requireContext(),
-            defaultThreads = embedCoordinator.getEmbedThreadCount(),
-            defaultUseImageRepair = embedCoordinator.getUseImageRepair()
-        ) { embedThreads, useImageRepair ->
-            embedCoordinator.embedFolder(
-                scope = viewLifecycleOwner.lifecycleScope,
-                folder = folder,
-                images = images,
-                embedThreads = embedThreads,
-                useImageRepair = useImageRepair,
-                onSetActionsEnabled = { enabled ->
-                    setEmbedActionsEnabled(enabled)
-                }
-            )
-        }
-    }
-
-    private fun cancelEmbed() {
-        val folder = currentFolder ?: return
-        exitActiveSelectionMode()
-        embedCoordinator.cancelEmbed(
-            scope = viewLifecycleOwner.lifecycleScope,
-            folder = folder,
-            onSetActionsEnabled = { enabled ->
-                setEmbedActionsEnabled(enabled)
-            }
-        )
     }
 
     private fun startReading() {
@@ -1141,130 +1083,36 @@ class LibraryFragment : Fragment() {
             }
             val startIndex = readingProgressStore.load(folder)
             val readingMode = preferencesGateway.getReadingMode(folder)
-            readingSessionViewModel.setFolder(folder, images, startIndex, false, readingMode)
+            readingSessionViewModel.setFolder(folder, images, startIndex, readingMode)
             (activity as? MainActivity)?.switchToTab(MainPagerAdapter.READING_INDEX)
             return
         }
-        val originalImages = repository.listImages(folder)
-        if (originalImages.isEmpty()) {
+        val images = repository.listImages(folder)
+        if (images.isEmpty()) {
             uiCallbacks.setFolderStatus(getString(R.string.folder_images_empty))
             return
         }
-        val resolution = resolveReadingImages(folder, originalImages)
-        val images = resolution.images
-        val embeddedMode = resolution.embeddedMode
-        if (resolution.forcedBubbleMode) {
-            uiCallbacks.showToast(R.string.folder_read_force_bubble_unembedded)
-        }
-        AppLogger.log(
-            "Library",
-            "Start reading ${folder.name}, ${images.size} images, embedded=$embeddedMode"
-        )
+        AppLogger.log("Library", "Start reading ${folder.name}, ${images.size} images")
         val startIndex = readingProgressStore.load(folder)
         val readingMode = preferencesGateway.getReadingMode(folder)
-        readingSessionViewModel.setFolder(folder, images, startIndex, embeddedMode, readingMode)
+        readingSessionViewModel.setFolder(folder, images, startIndex, readingMode)
         (activity as? MainActivity)?.switchToTab(MainPagerAdapter.READING_INDEX)
     }
 
     private fun openImageInReader(imageFile: File) {
         val folder = currentFolder ?: return
         if (selectionController.isSelectionMode) return
-        val originalImages = repository.listImages(folder)
-        if (originalImages.isEmpty()) {
+        val images = repository.listImages(folder)
+        if (images.isEmpty()) {
             uiCallbacks.setFolderStatus(getString(R.string.folder_images_empty))
             return
         }
-        val originalIndex = originalImages.indexOfFirst { it.absolutePath == imageFile.absolutePath }
-        if (originalIndex < 0) return
-        val resolution = resolveReadingImages(folder, originalImages)
-        val images = resolution.images
-        val embeddedMode = resolution.embeddedMode
-        if (resolution.forcedBubbleMode) {
-            uiCallbacks.showToast(R.string.folder_read_force_bubble_unembedded)
-        }
-        val startIndex = if (embeddedMode) {
-            originalIndex.coerceIn(0, images.lastIndex.coerceAtLeast(0))
-        } else {
-            val index = images.indexOfFirst { it.absolutePath == imageFile.absolutePath }
-            if (index < 0) return
-            index
-        }
-        AppLogger.log(
-            "Library",
-            "Open image ${imageFile.name} at index $startIndex in ${folder.name}, embedded=$embeddedMode"
-        )
+        val startIndex = images.indexOfFirst { it.absolutePath == imageFile.absolutePath }
+        if (startIndex < 0) return
+        AppLogger.log("Library", "Open image ${imageFile.name} at index $startIndex in ${folder.name}")
         val readingMode = preferencesGateway.getReadingMode(folder)
-        readingSessionViewModel.setFolder(folder, images, startIndex, embeddedMode, readingMode)
+        readingSessionViewModel.setFolder(folder, images, startIndex, readingMode)
         (activity as? MainActivity)?.switchToTab(MainPagerAdapter.READING_INDEX)
-    }
-
-    private fun resolveReadingImages(folder: File, originalImages: List<File>): ReadingImagesResolution {
-        if (!embeddedStateStore.isEmbedded(folder)) {
-            return ReadingImagesResolution(
-                images = originalImages,
-                embeddedMode = false,
-                forcedBubbleMode = false
-            )
-        }
-        val embeddedImages = embeddedStateStore.listEmbeddedImages(folder)
-        if (embeddedImages.isEmpty()) {
-            return ReadingImagesResolution(
-                images = originalImages,
-                embeddedMode = false,
-                forcedBubbleMode = false
-            )
-        }
-        val embeddedByName = ImageFileSupport.buildNameLookup(embeddedImages)
-        val ordered = ArrayList<File>(originalImages.size)
-        for (image in originalImages) {
-            val embedded = ImageFileSupport.findRenderedImageForSource(image.name, embeddedByName)
-            if (embedded == null) {
-                AppLogger.log("Library", "Embedded image missing for ${image.name} in ${folder.name}")
-                return ReadingImagesResolution(
-                    images = originalImages,
-                    embeddedMode = false,
-                    forcedBubbleMode = true
-                )
-            }
-            ordered.add(embedded)
-        }
-        return ReadingImagesResolution(
-            images = ordered,
-            embeddedMode = true,
-            forcedBubbleMode = false
-        )
-    }
-
-    private fun hasCompleteEmbeddedImagesForExport(folder: File, originalImages: List<File>): Boolean {
-        if (!embeddedStateStore.isEmbedded(folder)) {
-            return false
-        }
-        if (originalImages.isEmpty()) {
-            return false
-        }
-        val embeddedByName = embeddedStateStore
-            .listEmbeddedImages(folder)
-            .let(ImageFileSupport::buildNameLookup)
-        return originalImages.all {
-            ImageFileSupport.findRenderedImageForSource(it.name, embeddedByName) != null
-        }
-    }
-
-    private fun setEmbedActionsEnabled(enabled: Boolean) {
-        embedActionsEnabled = enabled
-        val folder = currentFolder
-        _binding?.let { view ->
-            view.folderRead.isEnabled = enabled
-            view.folderEmbed.isEnabled = enabled
-            view.folderUnembed.isEnabled = enabled && folder?.let { embeddedStateStore.isEmbedded(it) } == true
-        }
-    }
-
-    private fun updateEmbedButtonState(folder: File) {
-        val embedded = embeddedStateStore.isEmbedded(folder)
-        binding.folderRead.isEnabled = embedActionsEnabled
-        binding.folderEmbed.isEnabled = embedActionsEnabled
-        binding.folderUnembed.isEnabled = embedActionsEnabled && embedded
     }
 
     private fun showFullTranslateInfo() {
@@ -1334,20 +1182,12 @@ class LibraryFragment : Fragment() {
 
     private fun resolveFolderStatus(folder: File, images: List<File>): FolderStatus {
         if (images.isEmpty()) return FolderStatus.UNTRANSLATED
-        val allEmbedded = embeddedStateStore.isEmbedded(folder) || images.all(::isImageEmbedded)
-        if (allEmbedded) return FolderStatus.EMBEDDED
         val allTranslated = images.all(::isImageTranslated)
         return if (allTranslated) FolderStatus.TRANSLATED else FolderStatus.UNTRANSLATED
     }
 
     private fun isImageTranslated(image: File): Boolean {
         return translationStore.load(image) != null
-    }
-
-    private fun isImageEmbedded(image: File): Boolean {
-        val parent = image.parentFile ?: return false
-        if (!embeddedStateStore.isEmbedded(parent)) return false
-        return File(embeddedStateStore.embeddedDir(parent), image.name).exists()
     }
 
     private fun buildFolderTitle(folder: File): String {
@@ -1366,8 +1206,6 @@ class LibraryFragment : Fragment() {
         binding.folderCollectionActions.visibility = if (isCollection) View.VISIBLE else View.GONE
         binding.folderExport.visibility = if (isCollection) View.GONE else View.VISIBLE
         binding.folderTranslate.visibility = if (isCollection) View.GONE else View.VISIBLE
-        binding.folderEmbed.visibility = if (isCollection) View.GONE else View.VISIBLE
-        binding.folderUnembed.visibility = if (isCollection) View.GONE else View.VISIBLE
         binding.folderTranslationSettings.visibility = if (isCollection) View.GONE else View.VISIBLE
         binding.folderReadingSettings.visibility = if (isCollection) View.GONE else View.VISIBLE
         binding.folderSelectionActions.visibility = View.GONE
@@ -1538,9 +1376,4 @@ class LibraryFragment : Fragment() {
         }
     }
 
-    private data class ReadingImagesResolution(
-        val images: List<File>,
-        val embeddedMode: Boolean,
-        val forcedBubbleMode: Boolean
-    )
 }

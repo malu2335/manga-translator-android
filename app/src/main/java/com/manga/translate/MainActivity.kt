@@ -435,7 +435,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildCompactProgressText(state: GlobalTaskProgressState): String {
         val label = when {
-            state.title.contains("嵌字") -> "嵌字"
             state.title.contains("导出") -> "导出"
             else -> "翻译"
         }
@@ -474,7 +473,6 @@ class MainActivity : AppCompatActivity() {
             detail.contains("OCR", ignoreCase = true) -> "OCR中"
             detail.contains("译名") -> "译名中"
             detail.contains("导出") -> "导出中"
-            detail.contains("嵌字") -> "嵌字中"
             detail.contains("翻译") -> "翻译中"
             else -> null
         }

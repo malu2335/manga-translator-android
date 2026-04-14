@@ -2,7 +2,6 @@ package com.manga.translate.di
 
 import android.content.Context
 import com.manga.translate.CrashStateStore
-import com.manga.translate.EmbeddedStateStore
 import com.manga.translate.ExtractStateStore
 import com.manga.translate.FloatingBubbleTranslationCoordinator
 import com.manga.translate.FloatingEmptyBubbleCoordinator
@@ -32,7 +31,6 @@ internal class AppContainer(private val appContext: Context) {
     val ocrStore by lazy(LazyThreadSafetyMode.NONE) { OcrStore() }
     val glossaryStore by lazy(LazyThreadSafetyMode.NONE) { GlossaryStore() }
     val extractStateStore by lazy(LazyThreadSafetyMode.NONE) { ExtractStateStore() }
-    val embeddedStateStore by lazy(LazyThreadSafetyMode.NONE) { EmbeddedStateStore() }
     val floatingTranslationCacheStore by lazy(LazyThreadSafetyMode.NONE) {
         FloatingTranslationCacheStore(appContext)
     }

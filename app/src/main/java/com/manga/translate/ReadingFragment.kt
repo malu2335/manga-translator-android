@@ -70,7 +70,6 @@ class ReadingFragment : Fragment() {
     private var readingDisplayMode = ReadingDisplayMode.FIT_WIDTH
     private var folderReadingMode = FolderReadingMode.STANDARD
     private var isEditMode = false
-    private var isEmbeddedMode = false
     private var resizeTargetId: Int? = null
     private var resizeBaseRect: RectF? = null
     private var resizeUpdatingWidthInput = false
@@ -226,13 +225,6 @@ class ReadingFragment : Fragment() {
             applyFolderReadingMode()
             reloadReadingContent()
         }
-        readingSessionViewModel.isEmbedded.observe(viewLifecycleOwner) { embedded ->
-            isEmbeddedMode = embedded
-            if (embedded) {
-                setEditMode(false)
-            }
-            reloadReadingContent()
-        }
         binding.readingImage.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
             if (currentBitmap == null) return@addOnLayoutChangeListener
             if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) {
@@ -284,7 +276,6 @@ class ReadingFragment : Fragment() {
         stopWebtoonTranslationWatcher()
         val images = readingSessionViewModel.images.value.orEmpty()
         val folder = readingSessionViewModel.currentFolder.value
-        isEmbeddedMode = readingSessionViewModel.isEmbedded.value == true
         folderReadingMode = readingSessionViewModel.readingMode.value ?: FolderReadingMode.STANDARD
         if (images.isEmpty() || folder == null) {
             binding.readingEmptyHint.visibility = View.VISIBLE
@@ -312,10 +303,6 @@ class ReadingFragment : Fragment() {
         val previousPageSnapshot = captureCurrentPageSnapshot()
         binding.readingEmptyHint.visibility = View.GONE
         binding.readingPageInfo.visibility = View.VISIBLE
-        binding.readingEditControls.visibility = if (isEmbeddedMode) View.GONE else View.VISIBLE
-        if (isEmbeddedMode && isEditMode) {
-            setEditMode(false)
-        }
         updateEditButtonState()
         hideResizePanel()
         binding.readingPageInfo.text = getString(
@@ -326,24 +313,17 @@ class ReadingFragment : Fragment() {
         )
         val targetPath = imageFile.absolutePath
         val targetIndex = index
-        val targetEmbeddedMode = isEmbeddedMode
         viewLifecycleOwner.lifecycleScope.launch {
             val decoded = loadBitmap(imageFile)
             val bitmap = decoded?.bitmap
-            val translation = if (targetEmbeddedMode) {
-                null
-            } else {
-                withContext(Dispatchers.IO) {
-                    translationStore.load(imageFile)
-                }
+            val translation = withContext(Dispatchers.IO) {
+                translationStore.load(imageFile)
             }
             val currentImages = readingSessionViewModel.images.value.orEmpty()
             val currentIndex = readingSessionViewModel.index.value ?: 0
-            val currentEmbeddedMode = readingSessionViewModel.isEmbedded.value == true
             if (
                 currentIndex != targetIndex ||
-                currentImages.getOrNull(currentIndex)?.absolutePath != targetPath ||
-                currentEmbeddedMode != targetEmbeddedMode
+                currentImages.getOrNull(currentIndex)?.absolutePath != targetPath
             ) {
                 return@launch
             }
@@ -388,7 +368,7 @@ class ReadingFragment : Fragment() {
                     finishPageTransitionImmediately()
                 }
             }
-            if (!targetEmbeddedMode && translation == null && bitmap != null) {
+            if (translation == null && bitmap != null) {
                 startTranslationWatcher(imageFile)
             } else {
                 translationWatchJob?.cancel()
@@ -399,7 +379,6 @@ class ReadingFragment : Fragment() {
     private fun loadWebtoonReading() {
         val images = readingSessionViewModel.images.value.orEmpty()
         val folder = readingSessionViewModel.currentFolder.value
-        isEmbeddedMode = readingSessionViewModel.isEmbedded.value == true
         folderReadingMode = readingSessionViewModel.readingMode.value ?: FolderReadingMode.STANDARD
         translationWatchJob?.cancel()
         stopWebtoonTranslationWatcher(clearCache = false)
@@ -420,7 +399,6 @@ class ReadingFragment : Fragment() {
             updateEditButtonState()
             webtoonAdapter.submit(
                 images = emptyList(),
-                embeddedMode = isEmbeddedMode,
                 verticalLayoutEnabled = !settingsStore.loadUseHorizontalText(),
                 bubbleOpacity = settingsStore.loadTranslationBubbleOpacity()
             )
@@ -433,7 +411,6 @@ class ReadingFragment : Fragment() {
         updateEditButtonState()
         webtoonAdapter.submit(
             images = images,
-            embeddedMode = isEmbeddedMode,
             verticalLayoutEnabled = !settingsStore.loadUseHorizontalText(),
             bubbleOpacity = settingsStore.loadTranslationBubbleOpacity()
         )
@@ -458,7 +435,6 @@ class ReadingFragment : Fragment() {
     private fun isWebtoonEditSessionActive(): Boolean {
         return folderReadingMode == FolderReadingMode.WEBTOON_SCROLL &&
             isEditMode &&
-            !isEmbeddedMode &&
             webtoonLockedPageIndex != null &&
             webtoonLockedPagePath != null
     }
@@ -589,7 +565,7 @@ class ReadingFragment : Fragment() {
         binding.translationOverlay.setDisplayRect(rect)
         binding.translationOverlay.setTranslations(normalized)
         binding.translationOverlay.setOffsets(emptyMap())
-        binding.translationOverlay.setEditMode(isEditMode && !isEmbeddedMode)
+        binding.translationOverlay.setEditMode(isEditMode)
         binding.translationOverlay.visibility = View.VISIBLE
     }
 
@@ -781,7 +757,6 @@ class ReadingFragment : Fragment() {
     }
 
     private fun toggleEditMode() {
-        if (isEmbeddedMode) return
         if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) {
             if (webtoonPreparingEdit) return
             if (isEditMode) {
@@ -827,7 +802,7 @@ class ReadingFragment : Fragment() {
     }
 
     private fun setEditMode(enabled: Boolean) {
-        val nextEnabled = enabled && !isEmbeddedMode
+        val nextEnabled = enabled
         if (isEditMode == nextEnabled) return
         isEditMode = nextEnabled
         binding.translationOverlay.setEditMode(nextEnabled && folderReadingMode != FolderReadingMode.WEBTOON_SCROLL)
@@ -841,7 +816,7 @@ class ReadingFragment : Fragment() {
 
     private fun updateEditButtonState() {
         val hasImages = readingSessionViewModel.images.value.orEmpty().isNotEmpty()
-        if (isEmbeddedMode || !hasImages) {
+        if (!hasImages) {
             binding.readingEditControls.visibility = View.GONE
             binding.readingAddButton.visibility = View.GONE
             updateReadingInteractionState()
@@ -869,7 +844,7 @@ class ReadingFragment : Fragment() {
         binding.readingScrollContainer.visibility = if (isWebtoon) View.GONE else View.VISIBLE
         binding.readingScrollContainer.scrollEnabled = isWebtoon && !isEditMode
         binding.readingScrollContainer.isFillViewport = !isWebtoon
-        if (isWebtoon && !isEmbeddedMode) {
+        if (isWebtoon) {
             binding.readingWebtoonList.post {
                 if (!isAdded || _binding == null || folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) return@post
                 startWebtoonTranslationWatcher()
@@ -888,7 +863,6 @@ class ReadingFragment : Fragment() {
         val images = readingSessionViewModel.images.value.orEmpty()
         webtoonAdapter.submit(
             images = images,
-            embeddedMode = isEmbeddedMode,
             verticalLayoutEnabled = !settingsStore.loadUseHorizontalText(),
             bubbleOpacity = settingsStore.loadTranslationBubbleOpacity()
         )
@@ -1028,7 +1002,6 @@ class ReadingFragment : Fragment() {
 
     private fun startWebtoonTranslationWatcher() {
         if (folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) return
-        if (isEmbeddedMode) return
         if (webtoonTranslationWatchJob?.isActive == true) return
         webtoonTranslationWatchJob = viewLifecycleOwner.lifecycleScope.launch {
             translationStore.updates.collect { path ->
@@ -1064,7 +1037,6 @@ class ReadingFragment : Fragment() {
 
     private fun startTranslationWatcher(imageFile: java.io.File) {
         if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) return
-        if (isEmbeddedMode) return
         translationWatchJob?.cancel()
         translationWatchJob = viewLifecycleOwner.lifecycleScope.launch {
             if (translationStore.translationFileFor(imageFile).exists()) {
@@ -1128,7 +1100,6 @@ class ReadingFragment : Fragment() {
     }
 
     private fun persistCurrentTranslation(forceSave: Boolean = false) {
-        if (isEmbeddedMode) return
         val imageFile = currentImageFile ?: return
         val translation = currentTranslation ?: return
         val offsets = currentOverlayOffsets()
@@ -1303,7 +1274,6 @@ class ReadingFragment : Fragment() {
     }
 
     private fun saveCurrentTranslation() {
-        if (isEmbeddedMode) return
         val imageFile = currentImageFile ?: return
         val translation = currentTranslation ?: return
         translationStore.save(imageFile, translation)
@@ -1313,7 +1283,6 @@ class ReadingFragment : Fragment() {
     }
 
     private fun addNewBubble() {
-        if (isEmbeddedMode) return
         if (!isEditMode) return
         val translation = currentTranslation ?: return
         val width = translation.width.toFloat()
@@ -1335,7 +1304,6 @@ class ReadingFragment : Fragment() {
     }
 
     private fun processEmptyBubbles() {
-        if (isEmbeddedMode) return
         val imageFile = currentImageFile ?: return
         val translation = currentTranslation ?: return
         val folder = readingSessionViewModel.currentFolder.value ?: return

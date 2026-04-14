@@ -321,9 +321,8 @@ internal class LibraryDialogs {
         context: Context,
         defaultThreads: Int,
         defaultExportFormat: LibraryImportExportCoordinator.ExportFormat,
-        hasEmbeddedImages: Boolean,
         exportRootPathHint: String,
-        onConfirm: (Int, LibraryImportExportCoordinator.ExportFormat, Boolean) -> Unit
+        onConfirm: (Int, LibraryImportExportCoordinator.ExportFormat) -> Unit
     ) {
         val input = EditText(context).apply {
             hint = context.getString(R.string.export_thread_hint)
@@ -359,15 +358,6 @@ internal class LibraryDialogs {
                 LibraryImportExportCoordinator.ExportFormat.PDF -> pdfRadio.id
             }
         )
-        val embeddedCheckBox = CheckBox(context).apply {
-            text = context.getString(R.string.export_embedded_images_option)
-            isChecked = hasEmbeddedImages
-            isEnabled = hasEmbeddedImages
-            if (!hasEmbeddedImages) {
-                alpha = 0.5f
-            }
-        }
-        applyDialogTextColors(context, embeddedCheckBox)
         val pathHintView = TextView(context).apply {
             setPadding(0, dp(context, 8f), 0, 0)
             text = context.getString(R.string.export_path_hint_format, exportRootPathHint)
@@ -376,7 +366,6 @@ internal class LibraryDialogs {
         val container = buildDialogContainer(context).apply {
             addView(input, matchWrapLayoutParams())
             addView(formatGroup, matchWrapLayoutParams())
-            addView(embeddedCheckBox, matchWrapLayoutParams())
             addView(pathHintView, matchWrapLayoutParams())
         }
         AlertDialog.Builder(context)
@@ -394,109 +383,9 @@ internal class LibraryDialogs {
                     pdfRadio.id -> LibraryImportExportCoordinator.ExportFormat.PDF
                     else -> LibraryImportExportCoordinator.ExportFormat.IMAGE_DIR
                 }
-                onConfirm(threadCount, exportFormat, embeddedCheckBox.isChecked)
+                onConfirm(threadCount, exportFormat)
             }
             .show()
-    }
-
-    fun showEmbedOptionsDialog(
-        context: Context,
-        defaultThreads: Int,
-        defaultUseImageRepair: Boolean,
-        onConfirm: (Int, Boolean) -> Unit
-    ) {
-        val note = TextView(context).apply {
-            text = context.getString(R.string.embed_thread_note)
-        }
-        applyDialogTextColors(context, note, useHintColor = true)
-        val input = EditText(context).apply {
-            hint = context.getString(R.string.embed_thread_hint)
-            setText(formatInt(defaultThreads))
-            setSelection(text.length)
-            inputType = InputType.TYPE_CLASS_NUMBER
-            imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
-        }
-        applyDialogTextColors(context, input)
-        val recommendationView = TextView(context)
-        applyDialogTextColors(context, recommendationView, useHintColor = true)
-        val imageRepairCheckBox = CheckBox(context).apply {
-            text = context.getString(R.string.embed_image_repair_option)
-            isChecked = defaultUseImageRepair
-        }
-        applyDialogTextColors(context, imageRepairCheckBox)
-        fun currentAdvice(): ThreadAdvice {
-            return DeviceThreadAdvisor.adviseEmbed(
-                context = context,
-                imageRepairEnabled = imageRepairCheckBox.isChecked
-            )
-        }
-        fun refreshRecommendation() {
-            recommendationView.text = currentAdvice().summary
-        }
-        imageRepairCheckBox.setOnCheckedChangeListener { _, _ ->
-            refreshRecommendation()
-        }
-        refreshRecommendation()
-        val container = buildDialogContainer(context).apply {
-            addView(
-                note,
-                matchWrapLayoutParams().apply {
-                    bottomMargin = dp(context, 8f)
-                }
-            )
-            addView(input, matchWrapLayoutParams())
-            addView(
-                recommendationView,
-                matchWrapLayoutParams().apply {
-                    topMargin = dp(context, 6f)
-                    bottomMargin = dp(context, 2f)
-                }
-            )
-            addView(imageRepairCheckBox, matchWrapLayoutParams())
-        }
-        val dialog = AlertDialog.Builder(context)
-            .setTitle(R.string.embed_options_title)
-            .setView(container)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(android.R.string.ok, null)
-            .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val threadCount = input.text?.toString()?.toIntOrNull()
-                if (threadCount == null || threadCount !in 1..16) {
-                    Toast.makeText(context, R.string.embed_thread_invalid, Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                val advice = currentAdvice()
-                val continueAction = {
-                    onConfirm(
-                        threadCount,
-                        imageRepairCheckBox.isChecked
-                    )
-                    dialog.dismiss()
-                }
-                if (threadCount > advice.warningThreshold) {
-                    AlertDialog.Builder(context)
-                        .setTitle(R.string.embed_thread_warning_title)
-                        .setMessage(
-                            context.getString(
-                                R.string.embed_thread_warning_message,
-                                threadCount,
-                                advice.warningThreshold,
-                                advice.recommendedThreads
-                            )
-                        )
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .setPositiveButton(R.string.translation_continue) { _, _ ->
-                            continueAction()
-                        }
-                        .showWithScrollableMessage()
-                    return@setOnClickListener
-                }
-                continueAction()
-            }
-        }
-        dialog.show()
     }
 
     fun confirmDeleteSelectedImages(

@@ -95,9 +95,7 @@ class FolderImageAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: ImageItem, selectionMode: Boolean, selected: Boolean) {
             binding.imageName.text = item.file.name
-            val statusRes = if (item.embedded) {
-                R.string.image_embedded
-            } else if (item.translated) {
+            val statusRes = if (item.translated) {
                 R.string.image_translated
             } else {
                 R.string.image_not_translated

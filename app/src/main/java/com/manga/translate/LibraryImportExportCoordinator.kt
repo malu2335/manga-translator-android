@@ -37,7 +37,6 @@ internal class LibraryImportExportCoordinator(
     context: Context,
     private val repository: LibraryRepository,
     private val translationStore: TranslationStore,
-    private val embeddedStateStore: EmbeddedStateStore,
     private val settingsStore: SettingsStore,
     prefs: SharedPreferences,
     private val preferencesGateway: LibraryPreferencesGateway,
@@ -50,7 +49,6 @@ internal class LibraryImportExportCoordinator(
     private var pendingExportAfterExportTreeSelection = false
     private var pendingExportThreads = loadExportThreads()
     private var pendingExportFormat = loadExportFormatDefault()
-    private var pendingExportEmbeddedImages = false
 
     fun getExportThreadCount(): Int = loadExportThreads()
     fun getExportFormatDefault(): ExportFormat = loadExportFormatDefault()
@@ -424,7 +422,6 @@ internal class LibraryImportExportCoordinator(
         scope: CoroutineScope,
         exportThreads: Int,
         exportFormat: ExportFormat,
-        exportEmbeddedImages: Boolean,
         requestExportDirectoryPermission: (Uri?) -> Unit,
         requestLegacyPermission: () -> Unit,
         onExitSelectionMode: () -> Unit,
@@ -433,7 +430,6 @@ internal class LibraryImportExportCoordinator(
         if (folder == null) return
         pendingExportThreads = normalizeExportThreads(exportThreads)
         pendingExportFormat = exportFormat
-        pendingExportEmbeddedImages = exportEmbeddedImages
         prefsRef.edit() {
             putInt(KEY_EXPORT_THREADS, pendingExportThreads)
             putString(KEY_EXPORT_FORMAT, pendingExportFormat.name)
@@ -465,7 +461,6 @@ internal class LibraryImportExportCoordinator(
             scope = scope,
             exportThreads = pendingExportThreads,
             exportFormat = pendingExportFormat,
-            exportEmbeddedImages = pendingExportEmbeddedImages,
             onExitSelectionMode = onExitSelectionMode,
             onSetExportEnabled = onSetExportEnabled
         )
@@ -487,7 +482,6 @@ internal class LibraryImportExportCoordinator(
             scope = scope,
             exportThreads = pendingExportThreads,
             exportFormat = pendingExportFormat,
-            exportEmbeddedImages = pendingExportEmbeddedImages,
             onExitSelectionMode = onExitSelectionMode,
             onSetExportEnabled = onSetExportEnabled
         )
@@ -500,12 +494,11 @@ internal class LibraryImportExportCoordinator(
         scope: CoroutineScope,
         exportThreads: Int,
         exportFormat: ExportFormat,
-        exportEmbeddedImages: Boolean,
         onExitSelectionMode: () -> Unit,
         onSetExportEnabled: (Boolean) -> Unit
     ) {
         onExitSelectionMode()
-        val exportImages = resolveExportImages(folder, images, exportEmbeddedImages)
+        val exportImages = images
         if (exportImages.isEmpty()) {
             ui.setFolderStatus(appContext.getString(R.string.folder_images_empty))
             return
@@ -688,32 +681,6 @@ internal class LibraryImportExportCoordinator(
                 TranslationKeepAliveService.stop(appContext)
             }
         }
-    }
-
-    private fun resolveExportImages(
-        folder: File,
-        originalImages: List<File>,
-        exportEmbeddedImages: Boolean
-    ): List<File> {
-        if (!exportEmbeddedImages) {
-            return originalImages
-        }
-        if (!embeddedStateStore.isEmbedded(folder)) {
-            return originalImages
-        }
-        val embeddedByName = ImageFileSupport.buildNameLookup(
-            embeddedStateStore.listEmbeddedImages(folder)
-        )
-        val ordered = ArrayList<File>(originalImages.size)
-        for (image in originalImages) {
-            val embedded = ImageFileSupport.findRenderedImageForSource(image.name, embeddedByName)
-            if (embedded == null) {
-                AppLogger.log("Library", "Embedded export fallback to source image: ${image.name}")
-                return originalImages
-            }
-            ordered.add(embedded)
-        }
-        return ordered
     }
 
     private fun resolveExportDirectory(

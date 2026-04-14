@@ -255,8 +255,6 @@
     <string name="folder_export">导出漫画</string>
     <string name="folder_translate">一键翻译</string>
     <string name="folder_read">开始阅读</string>
-    <string name="folder_embed">一键嵌字</string>
-    <string name="folder_unembed">取消嵌字</string>
     <string name="folder_back">返回</string>
     <string name="folder_image_count">%1$d 张图片</string>
     <string name="folder_collection_meta">%1$d 个章节 · %2$d 张图片</string>
@@ -307,14 +305,6 @@
     <string name="folder_collection_translation_target">%1$s · %2$s</string>
     <string name="translation_done">翻译完成</string>
     <string name="translation_failed">翻译失败</string>
-    <string name="folder_embed_progress">嵌字中…(%1$d/%2$d)</string>
-    <string name="folder_embed_done">嵌字完成</string>
-    <string name="folder_embed_failed">嵌字失败</string>
-    <string name="folder_embed_failed_image">嵌字失败：%1$s</string>
-    <string name="folder_embed_running">已有嵌字任务在进行中</string>
-    <string name="folder_read_force_bubble_unembedded">检测到未嵌字图片，已切换为气泡模式阅读</string>
-    <string name="folder_unembed_done">已取消嵌字</string>
-    <string name="folder_unembed_failed">取消嵌字失败</string>
 
     <!-- Library / Selection -->
     <string name="select_all">全选</string>
@@ -373,17 +363,7 @@
     <string name="export_format_images_option">导出为图片目录</string>
     <string name="export_format_cbz_option">导出为 CBZ</string>
     <string name="export_format_pdf_option">导出为 PDF</string>
-    <string name="export_embedded_images_option">导出嵌入图片</string>
     <string name="export_path_hint_format">导出路径：%1$s</string>
-
-    <!-- Embed -->
-    <string name="embed_options_title">嵌字参数</string>
-    <string name="embed_thread_note">该参数用于调整嵌字线程数。</string>
-    <string name="embed_thread_hint">嵌字线程数 (1–16)</string>
-    <string name="embed_thread_invalid">线程数无效，请输入 1–16</string>
-    <string name="embed_thread_warning_title">线程数偏高</string>
-    <string name="embed_thread_warning_message">当前设置为 %1$d 线程，已超过设备建议警戒值 %2$d；推荐线程数为 %3$d。继续使用更高线程数可能导致明显卡顿、发热或系统界面失去响应。是否仍要继续？</string>
-    <string name="embed_image_repair_option">启用图像修复（非气泡）</string>
 
     <!-- Error Dialogs -->
     <string name="api_request_failed_title">API 调用失败</string>
@@ -406,7 +386,6 @@
     <string name="translation_cancel_action">取消翻译</string>
     <string name="translation_canceling">正在取消翻译…</string>
     <string name="translation_canceled">已取消翻译</string>
-    <string name="embed_keepalive_title">嵌字进行中</string>
     <string name="export_keepalive_title">导出进行中</string>
 
     <!-- Reading -->
@@ -424,7 +403,6 @@
     <string name="reading_bubble_resize_done">确认</string>
     <string name="reading_bubble_action_resize">调整气泡大小</string>
     <string name="reading_bubble_action_delete">删除气泡</string>
-    <string name="image_embedded">已嵌字</string>
     <string name="image_translated">已翻译</string>
     <string name="image_not_translated">未翻译</string>
 

@@ -15,9 +15,6 @@ class ReadingSessionViewModel : ViewModel() {
     private val _index = MutableLiveData(0)
     val index: LiveData<Int> = _index
 
-    private val _isEmbedded = MutableLiveData(false)
-    val isEmbedded: LiveData<Boolean> = _isEmbedded
-
     private val _readingMode = MutableLiveData(FolderReadingMode.STANDARD)
     val readingMode: LiveData<FolderReadingMode> = _readingMode
 
@@ -25,14 +22,12 @@ class ReadingSessionViewModel : ViewModel() {
         folder: File,
         images: List<File>,
         startIndex: Int,
-        embeddedMode: Boolean = false,
         readingMode: FolderReadingMode = FolderReadingMode.STANDARD
     ) {
         _currentFolder.value = folder
         _images.value = images
         val clamped = startIndex.coerceIn(0, (images.size - 1).coerceAtLeast(0))
         _index.value = clamped
-        _isEmbedded.value = embeddedMode
         _readingMode.value = readingMode
     }
 
