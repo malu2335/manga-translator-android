@@ -541,4 +541,17 @@ internal class LibraryDialogs {
             .setPositiveButton(R.string.delete_selected) { _, _ -> onConfirm() }
             .showWithScrollableMessage()
     }
+
+    fun confirmDeleteSelectedLibraryFolders(
+        context: Context,
+        selectedCount: Int,
+        onConfirm: () -> Unit
+    ) {
+        AlertDialog.Builder(context)
+            .setTitle(R.string.delete_selected)
+            .setMessage(context.getString(R.string.delete_folders_confirm, selectedCount))
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.delete_selected) { _, _ -> onConfirm() }
+            .showWithScrollableMessage()
+    }
 }

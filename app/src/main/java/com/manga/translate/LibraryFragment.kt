@@ -76,7 +76,8 @@ class LibraryFragment : Fragment() {
         onClick = { openFolder(it.folder) },
         onDelete = { confirmDeleteFolder(it.folder) },
         onRename = { showRenameFolderDialog(it.folder) },
-        onMove = { showMoveFolderPicker(it.folder) }
+        onMove = { showMoveFolderPicker(it.folder) },
+        onItemLongPress = { showFolderMultiSelectDialog(it.folder) }
     )
 
     private val imageAdapter = FolderImageAdapter(
@@ -882,6 +883,49 @@ class LibraryFragment : Fragment() {
         }
     }
 
+    private fun showFolderMultiSelectDialog(initialFolder: File) {
+        val folders = repository.listFolders()
+        if (folders.isEmpty()) {
+            Toast.makeText(requireContext(), R.string.folder_delete_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val checked = BooleanArray(folders.size)
+        val initialIndex = folders.indexOfFirst { it.absolutePath == initialFolder.absolutePath }
+        if (initialIndex >= 0) {
+            checked[initialIndex] = true
+        }
+        val names = folders.map(::buildFolderTitle).toTypedArray()
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.folder_multi_select_title)
+            .setMultiChoiceItems(names, checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.delete_selected) { _, _ ->
+                val selected = folders.filterIndexed { index, _ -> checked[index] }
+                if (selected.isEmpty()) {
+                    Toast.makeText(requireContext(), R.string.folder_delete_empty, Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                dialogs.confirmDeleteSelectedLibraryFolders(requireContext(), selected.size) {
+                    var failed = false
+                    selected.forEach { folder ->
+                        if (!repository.deleteFolder(folder)) {
+                            failed = true
+                        }
+                    }
+                    if (failed) {
+                        AppLogger.log("Library", "Delete selected root folders failed")
+                        Toast.makeText(requireContext(), R.string.delete_folders_failed, Toast.LENGTH_SHORT).show()
+                    } else {
+                        AppLogger.log("Library", "Deleted ${selected.size} root folders")
+                    }
+                    refreshFolderViewsAfterBatchMutation(selected)
+                }
+            }
+            .show()
+    }
+
     private fun showRenameFolderDialog(folder: File) {
         dialogs.showRenameFolderDialog(requireContext(), folder.name) { inputName ->
             val renamed = repository.renameFolder(folder, inputName)
@@ -943,6 +987,23 @@ class LibraryFragment : Fragment() {
             }
             currentPath != null && originalParentPath == currentPath -> {
                 loadImages(visibleFolder)
+                loadFolders()
+            }
+            else -> loadFolders()
+        }
+    }
+
+    private fun refreshFolderViewsAfterBatchMutation(deletedFolders: List<File>) {
+        val currentPath = currentFolder?.absolutePath
+        val parentPath = currentParentFolder?.absolutePath
+        val deletedPaths = deletedFolders.map { it.absolutePath }.toHashSet()
+        val deletedParentPaths = deletedFolders.mapNotNull { it.parentFile?.absolutePath }.toHashSet()
+
+        when {
+            currentPath != null && deletedPaths.contains(currentPath) -> showFolderList()
+            parentPath != null && deletedPaths.contains(parentPath) -> showFolderList()
+            currentPath != null && deletedParentPaths.contains(currentPath) -> {
+                currentFolder?.let(::loadImages)
                 loadFolders()
             }
             else -> loadFolders()

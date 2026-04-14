@@ -268,7 +268,9 @@
     <string name="folder_move_no_collections">暂无可移动到的集合</string>
     <string name="folder_delete_confirm">确定删除文件夹“%1$s”吗？此操作无法撤销。</string>
     <string name="folder_delete_failed">删除失败，请稍后重试</string>
+    <string name="folder_delete_empty">请先选择要删除的文件夹</string>
     <string name="folder_rename_failed">重命名失败，请检查名称</string>
+    <string name="folder_multi_select_title">选择要操作的文件夹</string>
     <string name="folder_collection_title_suffix">（章节集合）</string>
 
     <!-- Library / Translation Options -->
@@ -321,8 +323,10 @@
     <string name="folder_selection_count">已选择 %1$d 张</string>
     <string name="chapter_selection_count">已选择 %1$d 个子章节</string>
     <string name="delete_images_confirm">确定删除选中的 %1$d 张图片吗？此操作无法撤销。</string>
+    <string name="delete_folders_confirm">确定删除选中的 %1$d 个文件夹吗？此操作无法撤销。</string>
     <string name="delete_chapters_confirm">确定删除选中的 %1$d 个子章节吗？此操作无法撤销。</string>
     <string name="delete_images_failed">部分图片删除失败</string>
+    <string name="delete_folders_failed">部分文件夹删除失败</string>
     <string name="delete_chapters_failed">部分子章节删除失败</string>
     <string name="delete_images_empty">请先选择要删除的图片</string>
     <string name="delete_chapters_empty">请先选择要删除的子章节</string>
