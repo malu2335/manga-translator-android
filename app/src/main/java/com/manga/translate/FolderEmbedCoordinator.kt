@@ -23,8 +23,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.Executors
-import kotlin.math.max
-import kotlin.math.min
 
 internal class FolderEmbedCoordinator(
     context: Context,
@@ -42,10 +40,6 @@ internal class FolderEmbedCoordinator(
         return normalizeEmbedThreads(saved)
     }
 
-    fun getUseWhiteBubbleCover(): Boolean {
-        return prefs.getBoolean(KEY_EMBED_WHITE_BUBBLE_COVER, DEFAULT_EMBED_WHITE_BUBBLE_COVER)
-    }
-
     fun getUseImageRepair(): Boolean {
         return prefs.getBoolean(KEY_EMBED_IMAGE_REPAIR, DEFAULT_EMBED_IMAGE_REPAIR)
     }
@@ -55,7 +49,6 @@ internal class FolderEmbedCoordinator(
         folder: File,
         images: List<File>,
         embedThreads: Int,
-        useWhiteBubbleCover: Boolean,
         useImageRepair: Boolean,
         onSetActionsEnabled: (Boolean) -> Unit
     ) {
@@ -71,7 +64,6 @@ internal class FolderEmbedCoordinator(
         val normalizedThreads = normalizeEmbedThreads(embedThreads)
         prefs.edit() {
                 putInt(KEY_EMBED_THREADS, normalizedThreads)
-                .putBoolean(KEY_EMBED_WHITE_BUBBLE_COVER, useWhiteBubbleCover)
                 .putBoolean(KEY_EMBED_IMAGE_REPAIR, useImageRepair)
             }
 
@@ -94,7 +86,6 @@ internal class FolderEmbedCoordinator(
                     folder = folder,
                     images = images,
                     embedThreads = normalizedThreads,
-                    useWhiteBubbleCover = useWhiteBubbleCover,
                     useImageRepair = useImageRepair
                 ) { done, total ->
                     withContext(Dispatchers.Main) {
@@ -171,7 +162,6 @@ internal class FolderEmbedCoordinator(
         folder: File,
         images: List<File>,
         embedThreads: Int,
-        useWhiteBubbleCover: Boolean,
         useImageRepair: Boolean,
         onProgress: suspend (done: Int, total: Int) -> Unit
     ): EmbedResult = withContext(Dispatchers.IO) {
@@ -250,7 +240,6 @@ internal class FolderEmbedCoordinator(
                                     inpainter = inpainter,
                                     renderer = renderer,
                                     verticalLayoutEnabled = verticalLayoutEnabled,
-                                    useWhiteBubbleCover = useWhiteBubbleCover,
                                     useImageRepair = useImageRepair,
                                     outputDir = embeddedDir
                                 )
@@ -305,21 +294,16 @@ internal class FolderEmbedCoordinator(
         inpainter: MiganInpainter,
         renderer: EmbeddedTextRenderer,
         verticalLayoutEnabled: Boolean,
-        useWhiteBubbleCover: Boolean,
         useImageRepair: Boolean,
         outputDir: File
     ): Boolean {
         val bitmap = BitmapFactory.decodeFile(sourceImage.absolutePath) ?: return false
-        val covered = if (useWhiteBubbleCover) {
-            val bubbleCoverMask = buildBubbleInteriorMask(
-                translation = translation,
-                width = bitmap.width,
-                height = bitmap.height
-            )
-            applyPureWhiteCover(bitmap, bubbleCoverMask)
-        } else {
-            bitmap.copy(Bitmap.Config.ARGB_8888, true)
-        }
+        val bubbleCoverMask = buildBubbleInteriorMask(
+            translation = translation,
+            width = bitmap.width,
+            height = bitmap.height
+        )
+        val covered = applyPureWhiteCover(bitmap, bubbleCoverMask)
         val repaired = if (useImageRepair) {
             repairNonBubbleTextRegions(
                 source = covered,
@@ -416,58 +400,53 @@ internal class FolderEmbedCoordinator(
         width: Int,
         height: Int
     ): BooleanArray {
-        val scaleX = if (translation.width > 0) width.toFloat() / translation.width.toFloat() else 1f
-        val scaleY = if (translation.height > 0) height.toFloat() / translation.height.toFloat() else 1f
         val mask = BooleanArray(width * height)
         for (bubble in translation.bubbles) {
             if (bubble.source != BubbleSource.BUBBLE_DETECTOR) continue
-            val scaled = android.graphics.RectF(
-                bubble.rect.left * scaleX,
-                bubble.rect.top * scaleY,
-                bubble.rect.right * scaleX,
-                bubble.rect.bottom * scaleY
-            )
-            markBubbleInteriorEllipse(mask, scaled, width, height)
+            if (bubble.maskContour != null && bubble.maskContour.size >= 6) {
+                markBubbleInteriorPolygon(mask, bubble.maskContour, width, height)
+            }
         }
         return mask
     }
 
-    private fun markBubbleInteriorEllipse(
+    // Scanline polygon fill. contour is normalized [0,1] so pixel coords = contour * width/height.
+    private fun markBubbleInteriorPolygon(
         mask: BooleanArray,
-        rect: android.graphics.RectF,
+        contour: FloatArray,
         width: Int,
         height: Int
     ) {
-        val left = rect.left.coerceIn(0f, (width - 1).toFloat())
-        val top = rect.top.coerceIn(0f, (height - 1).toFloat())
-        val right = rect.right.coerceIn((left + 1f).coerceAtMost(width.toFloat()), width.toFloat())
-        val bottom = rect.bottom.coerceIn((top + 1f).coerceAtMost(height.toFloat()), height.toFloat())
-        val rectW = right - left
-        val rectH = bottom - top
-        if (rectW <= 1f || rectH <= 1f) return
+        val n = contour.size / 2
+        if (n < 3) return
 
-        val cx = (left + right) * 0.5f
-        val cy = (top + bottom) * 0.5f
-        val inset = max(BUBBLE_FILL_MIN_INSET_PX, min(rectW, rectH) * BUBBLE_FILL_INSET_RATIO)
-        val radiusX = (rectW * 0.5f - inset).coerceAtLeast(1f)
-        val radiusY = (rectH * 0.5f - inset).coerceAtLeast(1f)
+        val yMin = (0 until n).minOf { (contour[it * 2 + 1] * height).toInt() }.coerceIn(0, height - 1)
+        val yMax = (0 until n).maxOf { (contour[it * 2 + 1] * height).toInt() }.coerceIn(0, height - 1)
+        val intersections = ArrayList<Float>(8)
 
-        val minX = (cx - radiusX).toInt().coerceIn(0, width - 1)
-        val maxX = (cx + radiusX).toInt().coerceIn(0, width - 1)
-        val minY = (cy - radiusY).toInt().coerceIn(0, height - 1)
-        val maxY = (cy + radiusY).toInt().coerceIn(0, height - 1)
-        val invRX2 = 1f / (radiusX * radiusX)
-        val invRY2 = 1f / (radiusY * radiusY)
-
-        for (y in minY..maxY) {
-            val py = y + 0.5f - cy
-            val pyTerm = py * py * invRY2
+        for (y in yMin..yMax) {
+            val fy = y + 0.5f
+            intersections.clear()
+            for (i in 0 until n) {
+                val j = (i + 1) % n
+                val x0 = contour[i * 2] * width
+                val y0 = contour[i * 2 + 1] * height
+                val x1 = contour[j * 2] * width
+                val y1 = contour[j * 2 + 1] * height
+                if ((y0 <= fy && y1 > fy) || (y1 <= fy && y0 > fy)) {
+                    intersections.add(x0 + (fy - y0) / (y1 - y0) * (x1 - x0))
+                }
+            }
+            intersections.sort()
             val row = y * width
-            for (x in minX..maxX) {
-                val px = x + 0.5f - cx
-                if (px * px * invRX2 + pyTerm <= 1f) {
+            var k = 0
+            while (k + 1 < intersections.size) {
+                val xStart = intersections[k].toInt().coerceIn(0, width - 1)
+                val xEnd = intersections[k + 1].toInt().coerceIn(0, width - 1)
+                for (x in xStart..xEnd) {
                     mask[row + x] = true
                 }
+                k += 2
             }
         }
     }
@@ -500,13 +479,9 @@ internal class FolderEmbedCoordinator(
     }
 
     companion object {
-        private const val BUBBLE_FILL_INSET_RATIO = 0.025f
-        private const val BUBBLE_FILL_MIN_INSET_PX = 2f
         private const val KEY_EMBED_THREADS = "embed_threads"
-        private const val KEY_EMBED_WHITE_BUBBLE_COVER = "embed_white_bubble_cover"
         private const val KEY_EMBED_IMAGE_REPAIR = "embed_image_repair"
         private const val DEFAULT_EMBED_THREADS = 2
-        private const val DEFAULT_EMBED_WHITE_BUBBLE_COVER = true
         private const val DEFAULT_EMBED_IMAGE_REPAIR = false
         private const val MIN_EMBED_THREADS = 1
         private const val MAX_EMBED_THREADS = 16

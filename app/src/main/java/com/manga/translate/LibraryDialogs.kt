@@ -406,9 +406,8 @@ internal class LibraryDialogs {
     fun showEmbedOptionsDialog(
         context: Context,
         defaultThreads: Int,
-        defaultUseWhiteBubbleCover: Boolean,
         defaultUseImageRepair: Boolean,
-        onConfirm: (Int, Boolean, Boolean) -> Unit
+        onConfirm: (Int, Boolean) -> Unit
     ) {
         val note = TextView(context).apply {
             text = context.getString(R.string.embed_thread_note)
@@ -424,11 +423,6 @@ internal class LibraryDialogs {
         applyDialogTextColors(context, input)
         val recommendationView = TextView(context)
         applyDialogTextColors(context, recommendationView, useHintColor = true)
-        val whiteCoverCheckBox = CheckBox(context).apply {
-            text = context.getString(R.string.embed_white_cover_option)
-            isChecked = defaultUseWhiteBubbleCover
-        }
-        applyDialogTextColors(context, whiteCoverCheckBox)
         val imageRepairCheckBox = CheckBox(context).apply {
             text = context.getString(R.string.embed_image_repair_option)
             isChecked = defaultUseImageRepair
@@ -462,12 +456,6 @@ internal class LibraryDialogs {
                     bottomMargin = dp(context, 2f)
                 }
             )
-            addView(
-                whiteCoverCheckBox,
-                matchWrapLayoutParams().apply {
-                    topMargin = dp(context, 10f)
-                }
-            )
             addView(imageRepairCheckBox, matchWrapLayoutParams())
         }
         val dialog = AlertDialog.Builder(context)
@@ -487,7 +475,6 @@ internal class LibraryDialogs {
                 val continueAction = {
                     onConfirm(
                         threadCount,
-                        whiteCoverCheckBox.isChecked,
                         imageRepairCheckBox.isChecked
                     )
                     dialog.dismiss()

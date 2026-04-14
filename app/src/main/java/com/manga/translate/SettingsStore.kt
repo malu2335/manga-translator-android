@@ -300,6 +300,27 @@ class SettingsStore(context: Context) {
             }
     }
 
+    fun loadBubbleConfThresholdPercent(): Int {
+        val saved = prefs.getInt(
+            KEY_BUBBLE_CONF_THRESHOLD_PERCENT,
+            DEFAULT_BUBBLE_CONF_THRESHOLD_PERCENT
+        )
+        return saved.coerceIn(
+            MIN_BUBBLE_CONF_THRESHOLD_PERCENT,
+            MAX_BUBBLE_CONF_THRESHOLD_PERCENT
+        )
+    }
+
+    fun saveBubbleConfThresholdPercent(value: Int) {
+        val normalized = value.coerceIn(
+            MIN_BUBBLE_CONF_THRESHOLD_PERCENT,
+            MAX_BUBBLE_CONF_THRESHOLD_PERCENT
+        )
+        prefs.edit() {
+                putInt(KEY_BUBBLE_CONF_THRESHOLD_PERCENT, normalized)
+            }
+    }
+
     fun loadTranslationBubbleOpacityPercent(): Int {
         val saved = prefs.getInt(
             KEY_TRANSLATION_BUBBLE_OPACITY_PERCENT,
@@ -763,6 +784,7 @@ class SettingsStore(context: Context) {
         private const val KEY_READING_DISPLAY_MODE = "reading_display_mode"
         private const val KEY_READING_PAGE_ANIMATION_MODE = "reading_page_animation_mode"
         private const val KEY_TRANSLATION_BUBBLE_OPACITY_PERCENT = "translation_bubble_opacity_percent"
+        private const val KEY_BUBBLE_CONF_THRESHOLD_PERCENT = "bubble_conf_threshold_percent"
         private const val KEY_LINK_SOURCE = "link_source"
         private const val KEY_LLM_TEMPERATURE = "llm_temperature"
         private const val KEY_LLM_TOP_P = "llm_top_p"
@@ -802,6 +824,9 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_TRANSLATION_BUBBLE_OPACITY_PERCENT = 80
         private const val MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT = 0
         private const val MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT = 100
+        private const val DEFAULT_BUBBLE_CONF_THRESHOLD_PERCENT = 15
+        private const val MIN_BUBBLE_CONF_THRESHOLD_PERCENT = 1
+        private const val MAX_BUBBLE_CONF_THRESHOLD_PERCENT = 95
     }
 }
 

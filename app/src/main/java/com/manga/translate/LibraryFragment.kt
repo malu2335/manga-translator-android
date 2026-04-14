@@ -1099,15 +1099,13 @@ class LibraryFragment : Fragment() {
         dialogs.showEmbedOptionsDialog(
             context = requireContext(),
             defaultThreads = embedCoordinator.getEmbedThreadCount(),
-            defaultUseWhiteBubbleCover = embedCoordinator.getUseWhiteBubbleCover(),
             defaultUseImageRepair = embedCoordinator.getUseImageRepair()
-        ) { embedThreads, useWhiteBubbleCover, useImageRepair ->
+        ) { embedThreads, useImageRepair ->
             embedCoordinator.embedFolder(
                 scope = viewLifecycleOwner.lifecycleScope,
                 folder = folder,
                 images = images,
                 embedThreads = embedThreads,
-                useWhiteBubbleCover = useWhiteBubbleCover,
                 useImageRepair = useImageRepair,
                 onSetActionsEnabled = { enabled ->
                     setEmbedActionsEnabled(enabled)

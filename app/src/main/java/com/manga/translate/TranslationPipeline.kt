@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -59,7 +60,7 @@ internal class TranslationPipeline(
         val translatable = page.bubbles.filter { it.text.isNotBlank() }
         if (translatable.isEmpty()) {
             val emptyTranslations = page.bubbles.map {
-                BubbleTranslation(it.id, it.rect, "", it.source)
+                BubbleTranslation(it.id, it.rect, "", it.source, it.maskContour)
             }
             return@withContext TranslationResult(
                 imageFile.name,
@@ -79,7 +80,7 @@ internal class TranslationPipeline(
         if (translated == null) {
             val fallback = page.bubbles.map { bubble ->
                 val text = bubble.text.trim()
-                BubbleTranslation(bubble.id, bubble.rect, if (text.isBlank()) "" else text, bubble.source)
+                BubbleTranslation(bubble.id, bubble.rect, if (text.isBlank()) "" else text, bubble.source, bubble.maskContour)
             }
             return@withContext TranslationResult(
                 imageFile.name,
@@ -111,7 +112,7 @@ internal class TranslationPipeline(
         }
         val bubbles = page.bubbles.map { bubble ->
             val text = translationMap[bubble.id] ?: ""
-            BubbleTranslation(bubble.id, bubble.rect, text, bubble.source)
+            BubbleTranslation(bubble.id, bubble.rect, text, bubble.source, bubble.maskContour)
         }
         AppLogger.log("Pipeline", "Translation finished for ${imageFile.name}")
         TranslationResult(imageFile.name, page.width, page.height, bubbles, metadata)
@@ -173,8 +174,8 @@ internal class TranslationPipeline(
                         bubbles.add(OcrBubble(index, line.rect, line.text, BubbleSource.TEXT_DETECTOR))
                     }
                 } else {
-                    for ((bubbleId, rect) in bubbleRects.withIndex()) {
-                        val text = withBitmapCrop(bitmap, rect) { crop ->
+                    for ((bubbleId, det) in detections.withIndex()) {
+                        val text = withBitmapCrop(bitmap, det.rect) { crop ->
                             val lineRects = lineDetector?.detectLines(crop).orEmpty()
                             val lines = recognizeEnglishLines(crop, lineRects, ocrEngine)
                             if (lines.isEmpty()) {
@@ -183,7 +184,7 @@ internal class TranslationPipeline(
                                 lines.joinToString("\n") { it.text }
                             }
                         } ?: continue
-                        bubbles.add(OcrBubble(bubbleId, rect, text, BubbleSource.BUBBLE_DETECTOR))
+                        bubbles.add(OcrBubble(bubbleId, det.rect, text, BubbleSource.BUBBLE_DETECTOR, det.maskContour))
                     }
                 }
                 val result = PageOcrResult(
@@ -207,8 +208,8 @@ internal class TranslationPipeline(
                         bubbles.add(OcrBubble(index, line.rect, line.text, BubbleSource.TEXT_DETECTOR))
                     }
                 } else {
-                    for ((bubbleId, rect) in bubbleRects.withIndex()) {
-                        val text = withBitmapCrop(bitmap, rect) { crop ->
+                    for ((bubbleId, det) in detections.withIndex()) {
+                        val text = withBitmapCrop(bitmap, det.rect) { crop ->
                             val lineRects = lineDetector?.detectLines(crop).orEmpty()
                             val lines = recognizeKoreanLines(crop, lineRects, ocrEngine)
                             if (lines.isEmpty()) {
@@ -217,7 +218,7 @@ internal class TranslationPipeline(
                                 lines.joinToString("\n") { it.text }
                             }
                         } ?: continue
-                        bubbles.add(OcrBubble(bubbleId, rect, text, BubbleSource.BUBBLE_DETECTOR))
+                        bubbles.add(OcrBubble(bubbleId, det.rect, text, BubbleSource.BUBBLE_DETECTOR, det.maskContour))
                     }
                 }
                 val result = PageOcrResult(
@@ -232,7 +233,7 @@ internal class TranslationPipeline(
                 return@withContext result
             }
             val textRects = textDetector?.let { detectorInstance ->
-                val masked = maskDetections(bitmap, bubbleRects)
+                val masked = maskDetections(bitmap, detections)
                 try {
                     val rawTextRects = detectorInstance.detect(masked)
                     val filtered = filterOverlapping(rawTextRects, bubbleRects, TEXT_IOU_THRESHOLD)
@@ -279,7 +280,10 @@ internal class TranslationPipeline(
                 } else {
                     BubbleSource.TEXT_DETECTOR
                 }
-                bubbles.add(OcrBubble(bubbleId, rect, text, source))
+                val maskContour = if (bubbleId < bubbleDetectorCount) {
+                    detections.getOrNull(bubbleId)?.maskContour
+                } else null
+                bubbles.add(OcrBubble(bubbleId, rect, text, source, maskContour))
             }
             val result = PageOcrResult(
                 imageFile,
@@ -313,7 +317,7 @@ internal class TranslationPipeline(
         val translatable = page.bubbles.filter { it.text.isNotBlank() }
         if (translatable.isEmpty()) {
             val emptyTranslations = page.bubbles.map {
-                BubbleTranslation(it.id, it.rect, "", it.source)
+                BubbleTranslation(it.id, it.rect, "", it.source, it.maskContour)
             }
             return@withContext TranslationResult(
                 page.imageFile.name,
@@ -331,7 +335,7 @@ internal class TranslationPipeline(
         val translated = llmClient.translate(pageText, glossary, promptAsset)
         if (translated == null) {
             val fallback = page.bubbles.map { bubble ->
-                BubbleTranslation(bubble.id, bubble.rect, bubble.text, bubble.source)
+                BubbleTranslation(bubble.id, bubble.rect, bubble.text, bubble.source, bubble.maskContour)
             }
             return@withContext TranslationResult(
                 page.imageFile.name,
@@ -360,7 +364,7 @@ internal class TranslationPipeline(
         }
         val bubbles = page.bubbles.map { bubble ->
             val text = translationMap[bubble.id] ?: ""
-            BubbleTranslation(bubble.id, bubble.rect, text, bubble.source)
+            BubbleTranslation(bubble.id, bubble.rect, text, bubble.source, bubble.maskContour)
         }
         TranslationResult(page.imageFile.name, page.width, page.height, bubbles, metadata)
     }
@@ -399,7 +403,7 @@ internal class TranslationPipeline(
                 val outcome = floatingBubbleTranslationCoordinator.translateImageBubbles(
                     bitmap = bitmap,
                     bubbles = page.bubbles.map { bubble ->
-                        BubbleTranslation(bubble.id, bubble.rect, "", bubble.source)
+                        BubbleTranslation(bubble.id, bubble.rect, "", bubble.source, bubble.maskContour)
                     },
                     timeoutMs = settingsStore.loadApiTimeoutMs(),
                     retryCount = 3,
@@ -538,19 +542,40 @@ internal class TranslationPipeline(
         }
     }
 
-    private fun maskDetections(source: Bitmap, rects: List<RectF>): Bitmap {
-        if (rects.isEmpty()) return source
+    private fun maskDetections(source: Bitmap, detections: List<BubbleDetection>): Bitmap {
+        if (detections.isEmpty()) return source
         val copy = source.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(copy)
         val paint = Paint().apply {
             color = Color.WHITE
             style = Paint.Style.FILL
         }
-        for (rect in rects) {
-            val padded = padRect(rect, source.width, source.height, MASK_EXPAND_RATIO, MASK_EXPAND_MIN)
-            canvas.drawRect(padded, paint)
+        for (det in detections) {
+            if (det.maskContour != null && det.maskContour.size >= 6) {
+                canvas.drawPath(
+                    buildContourPath(det.maskContour, source.width.toFloat(), source.height.toFloat()),
+                    paint
+                )
+            } else {
+                canvas.drawRect(
+                    padRect(det.rect, source.width, source.height, MASK_EXPAND_RATIO, MASK_EXPAND_MIN),
+                    paint
+                )
+            }
         }
         return copy
+    }
+
+    private fun buildContourPath(contour: FloatArray, w: Float, h: Float): Path {
+        val path = Path()
+        path.moveTo(contour[0] * w, contour[1] * h)
+        var i = 2
+        while (i + 1 < contour.size) {
+            path.lineTo(contour[i] * w, contour[i + 1] * h)
+            i += 2
+        }
+        path.close()
+        return path
     }
 
     private fun padRect(rect: RectF, width: Int, height: Int, ratio: Float, minPad: Float): RectF {
@@ -617,7 +642,7 @@ internal class TranslationPipeline(
                 val detections = detector.detect(bitmap)
                 val bubbleRects = detections.map { it.rect }
                 val textRects = textDetector?.let { detectorInstance ->
-                    val masked = maskDetections(bitmap, bubbleRects)
+                    val masked = maskDetections(bitmap, detections)
                     try {
                         val rawTextRects = detectorInstance.detect(masked)
                         val filtered = filterOverlapping(rawTextRects, bubbleRects, TEXT_IOU_THRESHOLD)
@@ -641,11 +666,8 @@ internal class TranslationPipeline(
                         id = index,
                         rect = rect,
                         text = "",
-                        source = if (index < bubbleDetectorCount) {
-                            BubbleSource.BUBBLE_DETECTOR
-                        } else {
-                            BubbleSource.TEXT_DETECTOR
-                        }
+                        source = if (index < bubbleDetectorCount) BubbleSource.BUBBLE_DETECTOR else BubbleSource.TEXT_DETECTOR,
+                        maskContour = if (index < bubbleDetectorCount) detections.getOrNull(index)?.maskContour else null
                     )
                 }
                 PageOcrResult(imageFile, bitmap.width, bitmap.height, bubbles)
@@ -754,7 +776,8 @@ data class OcrBubble(
     val id: Int,
     val rect: RectF,
     val text: String,
-    val source: BubbleSource = BubbleSource.UNKNOWN
+    val source: BubbleSource = BubbleSource.UNKNOWN,
+    val maskContour: FloatArray? = null
 )
 
 data class PageOcrResult(

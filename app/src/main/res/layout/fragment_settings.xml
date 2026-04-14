@@ -232,6 +232,22 @@
                     android:layout_height="wrap_content"
                     android:inputType="number" />
             </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/bubble_conf_threshold_layout"
+                style="@style/Widget.MangaTranslator.Input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:hint="@string/bubble_conf_threshold_hint">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.MangaTranslator.EditText"
+                    android:id="@+id/bubble_conf_threshold_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number" />
+            </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
 
         <LinearLayout

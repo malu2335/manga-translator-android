@@ -22,6 +22,8 @@ out/
 
 # VS Code
 .vscode/
+.claude/
+.kilo/
 
 # Kotlin/Java
 *.class
@@ -51,4 +53,5 @@ Thumbs.db
 # Model weights (local only)
 assets/*.onnx
 !assets/ysgyolo_1.2_OS1.0.onnx
+!assets/migan_512.onnx
 assets/*.pt

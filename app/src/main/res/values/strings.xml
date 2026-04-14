@@ -30,6 +30,7 @@
     <string name="floating_api_timeout_hint">悬浮翻译 API 超时 (秒, 30–1200)</string>
     <string name="max_concurrency_hint">最大并发数 (1–50)</string>
     <string name="translation_bubble_opacity_hint">翻译气泡透明度 (0–100，100 为完全不透明)</string>
+    <string name="bubble_conf_threshold_hint">气泡识别置信度阈值 (1–95，默认 15)</string>
     <string name="api_settings_note_openai">示例 URL：https://api.siliconflow.cn/v1</string>
     <string name="api_settings_note_gemini">示例 URL：https://generativelanguage.googleapis.com/v1beta</string>
     <string name="api_url_required">请先填写 API 地址</string>
@@ -383,7 +384,6 @@
     <string name="embed_thread_invalid">线程数无效，请输入 1–16</string>
     <string name="embed_thread_warning_title">线程数偏高</string>
     <string name="embed_thread_warning_message">当前设置为 %1$d 线程，已超过设备建议警戒值 %2$d；推荐线程数为 %3$d。继续使用更高线程数可能导致明显卡顿、发热或系统界面失去响应。是否仍要继续？</string>
-    <string name="embed_white_cover_option">使用白色覆盖气泡内文字</string>
     <string name="embed_image_repair_option">启用图像修复（非气泡）</string>
 
     <!-- Error Dialogs -->

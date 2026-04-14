@@ -91,7 +91,8 @@ data class BubbleTranslation(
     val id: Int,
     val rect: RectF,
     val text: String,
-    val source: BubbleSource = BubbleSource.UNKNOWN
+    val source: BubbleSource = BubbleSource.UNKNOWN,
+    val maskContour: FloatArray? = null
 )
 
 data class TranslationResult(

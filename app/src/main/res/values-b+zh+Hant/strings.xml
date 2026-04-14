@@ -30,6 +30,7 @@
     <string name="floating_api_timeout_hint">懸浮翻譯 API 逾時 (秒, 30–1200)</string>
     <string name="max_concurrency_hint">最大並行數 (1–50)</string>
     <string name="translation_bubble_opacity_hint">翻譯氣泡透明度 (0–100，100 為完全不透明)</string>
+    <string name="bubble_conf_threshold_hint">氣泡識別置信度閾值 (1–95，預設 15)</string>
     <string name="api_settings_note_openai">範例 URL：https://api.siliconflow.cn/v1</string>
     <string name="api_settings_note_gemini">範例 URL：https://generativelanguage.googleapis.com/v1beta</string>
     <string name="api_url_required">請先填寫 API 位址</string>
@@ -383,7 +384,6 @@
     <string name="embed_thread_invalid">執行緒數無效，請輸入 1–16</string>
     <string name="embed_thread_warning_title">執行緒數偏高</string>
     <string name="embed_thread_warning_message">目前設定為 %1$d 執行緒，已超過裝置建議警戒值 %2$d；推薦執行緒數為 %3$d。繼續使用較高執行緒數可能導致明顯卡頓、發熱或系統介面失去回應。是否仍要繼續？</string>
-    <string name="embed_white_cover_option">使用白色覆蓋氣泡內文字</string>
     <string name="embed_image_repair_option">啟用圖像修復（非氣泡）</string>
 
     <!-- Error Dialogs -->
