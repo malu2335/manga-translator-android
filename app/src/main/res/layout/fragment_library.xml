@@ -159,6 +159,42 @@
                 android:text="@string/library_collection_title"
                 android:textAppearance="@style/Widget.MangaTranslator.CardTitle" />
 
+            <LinearLayout
+                android:id="@+id/library_selection_actions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/library_select_all"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/select_all" />
+
+                <Button
+                    android:id="@+id/library_translate_selected"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/translate_selected" />
+
+                <Button
+                    android:id="@+id/library_delete_selected"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/delete_selected" />
+
+                <Button
+                    android:id="@+id/library_cancel_selection"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/cancel_selection" />
+            </LinearLayout>
+
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/folder_list"
                 android:layout_width="match_parent"

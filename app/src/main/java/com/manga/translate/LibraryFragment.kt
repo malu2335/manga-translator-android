@@ -66,6 +66,7 @@ class LibraryFragment : Fragment() {
     private var folderTopBarScrollAccumulated: Int = 0
     private var folderDetailContentBaseTopPadding: Int = 0
     private var isChapterSelectionMode: Boolean = false
+    private var isLibrarySelectionMode: Boolean = false
 
     private val tutorialUrlGithub =
         "https://github.com/jedzqer/manga-translator/blob/main/Tutorial/简中教程.md"
@@ -77,7 +78,8 @@ class LibraryFragment : Fragment() {
         onDelete = { confirmDeleteFolder(it.folder) },
         onRename = { showRenameFolderDialog(it.folder) },
         onMove = { showMoveFolderPicker(it.folder) },
-        onItemLongPress = { showFolderMultiSelectDialog(it.folder) }
+        onSelectionChanged = { updateLibrarySelectionActions() },
+        onItemLongPress = { enterLibrarySelectionMode(it.folder) }
     )
 
     private val imageAdapter = FolderImageAdapter(
@@ -327,6 +329,10 @@ class LibraryFragment : Fragment() {
             )
         }
         binding.tutorialButton.setOnClickListener { openTutorial() }
+        binding.librarySelectAll.setOnClickListener { toggleSelectAllLibraryFolders() }
+        binding.libraryTranslateSelected.setOnClickListener { translateSelectedLibraryFolders() }
+        binding.libraryDeleteSelected.setOnClickListener { confirmDeleteSelectedLibraryFolders() }
+        binding.libraryCancelSelection.setOnClickListener { exitLibrarySelectionMode() }
         binding.folderBackButton.setOnClickListener { navigateBackFromDetail() }
         binding.folderAddImages.setOnClickListener { handleAddContentClick() }
         binding.folderImportChapters.setOnClickListener { importChildChapters() }
@@ -369,6 +375,10 @@ class LibraryFragment : Fragment() {
                 override fun handleOnBackPressed() {
                     if (selectionController.isSelectionMode) {
                         selectionController.exitSelectionMode()
+                        return
+                    }
+                    if (isLibrarySelectionMode) {
+                        exitLibrarySelectionMode()
                         return
                     }
                     if (binding.folderDetailContainer.isVisible) {
@@ -473,6 +483,7 @@ class LibraryFragment : Fragment() {
         resetFolderTopBar(forceVisible = true)
         uiCallbacks.clearFolderStatus()
         exitActiveSelectionMode()
+        exitLibrarySelectionMode()
         folderAdapter.clearActionSelection()
         chapterAdapter.clearActionSelection()
         loadFolders()
@@ -698,6 +709,9 @@ class LibraryFragment : Fragment() {
         folderAdapter.submit(items)
         binding.libraryEmpty.text = getString(R.string.folder_empty)
         binding.libraryEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+        if (isLibrarySelectionMode) {
+            updateLibrarySelectionActions()
+        }
     }
 
     private fun loadImages(folder: File) {
@@ -884,49 +898,6 @@ class LibraryFragment : Fragment() {
         }
     }
 
-    private fun showFolderMultiSelectDialog(initialFolder: File) {
-        val folders = repository.listFolders()
-        if (folders.isEmpty()) {
-            Toast.makeText(requireContext(), R.string.folder_delete_empty, Toast.LENGTH_SHORT).show()
-            return
-        }
-        val checked = BooleanArray(folders.size)
-        val initialIndex = folders.indexOfFirst { it.absolutePath == initialFolder.absolutePath }
-        if (initialIndex >= 0) {
-            checked[initialIndex] = true
-        }
-        val names = folders.map(::buildFolderTitle).toTypedArray()
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.folder_multi_select_title)
-            .setMultiChoiceItems(names, checked) { _, which, isChecked ->
-                checked[which] = isChecked
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.delete_selected) { _, _ ->
-                val selected = folders.filterIndexed { index, _ -> checked[index] }
-                if (selected.isEmpty()) {
-                    Toast.makeText(requireContext(), R.string.folder_delete_empty, Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-                dialogs.confirmDeleteSelectedLibraryFolders(requireContext(), selected.size) {
-                    var failed = false
-                    selected.forEach { folder ->
-                        if (!repository.deleteFolder(folder)) {
-                            failed = true
-                        }
-                    }
-                    if (failed) {
-                        AppLogger.log("Library", "Delete selected root folders failed")
-                        Toast.makeText(requireContext(), R.string.delete_folders_failed, Toast.LENGTH_SHORT).show()
-                    } else {
-                        AppLogger.log("Library", "Deleted ${selected.size} root folders")
-                    }
-                    refreshFolderViewsAfterBatchMutation(selected)
-                }
-            }
-            .show()
-    }
-
     private fun showRenameFolderDialog(folder: File) {
         dialogs.showRenameFolderDialog(requireContext(), folder.name) { inputName ->
             val renamed = repository.renameFolder(folder, inputName)
@@ -1043,26 +1014,7 @@ class LibraryFragment : Fragment() {
     }
 
     private fun runCollectionTranslation(collectionFolder: File, force: Boolean) {
-        val chapters = repository.listChildFolders(collectionFolder)
-        val tasks = chapters.map { chapter ->
-            val images = repository.listImages(chapter)
-            val fullTranslate = preferencesGateway.isFullTranslateEnabled(chapter)
-            val useVlDirectTranslate = preferencesGateway.isVlDirectTranslateEnabled(chapter)
-            val useLocalOcr = settingsStore.loadOcrApiSettings().useLocalOcr
-            val language = if (useLocalOcr) {
-                preferencesGateway.getTranslationLanguage(chapter)
-            } else {
-                TranslationLanguage.JA_TO_ZH
-            }
-            FolderTranslationTask(
-                folder = chapter,
-                images = images,
-                force = force,
-                fullTranslate = fullTranslate,
-                useVlDirectTranslate = useVlDirectTranslate,
-                language = language
-            )
-        }
+        val tasks = buildTranslationTasksForFolder(collectionFolder, force)
         translationCoordinator.translateCollection(
             scope = viewLifecycleOwner.lifecycleScope,
             collectionFolder = collectionFolder,
@@ -1072,6 +1024,43 @@ class LibraryFragment : Fragment() {
                 _binding?.folderTranslateCollection?.isEnabled = enabled
             }
         )
+    }
+
+    private fun buildTranslationTasksForFolder(folder: File, force: Boolean): List<FolderTranslationTask> {
+        if (!repository.isCollectionFolder(folder)) {
+            val useLocalOcr = settingsStore.loadOcrApiSettings().useLocalOcr
+            val language = if (useLocalOcr) {
+                preferencesGateway.getTranslationLanguage(folder)
+            } else {
+                TranslationLanguage.JA_TO_ZH
+            }
+            return listOf(
+                FolderTranslationTask(
+                    folder = folder,
+                    images = repository.listImages(folder),
+                    force = force,
+                    fullTranslate = preferencesGateway.isFullTranslateEnabled(folder),
+                    useVlDirectTranslate = preferencesGateway.isVlDirectTranslateEnabled(folder),
+                    language = language
+                )
+            )
+        }
+        return repository.listChildFolders(folder).map { chapter ->
+            val useLocalOcr = settingsStore.loadOcrApiSettings().useLocalOcr
+            val language = if (useLocalOcr) {
+                preferencesGateway.getTranslationLanguage(chapter)
+            } else {
+                TranslationLanguage.JA_TO_ZH
+            }
+            FolderTranslationTask(
+                folder = chapter,
+                images = repository.listImages(chapter),
+                force = force,
+                fullTranslate = preferencesGateway.isFullTranslateEnabled(chapter),
+                useVlDirectTranslate = preferencesGateway.isVlDirectTranslateEnabled(chapter),
+                language = language
+            )
+        }
     }
 
     private fun exportFolder() {
@@ -1396,6 +1385,85 @@ class LibraryFragment : Fragment() {
             return
         }
         selectionController.toggleSelectAllImages()
+    }
+
+    private fun enterLibrarySelectionMode(target: File) {
+        if (!isLibrarySelectionMode) {
+            isLibrarySelectionMode = true
+            folderAdapter.setSelectionMode(true)
+            binding.librarySelectionActions.visibility = View.VISIBLE
+            uiCallbacks.clearFolderStatus()
+        }
+        folderAdapter.toggleSelectionAndNotify(target)
+    }
+
+    private fun exitLibrarySelectionMode() {
+        if (!isLibrarySelectionMode) return
+        isLibrarySelectionMode = false
+        folderAdapter.setSelectionMode(false)
+        binding.librarySelectionActions.visibility = View.GONE
+        uiCallbacks.clearFolderStatus()
+    }
+
+    private fun updateLibrarySelectionActions() {
+        if (!isLibrarySelectionMode || _binding == null) return
+        val count = folderAdapter.selectedCount()
+        uiCallbacks.setFolderStatus(getString(R.string.library_selection_count, count))
+        binding.librarySelectAll.text = getString(
+            if (folderAdapter.areAllSelected()) R.string.clear_all else R.string.select_all
+        )
+    }
+
+    private fun toggleSelectAllLibraryFolders() {
+        if (!isLibrarySelectionMode) return
+        if (folderAdapter.areAllSelected()) {
+            folderAdapter.clearSelection()
+        } else {
+            folderAdapter.selectAll()
+        }
+    }
+
+    private fun translateSelectedLibraryFolders() {
+        val selected = folderAdapter.getSelectedFolders()
+        if (selected.isEmpty()) {
+            uiCallbacks.setFolderStatus(getString(R.string.translate_folders_empty))
+            return
+        }
+        val tasks = selected.flatMap { buildTranslationTasksForFolder(it, force = false) }
+        translationCoordinator.translateBatch(
+            scope = viewLifecycleOwner.lifecycleScope,
+            tasks = tasks,
+            onTranslateEnabled = { enabled ->
+                _binding?.librarySelectAll?.isEnabled = enabled
+                _binding?.libraryTranslateSelected?.isEnabled = enabled
+                _binding?.libraryDeleteSelected?.isEnabled = enabled
+                _binding?.libraryCancelSelection?.isEnabled = enabled
+            }
+        )
+    }
+
+    private fun confirmDeleteSelectedLibraryFolders() {
+        val selected = folderAdapter.getSelectedFolders()
+        if (selected.isEmpty()) {
+            uiCallbacks.setFolderStatus(getString(R.string.folder_delete_empty))
+            return
+        }
+        dialogs.confirmDeleteSelectedLibraryFolders(requireContext(), selected.size) {
+            var failed = false
+            selected.forEach { folder ->
+                if (!repository.deleteFolder(folder)) {
+                    failed = true
+                }
+            }
+            if (failed) {
+                AppLogger.log("Library", "Delete selected root folders failed")
+                Toast.makeText(requireContext(), R.string.delete_folders_failed, Toast.LENGTH_SHORT).show()
+            } else {
+                AppLogger.log("Library", "Deleted ${selected.size} root folders")
+            }
+            exitLibrarySelectionMode()
+            refreshFolderViewsAfterBatchMutation(selected)
+        }
     }
 
     private fun handleDeleteSelectedClick() {

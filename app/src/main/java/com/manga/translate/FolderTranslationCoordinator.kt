@@ -126,6 +126,33 @@ internal class FolderTranslationCoordinator(
         tasks: List<FolderTranslationTask>,
         onTranslateEnabled: (Boolean) -> Unit
     ) {
+        translateTaskBatch(
+            scope = scope,
+            tasks = tasks,
+            onTranslateEnabled = onTranslateEnabled,
+            onFinished = { ui.refreshImages(collectionFolder) }
+        )
+    }
+
+    fun translateBatch(
+        scope: CoroutineScope,
+        tasks: List<FolderTranslationTask>,
+        onTranslateEnabled: (Boolean) -> Unit
+    ) {
+        translateTaskBatch(
+            scope = scope,
+            tasks = tasks,
+            onTranslateEnabled = onTranslateEnabled,
+            onFinished = { ui.refreshFolders() }
+        )
+    }
+
+    private fun translateTaskBatch(
+        scope: CoroutineScope,
+        tasks: List<FolderTranslationTask>,
+        onTranslateEnabled: (Boolean) -> Unit,
+        onFinished: () -> Unit
+    ) {
         if (tasks.isEmpty()) {
             ui.setFolderStatus(appContext.getString(R.string.folder_chapters_empty))
             return
@@ -153,6 +180,7 @@ internal class FolderTranslationCoordinator(
         }
         if (preparedTasks.isEmpty()) {
             ui.setFolderStatus(appContext.getString(R.string.translation_done))
+            onFinished()
             return
         }
         if (!llmClient.isConfigured()) {
@@ -176,7 +204,7 @@ internal class FolderTranslationCoordinator(
             )
             AppLogger.log(
                 "Library",
-                "Start translating collection ${collectionFolder.name}, ${preparedTasks.size} chapters"
+                "Start translating task batch, ${preparedTasks.size} folders"
             )
 
             val totalImages = preparedTasks.sumOf { it.pendingImages.size }.coerceAtLeast(1)
@@ -235,17 +263,17 @@ internal class FolderTranslationCoordinator(
                             appContext.getString(R.string.translation_done)
                         )
                     }
-                    ui.refreshImages(collectionFolder)
+                    onFinished()
                 } catch (e: CancellationException) {
                     if (cancellationRequested.get()) {
-                        AppLogger.log("Library", "Collection translation canceled: ${collectionFolder.name}")
+                        AppLogger.log("Library", "Batch translation canceled")
                         ui.setFolderStatus(appContext.getString(R.string.translation_canceled))
                         ui.showToast(R.string.translation_canceled)
                         GlobalTaskProgressStore.complete(
                             appContext.getString(R.string.translation_keepalive_title),
                             appContext.getString(R.string.translation_canceled)
                         )
-                        ui.refreshImages(collectionFolder)
+                        onFinished()
                     } else {
                         throw e
                     }
@@ -269,7 +297,7 @@ internal class FolderTranslationCoordinator(
             onTranslateEnabled(true)
             TranslationKeepAliveService.stop(appContext)
             translationRunning.set(false)
-            AppLogger.log("Library", "Failed to start collection translation ${collectionFolder.name}", e)
+            AppLogger.log("Library", "Failed to start batch translation", e)
             ui.setFolderStatus(appContext.getString(R.string.translation_failed))
             GlobalTaskProgressStore.fail(
                 appContext.getString(R.string.translation_keepalive_title),
