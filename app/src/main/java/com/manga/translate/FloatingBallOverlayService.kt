@@ -27,6 +27,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.AppCompatButton
 import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.app.NotificationCompat
@@ -108,6 +109,7 @@ class FloatingBallOverlayService : Service() {
     private var editSessionDirty = false
     private var autoCloseReferenceFrame: ScreenChangeReferenceFrame? = null
     private var autoCloseCheckJob: Job? = null
+    private var blankBubbleErrorDialog: AlertDialog? = null
     private val hideProgressStatusRunnable = Runnable {
         progressStatusView?.visibility = View.GONE
     }
@@ -176,6 +178,8 @@ class FloatingBallOverlayService : Service() {
     override fun onDestroy() {
         detectJob?.cancel()
         autoCloseCheckJob?.cancel()
+        blankBubbleErrorDialog?.dismiss()
+        blankBubbleErrorDialog = null
         clearCurrentSession()
         releaseProjection()
         removeOverlay()
@@ -825,15 +829,17 @@ class FloatingBallOverlayService : Service() {
             try {
                 val floatingTimeoutMs =
                     settingsStore.loadFloatingTranslateApiSettings().timeoutSeconds * 1000
-                val outcome = emptyBubbleCoordinator.process(
-                    bitmap = bitmapSnapshot,
-                    baseTranslation = session,
-                    timeoutMs = floatingTimeoutMs,
-                    retryCount = FLOATING_TRANSLATE_RETRY_COUNT,
-                    floatPromptAsset = FLOAT_PROMPT_ASSET,
-                    floatVlPromptAsset = FLOAT_VL_PROMPT_ASSET,
-                    maxVlConcurrency = MAX_FLOATING_VL_TRANSLATE_CONCURRENCY
-                )
+                val outcome = executeWithModelResponseRetries("FloatingEdit") {
+                    emptyBubbleCoordinator.process(
+                        bitmap = bitmapSnapshot,
+                        baseTranslation = session,
+                        timeoutMs = floatingTimeoutMs,
+                        retryCount = FLOATING_TRANSLATE_RETRY_COUNT,
+                        floatPromptAsset = FLOAT_PROMPT_ASSET,
+                        floatVlPromptAsset = FLOAT_VL_PROMPT_ASSET,
+                        maxVlConcurrency = MAX_FLOATING_VL_TRANSLATE_CONCURRENCY
+                    )
+                }
                 withContext(Dispatchers.Main) {
                     if (outcome.requiresVlModel) {
                         showProgressStatus(R.string.floating_vl_model_required, autoHide = true)
@@ -863,6 +869,14 @@ class FloatingBallOverlayService : Service() {
                         R.string.overlay_empty_bubble_translated,
                         Toast.LENGTH_SHORT
                     ).show()
+                }
+            } catch (e: LlmResponseException) {
+                AppLogger.log("FloatingOCR", "Floating edit model response invalid", e)
+                withContext(Dispatchers.Main) {
+                    showModelErrorDialog(
+                        responseContent = e.responseContent,
+                        onContinue = { confirmEditSession() }
+                    )
                 }
             } finally {
                 bitmapSnapshot.recycle()
@@ -922,6 +936,8 @@ class FloatingBallOverlayService : Service() {
     }
 
     private fun clearCurrentSession() {
+        blankBubbleErrorDialog?.dismiss()
+        blankBubbleErrorDialog = null
         currentSession = null
         editSessionSnapshot = null
         editModeEnabled = false
@@ -984,6 +1000,8 @@ class FloatingBallOverlayService : Service() {
 
     private fun runTextDetection() {
         if (detectJob?.isActive == true) return
+        blankBubbleErrorDialog?.dismiss()
+        blankBubbleErrorDialog = null
         if (editModeEnabled) {
             finishEditSession(showToast = false)
         }
@@ -1149,15 +1167,49 @@ class FloatingBallOverlayService : Service() {
                     }
                     return@launch
                 }
+                val capturedBitmap = bitmap
+                val resolvedTranslation = executeWithModelResponseRetries("FloatingOCR") {
+                    val firstPass = TranslationResult(
+                        imageName = "",
+                        width = capturedBitmap.width,
+                        height = capturedBitmap.height,
+                        bubbles = translatedBubbles
+                    )
+                    if (firstPass.bubbles.any { it.text.isBlank() }) {
+                        emptyBubbleCoordinator.process(
+                            bitmap = capturedBitmap,
+                            baseTranslation = firstPass,
+                            timeoutMs = floatingTimeoutMs,
+                            retryCount = FLOATING_TRANSLATE_RETRY_COUNT,
+                            floatPromptAsset = FLOAT_PROMPT_ASSET,
+                            floatVlPromptAsset = FLOAT_VL_PROMPT_ASSET,
+                            maxVlConcurrency = MAX_FLOATING_VL_TRANSLATE_CONCURRENCY
+                        ).let { outcome ->
+                            if (outcome.requiresVlModel || outcome.timedOut) {
+                                return@let firstPass
+                            }
+                            outcome.translation
+                        }
+                    } else {
+                        firstPass
+                    }.also { translation ->
+                        if (translation.bubbles.any { it.text.isBlank() }) {
+                            throw LlmResponseException(
+                                errorCode = "EMPTY_TRANSLATION_SEGMENT",
+                                responseContent = "模型返回空白结果：检测到的部分气泡未返回有效翻译内容。"
+                            )
+                        }
+                    }
+                }
                 withContext(Dispatchers.Main) {
                     val proofreadingModeEnabled = settingsStore
                         .loadFloatingTranslateApiSettings()
                         .proofreadingModeEnabled
                     currentSession = TranslationResult(
                         imageName = "",
-                        width = bitmap.width,
-                        height = bitmap.height,
-                        bubbles = translatedBubbles
+                        width = resolvedTranslation.width,
+                        height = resolvedTranslation.height,
+                        bubbles = resolvedTranslation.bubbles
                     )
                     editSessionSnapshot = null
                     createBubbleModeEnabled = false
@@ -1170,22 +1222,33 @@ class FloatingBallOverlayService : Service() {
                         controllerMenuPanel?.visibility = View.VISIBLE
                         updateEditButtons()
                         showProgressStatus(
-                            getString(R.string.floating_progress_done, translatedBubbles.size),
+                            getString(R.string.floating_progress_done, resolvedTranslation.bubbles.size),
                             autoHide = false
                         )
                     } else {
                         showProgressStatus(
-                            getString(R.string.floating_progress_done, translatedBubbles.size),
+                            getString(R.string.floating_progress_done, resolvedTranslation.bubbles.size),
                             autoHide = true
                         )
                         Toast.makeText(
                             this@FloatingBallOverlayService,
-                            getString(R.string.floating_detected_count, translatedBubbles.size),
+                            getString(R.string.floating_detected_count, resolvedTranslation.bubbles.size),
                             Toast.LENGTH_SHORT
                         ).show()
                     }
                 }
-                AppLogger.log("FloatingOCR", "Run detection finished bubbles=${translatedBubbles.size}")
+                AppLogger.log(
+                    "FloatingOCR",
+                    "Run detection finished bubbles=${resolvedTranslation.bubbles.size}"
+                )
+            } catch (e: LlmResponseException) {
+                AppLogger.log("FloatingOCR", "Floating detection model response invalid", e)
+                withContext(Dispatchers.Main) {
+                    showModelErrorDialog(
+                        responseContent = e.responseContent,
+                        onContinue = { runTextDetection() }
+                    )
+                }
             } catch (e: Exception) {
                 AppLogger.log("FloatingOCR", "Floating detection failed", e)
                 withContext(Dispatchers.Main) {
@@ -1206,6 +1269,51 @@ class FloatingBallOverlayService : Service() {
                 }
             }
         }
+    }
+
+    private fun showModelErrorDialog(
+        responseContent: String,
+        onContinue: (() -> Unit)?
+    ) {
+        blankBubbleErrorDialog?.dismiss()
+        val dialog = com.manga.translate.showModelErrorDialog(
+            context = this,
+            responseContent = responseContent,
+            onContinue = onContinue,
+            windowType =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+        )
+        dialog.setOnDismissListener {
+            if (blankBubbleErrorDialog === dialog) {
+                blankBubbleErrorDialog = null
+            }
+        }
+        blankBubbleErrorDialog = dialog
+    }
+
+    private suspend fun <T> executeWithModelResponseRetries(
+        logTag: String,
+        block: suspend () -> T
+    ): T {
+        var lastError: LlmResponseException? = null
+        repeat(MODEL_RESPONSE_SILENT_RETRY_COUNT) { attempt ->
+            try {
+                return block()
+            } catch (e: LlmResponseException) {
+                lastError = e
+                AppLogger.log(
+                    logTag,
+                    "Model response invalid, retry ${attempt + 1}/$MODEL_RESPONSE_SILENT_RETRY_COUNT",
+                    e
+                )
+            }
+        }
+        throw requireNotNull(lastError)
     }
 
 
@@ -1529,6 +1637,7 @@ class FloatingBallOverlayService : Service() {
         private const val FLOAT_PROMPT_ASSET = "float_llm_prompts.json"
         private const val FLOAT_VL_PROMPT_ASSET = "vl_bubble_prompts.json"
         private const val FLOATING_TRANSLATE_RETRY_COUNT = 1
+        private const val MODEL_RESPONSE_SILENT_RETRY_COUNT = 3
         private const val MAX_FLOATING_VL_TRANSLATE_CONCURRENCY = 16
         private const val AUTO_CLOSE_SCREEN_CHECK_INTERVAL_MS = 900L
         private const val AUTO_CLOSE_CAPTURE_TIMEOUT_MS = 1200L

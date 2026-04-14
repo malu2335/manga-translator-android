@@ -246,18 +246,12 @@ internal class LibraryDialogs {
         responseContent: String,
         onContinue: (() -> Unit)? = null
     ) {
-        AlertDialog.Builder(context)
-            .setTitle(R.string.model_response_failed_title)
-            .setMessage(ErrorDialogFormatter.formatModelErrorMessage(context, responseContent))
-            .setNegativeButton(android.R.string.cancel, null)
-            .apply {
-                if (onContinue != null) {
-                    setPositiveButton(R.string.translation_continue) { _, _ -> onContinue.invoke() }
-                } else {
-                    setPositiveButton(android.R.string.ok, null)
-                }
-            }
-            .showWithScrollableMessage()
+        com.manga.translate.showModelErrorDialog(
+            context = context,
+            responseContent = responseContent,
+            onContinue = onContinue,
+            windowType = null
+        )
     }
 
     fun showEhViewerSubfolderPicker(

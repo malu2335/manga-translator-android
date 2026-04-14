@@ -73,6 +73,8 @@ internal class FloatingBubbleTranslationCoordinator(
             val text = cacheMisses.joinToString("\n") {
                 "<b>${normalizeOcrText(it.text, language)}</b>"
             }
+            var missingTags = false
+            var countMismatch = false
             val translated = llmClient.translate(
                 text = text,
                 glossary = emptyMap(),
@@ -83,8 +85,30 @@ internal class FloatingBubbleTranslationCoordinator(
             ) ?: return merge()
             val segments = extractTaggedSegments(
                 translated.translation,
-                cacheMisses.map { it.text }
+                cacheMisses.map { it.text },
+                onMissingTags = {
+                    missingTags = true
+                    AppLogger.log(logTag, "Missing <b> tags in floating translation")
+                },
+                onCountMismatch = { expected, actual ->
+                    countMismatch = true
+                    AppLogger.log(
+                        logTag,
+                        "Floating translation count mismatch: expected $expected, got $actual"
+                    )
+                }
             )
+            if (missingTags || countMismatch || segments.any { it.isBlank() }) {
+                throw LlmResponseException(
+                    errorCode = "EMPTY_TRANSLATION_SEGMENT",
+                    responseContent = buildBlankModelResponseMessage(
+                        bubbleCount = cacheMisses.size,
+                        mode = "text",
+                        countMismatch = countMismatch,
+                        missingTags = missingTags
+                    )
+                )
+            }
             for (i in cacheMisses.indices) {
                 val source = cacheMisses[i]
                 val translatedText = segments.getOrElse(i) { source.text }
@@ -104,6 +128,8 @@ internal class FloatingBubbleTranslationCoordinator(
                 AppLogger.log(logTag, "LLM translate request failed, fallback to cached/OCR text", e)
                 merge()
             }
+        } catch (e: LlmResponseException) {
+            throw e
         } catch (e: Exception) {
             AppLogger.log(logTag, "LLM translate failed, fallback to cached/OCR text", e)
             merge()
@@ -165,6 +191,17 @@ internal class FloatingBubbleTranslationCoordinator(
                     if (translatedText.isNotBlank()) {
                         floatingTranslationCacheStore.putImageTranslation(imageCacheKey, translatedText)
                     }
+                    if (translatedText.isBlank()) {
+                        return@withPermit FloatingBubbleImageTranslateTaskResult(
+                            responseException = LlmResponseException(
+                                errorCode = "EMPTY_TRANSLATION_SEGMENT",
+                                responseContent = buildBlankModelResponseMessage(
+                                    bubbleCount = 1,
+                                    mode = "image"
+                                )
+                            )
+                        )
+                    }
                     FloatingBubbleImageTranslateTaskResult(
                         bubble = bubble.copy(text = translatedText)
                     )
@@ -178,6 +215,7 @@ internal class FloatingBubbleTranslationCoordinator(
         if (results.any { it.timedOut }) {
             return@coroutineScope FloatingBubbleImageTranslateOutcome(timedOut = true)
         }
+        results.firstNotNullOfOrNull { it.responseException }?.let { throw it }
         val translated = results.mapNotNull { it.bubble }
         AppLogger.log(logTag, "VL direct translate success segments=${translated.size}")
         return@coroutineScope FloatingBubbleImageTranslateOutcome(bubbles = translated)
@@ -200,6 +238,20 @@ internal class FloatingBubbleTranslationCoordinator(
     }
 }
 
+private fun buildBlankModelResponseMessage(
+    bubbleCount: Int,
+    mode: String,
+    countMismatch: Boolean = false,
+    missingTags: Boolean = false
+): String {
+    val reason = when {
+        missingTags -> "模型返回内容缺少 <b> 标签"
+        countMismatch -> "模型返回的气泡数量与请求数量不一致"
+        else -> "模型返回空白结果"
+    }
+    return "$reason：$mode 模式下有 $bubbleCount 个气泡未返回有效翻译内容。"
+}
+
 internal data class FloatingBubbleImageTranslateOutcome(
     val bubbles: List<BubbleTranslation> = emptyList(),
     val timedOut: Boolean = false,
@@ -209,5 +261,6 @@ internal data class FloatingBubbleImageTranslateOutcome(
 private data class FloatingBubbleImageTranslateTaskResult(
     val bubble: BubbleTranslation? = null,
     val timedOut: Boolean = false,
-    val requiresVlModel: Boolean = false
+    val requiresVlModel: Boolean = false,
+    val responseException: LlmResponseException? = null
 )
