@@ -24,6 +24,7 @@ out/
 .vscode/
 .claude/
 .kilo/
+.codex
 
 # Kotlin/Java
 *.class

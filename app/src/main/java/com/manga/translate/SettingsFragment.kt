@@ -276,9 +276,6 @@ class SettingsFragment : Fragment() {
         val bubbleOpacityInput = binding.translationBubbleOpacityInput.text?.toString()?.trim()
         val bubbleOpacity = parseIntInput(bubbleOpacityInput)
             ?: settingsStore.loadTranslationBubbleOpacityPercent()
-        val bubbleConfThresholdInput = binding.bubbleConfThresholdInput.text?.toString()?.trim()
-        val bubbleConfThreshold = parseIntInput(bubbleConfThresholdInput)
-            ?: settingsStore.loadBubbleConfThresholdPercent()
         val persisted = settingsPersistenceController.persistMainForm(
             SettingsMainForm(
                 apiUrl = url,
@@ -287,8 +284,7 @@ class SettingsFragment : Fragment() {
                 apiFormat = currentApiFormat(),
                 apiTimeoutSeconds = timeoutSeconds,
                 maxConcurrency = maxConcurrency,
-                translationBubbleOpacityPercent = bubbleOpacity,
-                bubbleConfThresholdPercent = bubbleConfThreshold
+                translationBubbleOpacityPercent = bubbleOpacity
             )
         )
         val normalizedTimeoutText = formatNumber(persisted.apiTimeoutSeconds)
@@ -303,10 +299,6 @@ class SettingsFragment : Fragment() {
         val normalizedBubbleOpacityText = formatNumber(normalizedBubbleOpacity)
         if (normalizedBubbleOpacityText != bubbleOpacityInput) {
             binding.translationBubbleOpacityInput.setText(normalizedBubbleOpacityText)
-        }
-        val normalizedBubbleConfThresholdText = formatNumber(persisted.bubbleConfThresholdPercent)
-        if (normalizedBubbleConfThresholdText != bubbleConfThresholdInput) {
-            binding.bubbleConfThresholdInput.setText(normalizedBubbleConfThresholdText)
         }
         AppLogger.log("Settings", "API settings saved")
     }
@@ -559,9 +551,6 @@ class SettingsFragment : Fragment() {
         binding.maxConcurrencyInput.setText(formatNumber(settingsStore.loadMaxConcurrency()))
         binding.translationBubbleOpacityInput.setText(
             formatNumber(settingsStore.loadTranslationBubbleOpacityPercent())
-        )
-        binding.bubbleConfThresholdInput.setText(
-            formatNumber(settingsStore.loadBubbleConfThresholdPercent())
         )
         binding.textLayoutSwitch.isChecked = settingsStore.loadUseHorizontalText()
         binding.modelIoLoggingSwitch.isChecked = settingsStore.loadModelIoLogging()

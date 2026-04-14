@@ -824,7 +824,7 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_TRANSLATION_BUBBLE_OPACITY_PERCENT = 80
         private const val MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT = 0
         private const val MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT = 100
-        private const val DEFAULT_BUBBLE_CONF_THRESHOLD_PERCENT = 15
+        private const val DEFAULT_BUBBLE_CONF_THRESHOLD_PERCENT = 20
         private const val MIN_BUBBLE_CONF_THRESHOLD_PERCENT = 1
         private const val MAX_BUBBLE_CONF_THRESHOLD_PERCENT = 95
     }

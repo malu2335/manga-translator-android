@@ -30,7 +30,6 @@
     <string name="floating_api_timeout_hint">悬浮翻译 API 超时 (秒, 30–1200)</string>
     <string name="max_concurrency_hint">最大并发数 (1–50)</string>
     <string name="translation_bubble_opacity_hint">翻译气泡透明度 (0–100，100 为完全不透明)</string>
-    <string name="bubble_conf_threshold_hint">气泡识别置信度阈值 (1–95，默认 15)</string>
     <string name="api_settings_note_openai">示例 URL：https://api.siliconflow.cn/v1</string>
     <string name="api_settings_note_gemini">示例 URL：https://generativelanguage.googleapis.com/v1beta</string>
     <string name="api_url_required">请先填写 API 地址</string>

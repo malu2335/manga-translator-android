@@ -7,15 +7,13 @@ internal data class SettingsMainForm(
     val apiFormat: ApiFormat,
     val apiTimeoutSeconds: Int,
     val maxConcurrency: Int,
-    val translationBubbleOpacityPercent: Int,
-    val bubbleConfThresholdPercent: Int
+    val translationBubbleOpacityPercent: Int
 )
 
 internal data class SettingsPersistenceResult(
     val apiTimeoutSeconds: Int,
     val maxConcurrency: Int,
-    val translationBubbleOpacityPercent: Int,
-    val bubbleConfThresholdPercent: Int
+    val translationBubbleOpacityPercent: Int
 )
 
 internal class SettingsPersistenceController(
@@ -33,12 +31,10 @@ internal class SettingsPersistenceController(
         settingsStore.saveApiTimeoutSeconds(form.apiTimeoutSeconds)
         settingsStore.saveMaxConcurrency(form.maxConcurrency)
         settingsStore.saveTranslationBubbleOpacityPercent(form.translationBubbleOpacityPercent)
-        settingsStore.saveBubbleConfThresholdPercent(form.bubbleConfThresholdPercent)
         return SettingsPersistenceResult(
             apiTimeoutSeconds = settingsStore.loadApiTimeoutSeconds(),
             maxConcurrency = settingsStore.loadMaxConcurrency(),
-            translationBubbleOpacityPercent = settingsStore.loadTranslationBubbleOpacityPercent(),
-            bubbleConfThresholdPercent = settingsStore.loadBubbleConfThresholdPercent()
+            translationBubbleOpacityPercent = settingsStore.loadTranslationBubbleOpacityPercent()
         )
     }
 }
