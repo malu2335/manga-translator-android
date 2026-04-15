@@ -8,12 +8,13 @@ internal fun showModelErrorDialog(
     responseContent: String,
     onRetry: (() -> Unit)? = null,
     onSkip: (() -> Unit)? = null,
+    negativeButtonResId: Int = R.string.translation_skip,
     windowType: Int? = null
 ): AlertDialog {
     val dialog = AlertDialog.Builder(context)
         .setTitle(R.string.model_response_failed_title)
         .setMessage(ErrorDialogFormatter.formatModelErrorMessage(context, responseContent))
-        .setNegativeButton(R.string.translation_skip) { _, _ -> onSkip?.invoke() }
+        .setNegativeButton(negativeButtonResId) { _, _ -> onSkip?.invoke() }
         .apply {
             if (onRetry != null) {
                 setPositiveButton(R.string.translation_continue) { _, _ -> onRetry.invoke() }

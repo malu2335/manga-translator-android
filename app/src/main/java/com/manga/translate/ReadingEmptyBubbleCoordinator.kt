@@ -12,6 +12,7 @@ internal class ReadingEmptyBubbleCoordinator(
     context: Context,
     private val translationStore: TranslationStore,
     private val glossaryStore: GlossaryStore,
+    private val repository: LibraryRepository,
     private val libraryPrefs: SharedPreferences,
     private val settingsStore: SettingsStore = SettingsStore(context.applicationContext),
     private val bubbleTextRecognizer: BubbleTextRecognizer,
@@ -96,7 +97,8 @@ internal class ReadingEmptyBubbleCoordinator(
     }
 
     private fun getTranslationLanguage(folder: File): TranslationLanguage {
-        val value = libraryPrefs.getString(languageKeyPrefix + folder.absolutePath, null)
+        val settingsFolder = repository.resolveSettingsFolder(folder)
+        val value = libraryPrefs.getString(languageKeyPrefix + settingsFolder.absolutePath, null)
         return TranslationLanguage.fromString(value)
     }
 
@@ -107,16 +109,20 @@ internal class ReadingEmptyBubbleCoordinator(
         language: TranslationLanguage
     ): TextBubbleTranslationBatchResult? = withContext(Dispatchers.IO) {
         val promptAsset = "llm_prompts.json"
-        textBubbleTranslationCoordinator.translateBubbles(
-            bubbles = bubbles.map { bubble ->
-                BubbleTranslation(bubble.id, bubble.rect, bubble.text, bubble.source)
-            },
-            glossary = glossary,
-            promptAsset = promptAsset,
-            language = language,
-            logTag = "Reading",
-            invalidResponseMode = "reading_empty_bubble"
-        )
+        try {
+            textBubbleTranslationCoordinator.translateBubbles(
+                bubbles = bubbles.map { bubble ->
+                    BubbleTranslation(bubble.id, bubble.rect, bubble.text, bubble.source)
+                },
+                glossary = glossary,
+                promptAsset = promptAsset,
+                language = language,
+                logTag = "Reading",
+                invalidResponseMode = "reading_empty_bubble"
+            )
+        } catch (e: LlmResponseException) {
+            throw e.withPageName(imageFile.name)
+        }
     }
 
     private suspend fun ocrBubble(
@@ -133,6 +139,15 @@ internal class ReadingEmptyBubbleCoordinator(
             logTag = "Reading"
         )
     }
+}
+
+private fun LlmResponseException.withPageName(pageName: String): LlmResponseException {
+    if (responseContent.startsWith("页面：")) return this
+    return LlmResponseException(
+        errorCode = errorCode,
+        responseContent = "页面：$pageName\n$responseContent",
+        cause = this
+    )
 }
 
 data class EmptyBubbleProcessOutcome(

@@ -217,6 +217,21 @@ class LibraryRepository(private val context: Context) {
         return if (folder.renameTo(target)) target else null
     }
 
+    fun resolveSettingsFolder(folder: File): File {
+        val parent = folder.parentFile
+        return if (
+            parent != null &&
+            parent.exists() &&
+            parent.isDirectory &&
+            parent.absolutePath != rootDir.absolutePath &&
+            isCollectionFolder(parent)
+        ) {
+            parent
+        } else {
+            folder
+        }
+    }
+
     private fun isImageFile(name: String): Boolean {
         return ImageFileSupport.isSupportedSourceImageFileName(name)
     }

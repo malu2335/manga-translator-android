@@ -88,6 +88,7 @@ internal class AppContainer(private val appContext: Context) {
             context = appContext,
             translationStore = translationStore,
             glossaryStore = glossaryStore,
+            repository = libraryRepository,
             libraryPrefs = libraryPrefs,
             settingsStore = settingsStore,
             bubbleTextRecognizer = bubbleTextRecognizer,

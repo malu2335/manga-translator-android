@@ -178,6 +178,7 @@ class LlmClient(
         val retries = retryCount.coerceAtLeast(1)
         var lastErrorCode: String? = null
         var lastErrorBody: String? = null
+        var lastResponseException: LlmResponseException? = null
         for (attempt in 1..retries) {
             currentCoroutineContext().ensureActive()
             val connection = openTextRequestConnection(endpoint, settings, timeoutMs)
@@ -207,8 +208,12 @@ class LlmClient(
                             "LlmClient",
                             "Empty or invalid response content from $endpoint"
                         )
-                        lastErrorCode = "INVALID_RESPONSE"
-                        lastErrorBody = body
+                        lastResponseException = LlmResponseException(
+                            errorCode = "INVALID_RESPONSE",
+                            responseContent = body.ifBlank {
+                                "模型返回空响应，无法提取有效内容。"
+                            }
+                        )
                     } else if (logModelIo) {
                         AppLogger.log("LlmClient", "Model output: $content")
                     }
@@ -230,6 +235,13 @@ class LlmClient(
             if (result != null || attempt == retries) {
                 if (result != null) {
                     return result
+                }
+                lastResponseException?.let {
+                    AppLogger.log(
+                        "LlmClient",
+                        "Response invalid on $endpoint: ${summarizeBody(it.responseContent)}"
+                    )
+                    throw it
                 }
                 if (lastErrorCode != null) {
                     AppLogger.log(
@@ -272,6 +284,7 @@ class LlmClient(
         val retries = retryCount.coerceAtLeast(1)
         var lastErrorCode: String? = null
         var lastErrorBody: String? = null
+        var lastResponseException: LlmResponseException? = null
         for (attempt in 1..retries) {
             currentCoroutineContext().ensureActive()
             val connection = openTextRequestConnection(endpoint, settings, timeoutMs)
@@ -294,8 +307,12 @@ class LlmClient(
                             "LlmClient",
                             "Empty or invalid image response content from $endpoint"
                         )
-                        lastErrorCode = "INVALID_RESPONSE"
-                        lastErrorBody = body
+                        lastResponseException = LlmResponseException(
+                            errorCode = "INVALID_RESPONSE",
+                            responseContent = body.ifBlank {
+                                "模型返回空响应，无法提取有效内容。"
+                            }
+                        )
                     } else if (logModelIo) {
                         AppLogger.log("LlmClient", "Model output: $content")
                     }
@@ -317,6 +334,13 @@ class LlmClient(
             if (result != null || attempt == retries) {
                 if (result != null) {
                     return result
+                }
+                lastResponseException?.let {
+                    AppLogger.log(
+                        "LlmClient",
+                        "Image response invalid on $endpoint: ${summarizeBody(it.responseContent)}"
+                    )
+                    throw it
                 }
                 if (lastErrorCode != null) {
                     AppLogger.log(

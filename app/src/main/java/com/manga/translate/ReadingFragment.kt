@@ -1358,7 +1358,8 @@ class ReadingFragment : Fragment() {
         activeEmptyBubbleModelErrorDialog = dialogs.showModelErrorDialog(
             context = requireContext(),
             responseContent = responseContent,
-            onRetry = { processEmptyBubbles() }
+            onRetry = { processEmptyBubbles() },
+            negativeButtonResId = R.string.close_action
         )
         activeEmptyBubbleModelErrorDialog?.setOnDismissListener {
             activeEmptyBubbleModelErrorDialog = null

@@ -296,7 +296,7 @@ class LibraryFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        preferencesGateway = LibraryPreferencesGateway(requireContext(), prefs)
+        preferencesGateway = LibraryPreferencesGateway(requireContext(), prefs, repository)
         translationCoordinator = appContainer.createFolderTranslationCoordinator(
             translationPipeline = translationPipeline,
             ui = uiCallbacks
@@ -1280,14 +1280,18 @@ class LibraryFragment : Fragment() {
 
     private fun updateFolderContentMode(folder: File) {
         val isCollection = repository.isCollectionFolder(folder)
+        val useParentCollectionSettings =
+            repository.resolveSettingsFolder(folder).absolutePath != folder.absolutePath
         binding.folderAddImages.text = getString(
             if (isCollection) R.string.folder_add_chapter else R.string.folder_add_images
         )
         binding.folderCollectionActions.visibility = if (isCollection) View.VISIBLE else View.GONE
         binding.folderExport.visibility = if (isCollection) View.GONE else View.VISIBLE
         binding.folderTranslate.visibility = if (isCollection) View.GONE else View.VISIBLE
-        binding.folderTranslationSettings.visibility = if (isCollection) View.GONE else View.VISIBLE
-        binding.folderReadingSettings.visibility = if (isCollection) View.GONE else View.VISIBLE
+        binding.folderTranslationSettings.visibility =
+            if (useParentCollectionSettings) View.GONE else View.VISIBLE
+        binding.folderReadingSettings.visibility =
+            if (useParentCollectionSettings) View.GONE else View.VISIBLE
         binding.folderSelectionActions.visibility = View.GONE
         binding.folderRetranslateSelected.visibility = if (isCollection) View.GONE else View.VISIBLE
         if (isCollection) {

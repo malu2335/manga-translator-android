@@ -10,40 +10,58 @@ import java.io.File
 
 internal class LibraryPreferencesGateway(
     private val context: Context,
-    private val prefs: SharedPreferences
+    private val prefs: SharedPreferences,
+    private val repository: LibraryRepository
 ) {
     fun isFullTranslateEnabled(folder: File): Boolean {
-        return prefs.getBoolean(fullTranslateKeyPrefix + folder.absolutePath, true)
+        return prefs.getBoolean(
+            fullTranslateKeyPrefix + settingsFolder(folder).absolutePath,
+            true
+        )
     }
 
     fun setFullTranslateEnabled(folder: File, enabled: Boolean) {
-        prefs.edit() {putBoolean(fullTranslateKeyPrefix + folder.absolutePath, enabled)}
+        prefs.edit() {
+            putBoolean(fullTranslateKeyPrefix + settingsFolder(folder).absolutePath, enabled)
+        }
     }
 
     fun getTranslationLanguage(folder: File): TranslationLanguage {
-        val value = prefs.getString(languageKeyPrefix + folder.absolutePath, null)
+        val value = prefs.getString(languageKeyPrefix + settingsFolder(folder).absolutePath, null)
         return TranslationLanguage.fromString(value)
     }
 
     fun isVlDirectTranslateEnabled(folder: File): Boolean {
-        return prefs.getBoolean(vlDirectTranslateKeyPrefix + folder.absolutePath, false)
+        return prefs.getBoolean(
+            vlDirectTranslateKeyPrefix + settingsFolder(folder).absolutePath,
+            false
+        )
     }
 
     fun getReadingMode(folder: File): FolderReadingMode {
-        val value = prefs.getString(readingModeKeyPrefix + folder.absolutePath, null)
+        val value = prefs.getString(
+            readingModeKeyPrefix + settingsFolder(folder).absolutePath,
+            null
+        )
         return FolderReadingMode.fromPref(value)
     }
 
     fun setTranslationLanguage(folder: File, language: TranslationLanguage) {
-        prefs.edit() {putString(languageKeyPrefix + folder.absolutePath, language.name)}
+        prefs.edit() {
+            putString(languageKeyPrefix + settingsFolder(folder).absolutePath, language.name)
+        }
     }
 
     fun setVlDirectTranslateEnabled(folder: File, enabled: Boolean) {
-        prefs.edit() {putBoolean(vlDirectTranslateKeyPrefix + folder.absolutePath, enabled)}
+        prefs.edit() {
+            putBoolean(vlDirectTranslateKeyPrefix + settingsFolder(folder).absolutePath, enabled)
+        }
     }
 
     fun setReadingMode(folder: File, mode: FolderReadingMode) {
-        prefs.edit() {putString(readingModeKeyPrefix + folder.absolutePath, mode.prefValue)}
+        prefs.edit() {
+            putString(readingModeKeyPrefix + settingsFolder(folder).absolutePath, mode.prefValue)
+        }
     }
 
     fun getImportTreeUri(): Uri? {
@@ -101,6 +119,8 @@ internal class LibraryPreferencesGateway(
             }
         }
     }
+
+    private fun settingsFolder(folder: File): File = repository.resolveSettingsFolder(folder)
 
     private companion object {
         private const val importTreeKey = "ehviewer_tree_uri"

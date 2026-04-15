@@ -246,6 +246,7 @@ internal class LibraryDialogs {
         responseContent: String,
         onRetry: (() -> Unit)? = null,
         onSkip: (() -> Unit)? = null,
+        negativeButtonResId: Int = R.string.translation_skip,
         windowType: Int? = null
     ): AlertDialog {
         return com.manga.translate.showModelErrorDialog(
@@ -253,6 +254,7 @@ internal class LibraryDialogs {
             responseContent = responseContent,
             onRetry = onRetry,
             onSkip = onSkip,
+            negativeButtonResId = negativeButtonResId,
             windowType = windowType
         )
     }

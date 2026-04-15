@@ -3,6 +3,7 @@
     <string name="preview_image">检测预览</string>
     <string name="detecting_bubbles">气泡检测中…</string>
     <string name="translating_bubbles">翻译中…</string>
+    <string name="close_action">关闭</string>
 
     <!-- Main Tabs -->
     <string name="tab_library">漫画库</string>

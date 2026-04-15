@@ -3,6 +3,7 @@
     <string name="preview_image">檢測預覽</string>
     <string name="detecting_bubbles">氣泡檢測中…</string>
     <string name="translating_bubbles">翻譯中…</string>
+    <string name="close_action">關閉</string>
 
     <!-- Main Tabs -->
     <string name="tab_library">漫畫庫</string>
