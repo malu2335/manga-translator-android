@@ -371,7 +371,10 @@ internal class FolderTranslationCoordinator(
                         var recoveredFromModelError = false
                         val result = try {
                             if (useVlDirectTranslate) {
-                                val vlOutcome = translationPipeline.translateImageWithVl(image)
+                                val vlOutcome = translationPipeline.translateImageWithVl(
+                                    imageFile = image,
+                                    language = language
+                                )
                                 when {
                                     vlOutcome.requiresVlModel -> {
                                         ui.showToast(R.string.folder_vl_model_required)
@@ -877,7 +880,10 @@ internal class FolderTranslationCoordinator(
             var recoveredFromModelError = false
             val result = try {
                 if (task.useVlDirectTranslate) {
-                    val vlOutcome = translationPipeline.translateImageWithVl(image)
+                    val vlOutcome = translationPipeline.translateImageWithVl(
+                        imageFile = image,
+                        language = task.language
+                    )
                     when {
                         vlOutcome.requiresVlModel -> {
                             ui.showToast(R.string.folder_vl_model_required)

@@ -344,7 +344,10 @@ internal class TranslationPipeline(
         TranslationResult(page.imageFile.name, page.width, page.height, bubbles, metadata)
     }
 
-    suspend fun translateImageWithVl(imageFile: File): FolderVlTranslateOutcome =
+    suspend fun translateImageWithVl(
+        imageFile: File,
+        language: TranslationLanguage
+    ): FolderVlTranslateOutcome =
         withContext(Dispatchers.Default) {
             if (!llmClient.isConfigured()) {
                 AppLogger.log("Pipeline", "Missing API settings for VL direct translate")
@@ -360,7 +363,7 @@ internal class TranslationPipeline(
                         emptyList(),
                         buildTranslationMetadata(
                             imageFile = imageFile,
-                            language = TranslationLanguage.JA_TO_ZH,
+                            language = language,
                             mode = TranslationMetadata.MODE_VL_DIRECT,
                             promptAsset = VL_PROMPT_ASSET,
                             ocrCacheMode = ""
@@ -402,7 +405,7 @@ internal class TranslationPipeline(
                         outcome.bubbles,
                         buildTranslationMetadata(
                             imageFile = imageFile,
-                            language = TranslationLanguage.JA_TO_ZH,
+                            language = language,
                             mode = TranslationMetadata.MODE_VL_DIRECT,
                             promptAsset = VL_PROMPT_ASSET,
                             ocrCacheMode = ""
@@ -709,7 +712,7 @@ internal class TranslationPipeline(
         return when {
             useVlDirectTranslate -> buildTranslationMetadata(
                 imageFile = imageFile,
-                language = TranslationLanguage.JA_TO_ZH,
+                language = language,
                 mode = TranslationMetadata.MODE_VL_DIRECT,
                 promptAsset = VL_PROMPT_ASSET,
                 ocrCacheMode = ""
