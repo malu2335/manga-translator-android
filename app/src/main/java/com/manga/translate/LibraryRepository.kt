@@ -14,10 +14,8 @@ class LibraryRepository(private val context: Context) {
         context.getExternalFilesDir(null) ?: context.filesDir,
         "manga_library"
     )
-    private val legacyDir: File = File(context.filesDir, "manga_library")
 
     init {
-        migrateIfNeeded()
         if (!rootDir.exists()) {
             rootDir.mkdirs()
         }
@@ -270,16 +268,6 @@ class LibraryRepository(private val context: Context) {
             }
         } catch (e: Exception) {
             null
-        }
-    }
-
-    private fun migrateIfNeeded() {
-        if (!legacyDir.exists() || legacyDir == rootDir) return
-        if (rootDir.exists() && rootDir.listFiles()?.isNotEmpty() == true) return
-        try {
-            legacyDir.copyRecursively(rootDir, overwrite = false)
-        } catch (e: Exception) {
-            AppLogger.log("LibraryRepo", "Migration failed", e)
         }
     }
 

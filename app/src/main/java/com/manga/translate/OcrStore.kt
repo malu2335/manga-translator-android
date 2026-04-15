@@ -11,8 +11,7 @@ class OcrStore {
         if (!jsonFile.exists()) return null
         return try {
             val json = JSONObject(jsonFile.readText())
-            val legacyCacheMode = json.optString("ocrCacheMode", "")
-            val metadata = parseMetadata(json.optJSONObject("metadata"), legacyCacheMode)
+            val metadata = parseMetadata(json.optJSONObject("metadata"))
             if (expectedMetadata != null && !metadata.matchesSource(imageFile)) {
                 return null
             }
@@ -63,7 +62,6 @@ class OcrStore {
             .put("image", result.imageFile.name)
             .put("width", result.width)
             .put("height", result.height)
-            .put("ocrCacheMode", metadata.cacheMode)
             .put("metadata", JSONObject().apply {
                 put("sourceLastModified", metadata.sourceLastModified)
                 put("sourceFileSize", metadata.sourceFileSize)
@@ -99,11 +97,11 @@ class OcrStore {
         return File(imageFile.parentFile, name)
     }
 
-    private fun parseMetadata(json: JSONObject?, legacyCacheMode: String): OcrMetadata {
+    private fun parseMetadata(json: JSONObject?): OcrMetadata {
         return OcrMetadata(
             sourceLastModified = json?.optLong("sourceLastModified") ?: 0L,
             sourceFileSize = json?.optLong("sourceFileSize") ?: 0L,
-            cacheMode = json?.optString("cacheMode").orEmpty().ifBlank { legacyCacheMode },
+            cacheMode = json?.optString("cacheMode").orEmpty(),
             language = json?.optString("language").orEmpty(),
             engineModel = json?.optString("engineModel").orEmpty(),
             version = json?.let { it.optInt("version", OcrMetadata.CURRENT_VERSION) }
