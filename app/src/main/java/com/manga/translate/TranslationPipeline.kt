@@ -25,6 +25,12 @@ internal class TranslationPipeline(
         BubbleTextRecognizer(llmClient, ocrEngineRegistry),
     private val floatingTranslationCacheStore: FloatingTranslationCacheStore =
         FloatingTranslationCacheStore(context.applicationContext),
+    private val textBubbleTranslationCoordinator: TextBubbleTranslationCoordinator =
+        TextBubbleTranslationCoordinator(
+            llmClient = llmClient,
+            settingsStore = settingsStore,
+            floatingTranslationCacheStore = floatingTranslationCacheStore
+        ),
     private val floatingBubbleTranslationCoordinator: FloatingBubbleTranslationCoordinator =
         FloatingBubbleTranslationCoordinator(
             llmClient = llmClient,
@@ -71,32 +77,28 @@ internal class TranslationPipeline(
             )
         }
         onProgress(appContext.getString(R.string.translating_bubbles))
-        val pageText = translatable.joinToString("\n") { bubble ->
-            val text = normalizeOcrText(bubble.text, language)
-            "<b>$text</b>"
-        }
         val promptAsset = STANDARD_PROMPT_ASSET
-        val translatedSegments = try {
+        val translatedBubbles = try {
             val translated = executeWithModelResponseRetries("Pipeline") {
-                llmClient.translate(pageText, glossary, promptAsset)
+                textBubbleTranslationCoordinator.translateBubbles(
+                    bubbles = translatable.map {
+                        BubbleTranslation(it.id, it.rect, it.text, it.source, it.maskContour)
+                    },
+                    glossary = glossary,
+                    promptAsset = promptAsset,
+                    language = language,
+                    logTag = "Pipeline",
+                    invalidResponseMode = "standard"
+                )
             } ?: return@withContext null
             if (translated.glossaryUsed.isNotEmpty()) {
                 glossary.putAll(translated.glossaryUsed)
             }
-            parseTranslatedSegmentsOrThrow(
-                translation = translated.translation,
-                fallback = translatable.map { it.text },
-                logTag = "Pipeline",
-                mode = "standard",
-                pageName = imageFile.name
-            )
+            translated.bubbles
         } catch (e: LlmResponseException) {
             throw e.withPageName(imageFile.name)
         }
-        val translationMap = HashMap<Int, String>(translatable.size)
-        for (i in translatable.indices) {
-            translationMap[translatable[i].id] = translatedSegments[i]
-        }
+        val translationMap = translatedBubbles.associateBy({ it.id }, { it.text })
         val bubbles = page.bubbles.map { bubble ->
             val text = translationMap[bubble.id] ?: ""
             BubbleTranslation(bubble.id, bubble.rect, text, bubble.source, bubble.maskContour)
@@ -316,28 +318,24 @@ internal class TranslationPipeline(
             )
         }
         onProgress(appContext.getString(R.string.translating_bubbles))
-        val pageText = translatable.joinToString("\n") { bubble ->
-            val text = normalizeOcrText(bubble.text, language)
-            "<b>$text</b>"
-        }
-        val translatedSegments = try {
+        val translatedBubbles = try {
             val translated = executeWithModelResponseRetries("Pipeline") {
-                llmClient.translate(pageText, glossary, promptAsset)
+                textBubbleTranslationCoordinator.translateBubbles(
+                    bubbles = translatable.map {
+                        BubbleTranslation(it.id, it.rect, it.text, it.source, it.maskContour)
+                    },
+                    glossary = glossary,
+                    promptAsset = promptAsset,
+                    language = language,
+                    logTag = "Pipeline",
+                    invalidResponseMode = "full_page"
+                )
             } ?: return@withContext null
-            parseTranslatedSegmentsOrThrow(
-                translation = translated.translation,
-                fallback = translatable.map { it.text },
-                logTag = "Pipeline",
-                mode = "full_page",
-                pageName = page.imageFile.name
-            )
+            translated.bubbles
         } catch (e: LlmResponseException) {
             throw e.withPageName(page.imageFile.name)
         }
-        val translationMap = HashMap<Int, String>(translatable.size)
-        for (i in translatable.indices) {
-            translationMap[translatable[i].id] = translatedSegments[i]
-        }
+        val translationMap = translatedBubbles.associateBy({ it.id }, { it.text })
         val bubbles = page.bubbles.map { bubble ->
             val text = translationMap[bubble.id] ?: ""
             BubbleTranslation(bubble.id, bubble.rect, text, bubble.source, bubble.maskContour)
@@ -737,10 +735,10 @@ internal class TranslationPipeline(
         }
     }
 
-    private suspend fun executeWithModelResponseRetries(
+    private suspend fun <T> executeWithModelResponseRetries(
         logTag: String,
-        block: suspend () -> LlmTranslationResult?
-    ): LlmTranslationResult? {
+        block: suspend () -> T?
+    ): T? {
         var lastError: LlmResponseException? = null
         repeat(MODEL_RESPONSE_SILENT_RETRY_COUNT) { attempt ->
             try {
@@ -755,44 +753,6 @@ internal class TranslationPipeline(
             }
         }
         throw requireNotNull(lastError)
-    }
-
-    private fun parseTranslatedSegmentsOrThrow(
-        translation: String,
-        fallback: List<String>,
-        logTag: String,
-        mode: String,
-        pageName: String
-    ): List<String> {
-        var missingTags = false
-        var countMismatch = false
-        val segments = extractTaggedSegments(
-            translation,
-            fallback,
-            onMissingTags = {
-                missingTags = true
-                AppLogger.log(logTag, "Missing <b> tags in $mode translation")
-            },
-            onCountMismatch = { expected, actual ->
-                countMismatch = true
-                AppLogger.log(
-                    logTag,
-                    "Translation count mismatch in $mode: expected $expected, got $actual"
-                )
-            }
-        )
-        if (missingTags || countMismatch || segments.any { it.isBlank() }) {
-            val reason = when {
-                missingTags -> "模型返回内容缺少 <b> 标签"
-                countMismatch -> "模型返回的气泡数量与请求数量不一致"
-                else -> "模型返回空白结果"
-            }
-            throw LlmResponseException(
-                errorCode = "EMPTY_TRANSLATION_SEGMENT",
-                responseContent = "页面：$pageName\n$reason：$mode 模式下未返回有效翻译内容。"
-            )
-        }
-        return segments
     }
 
     private fun LlmResponseException.withPageName(pageName: String): LlmResponseException {

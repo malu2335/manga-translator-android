@@ -11,7 +11,7 @@ import java.util.LinkedHashMap
 import java.util.Locale
 
 class FloatingTranslationCacheStore(context: Context) {
-    private val cacheFile = File(context.filesDir, CACHE_FILE_NAME)
+    private val cacheFile = File(context.cacheDir, CACHE_FILE_NAME)
     private val textEntries =
         LinkedHashMap<String, TextCacheEntry>(TEXT_CACHE_LIMIT, 0.75f, true)
     private val imageEntries =

@@ -16,6 +16,7 @@ import com.manga.translate.OcrStore
 import com.manga.translate.ReadingEmptyBubbleCoordinator
 import com.manga.translate.ReadingProgressStore
 import com.manga.translate.SettingsStore
+import com.manga.translate.TextBubbleTranslationCoordinator
 import com.manga.translate.TranslationPipeline
 import com.manga.translate.TranslationStore
 import com.manga.translate.UpdateIgnoreStore
@@ -40,6 +41,13 @@ internal class AppContainer(private val appContext: Context) {
     val floatingTranslationCacheStore by lazy(LazyThreadSafetyMode.NONE) {
         FloatingTranslationCacheStore(appContext)
     }
+    val textBubbleTranslationCoordinator by lazy(LazyThreadSafetyMode.NONE) {
+        TextBubbleTranslationCoordinator(
+            llmClient = llmClient,
+            settingsStore = settingsStore,
+            floatingTranslationCacheStore = floatingTranslationCacheStore
+        )
+    }
     val libraryPrefs by lazy(LazyThreadSafetyMode.NONE) {
         appContext.getSharedPreferences(LIBRARY_PREFS_NAME, Context.MODE_PRIVATE)
     }
@@ -54,6 +62,7 @@ internal class AppContainer(private val appContext: Context) {
             ocrEngineRegistry = ocrEngineRegistry,
             bubbleTextRecognizer = bubbleTextRecognizer,
             floatingTranslationCacheStore = floatingTranslationCacheStore,
+            textBubbleTranslationCoordinator = textBubbleTranslationCoordinator,
             floatingBubbleTranslationCoordinator = createFloatingBubbleTranslationCoordinator()
         )
     }
@@ -79,10 +88,10 @@ internal class AppContainer(private val appContext: Context) {
             context = appContext,
             translationStore = translationStore,
             glossaryStore = glossaryStore,
-            llmClient = llmClient,
             libraryPrefs = libraryPrefs,
             settingsStore = settingsStore,
-            bubbleTextRecognizer = bubbleTextRecognizer
+            bubbleTextRecognizer = bubbleTextRecognizer,
+            textBubbleTranslationCoordinator = textBubbleTranslationCoordinator
         )
     }
 

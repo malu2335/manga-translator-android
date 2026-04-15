@@ -8,14 +8,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
-class ReadingEmptyBubbleCoordinator(
+internal class ReadingEmptyBubbleCoordinator(
     context: Context,
     private val translationStore: TranslationStore,
     private val glossaryStore: GlossaryStore,
-    private val llmClient: LlmClient,
     private val libraryPrefs: SharedPreferences,
     private val settingsStore: SettingsStore = SettingsStore(context.applicationContext),
     private val bubbleTextRecognizer: BubbleTextRecognizer,
+    private val textBubbleTranslationCoordinator: TextBubbleTranslationCoordinator,
     private val languageKeyPrefix: String = "translation_language_"
 ) {
 
@@ -40,7 +40,7 @@ class ReadingEmptyBubbleCoordinator(
         try {
             val candidates = ArrayList<OcrBubble>(targets.size)
             val removedIds = HashSet<Int>()
-            if (!ocrSettings.useLocalOcr && !llmClient.isOcrConfigured()) {
+            if (!ocrSettings.useLocalOcr && !ocrSettings.isValid()) {
                 AppLogger.log("Reading", "Missing OCR API settings")
                 return@withContext null
             }
@@ -70,23 +70,7 @@ class ReadingEmptyBubbleCoordinator(
                         glossaryStore.save(folder, glossary)
                     }
                 }
-                val translatedSegments = extractTaggedSegments(
-                    translated.translation,
-                    candidates.map { it.text },
-                    onMissingTags = {
-                        AppLogger.log("Reading", "Missing <b> tags in OCR translation")
-                    },
-                    onCountMismatch = { expected, actual ->
-                        AppLogger.log(
-                            "Reading",
-                            "OCR translation count mismatch: expected $expected, got $actual"
-                        )
-                    }
-                )
-                val translationMap = HashMap<Int, String>(candidates.size)
-                for (i in candidates.indices) {
-                    translationMap[candidates[i].id] = translatedSegments[i]
-                }
+                val translationMap = translated.bubbles.associateBy({ it.id }, { it.text })
                 val merged = remainingBubbles.map { bubble ->
                     translationMap[bubble.id]?.let { bubble.copy(text = it) } ?: bubble
                 }
@@ -121,22 +105,18 @@ class ReadingEmptyBubbleCoordinator(
         bubbles: List<OcrBubble>,
         glossary: Map<String, String>,
         language: TranslationLanguage
-    ): LlmTranslationResult? = withContext(Dispatchers.IO) {
-        if (!llmClient.isConfigured()) {
-            AppLogger.log("Reading", "Missing API settings for OCR translation")
-            return@withContext null
-        }
-        val pageText = bubbles.joinToString("\n") { bubble ->
-            val text = normalizeOcrText(bubble.text, language)
-            "<b>$text</b>"
-        }
+    ): TextBubbleTranslationBatchResult? = withContext(Dispatchers.IO) {
         val promptAsset = "llm_prompts.json"
-        try {
-            llmClient.translate(pageText, glossary, promptAsset)
-        } catch (e: Exception) {
-            AppLogger.log("Reading", "Translate OCR bubbles failed for ${imageFile.name}", e)
-            null
-        }
+        textBubbleTranslationCoordinator.translateBubbles(
+            bubbles = bubbles.map { bubble ->
+                BubbleTranslation(bubble.id, bubble.rect, bubble.text, bubble.source)
+            },
+            glossary = glossary,
+            promptAsset = promptAsset,
+            language = language,
+            logTag = "Reading",
+            invalidResponseMode = "reading_empty_bubble"
+        )
     }
 
     private suspend fun ocrBubble(

@@ -13,6 +13,11 @@ internal class FloatingBubbleTranslationCoordinator(
     private val floatingTranslationCacheStore: FloatingTranslationCacheStore,
     private val settingsStore: SettingsStore
 ) {
+    private val textBubbleTranslationCoordinator = TextBubbleTranslationCoordinator(
+        llmClient = llmClient,
+        settingsStore = settingsStore,
+        floatingTranslationCacheStore = floatingTranslationCacheStore
+    )
 
     suspend fun translateTextBubbles(
         bubbles: List<BubbleTranslation>,
@@ -68,58 +73,29 @@ internal class FloatingBubbleTranslationCoordinator(
             return merge()
         }
 
-        AppLogger.log(logTag, "Translate request segments=${cacheMisses.size}")
         return try {
-            val text = cacheMisses.joinToString("\n") {
-                "<b>${normalizeOcrText(it.text, language)}</b>"
-            }
-            var missingTags = false
-            var countMismatch = false
-            val translated = llmClient.translate(
-                text = text,
+            val result = textBubbleTranslationCoordinator.translateBubbles(
+                bubbles = cacheMisses,
                 glossary = emptyMap(),
                 promptAsset = promptAsset,
                 requestTimeoutMs = timeoutMs,
                 retryCount = retryCount,
-                apiSettings = apiSettings
-            ) ?: return merge()
-            val segments = extractTaggedSegments(
-                translated.translation,
-                cacheMisses.map { it.text },
-                onMissingTags = {
-                    missingTags = true
-                    AppLogger.log(logTag, "Missing <b> tags in floating translation")
-                },
-                onCountMismatch = { expected, actual ->
-                    countMismatch = true
-                    AppLogger.log(
-                        logTag,
-                        "Floating translation count mismatch: expected $expected, got $actual"
-                    )
-                }
-            )
-            if (missingTags || countMismatch || segments.any { it.isBlank() }) {
-                throw LlmResponseException(
-                    errorCode = "EMPTY_TRANSLATION_SEGMENT",
-                    responseContent = buildBlankModelResponseMessage(
-                        bubbleCount = cacheMisses.size,
-                        mode = "text",
-                        countMismatch = countMismatch,
-                        missingTags = missingTags
-                    )
-                )
-            }
-            for (i in cacheMisses.indices) {
-                val source = cacheMisses[i]
-                val translatedText = segments.getOrElse(i) { source.text }
-                translatedMap[source.id] = translatedText
-                if (translatedText.isNotBlank()) {
-                    floatingTranslationCacheStore.putTextTranslation(source.text, translatedText)
+                apiSettings = apiSettings,
+                language = language,
+                logTag = logTag,
+                useFloatingTextCache = false,
+                invalidResponseMode = "floating_text"
+            ) ?: return null
+            for (bubble in result.bubbles) {
+                if (bubble.text.isNotBlank()) {
+                    translatedMap[bubble.id] = bubble.text
+                    val source = cacheMisses.firstOrNull { it.id == bubble.id } ?: continue
+                    floatingTranslationCacheStore.putTextTranslation(source.text, bubble.text)
                 }
             }
-            val result = merge()
+            val merged = merge()
             AppLogger.log(logTag, "Translate success segments=${translatedMap.size}")
-            result
+            merged
         } catch (e: LlmRequestException) {
             if (e.errorCode == "TIMEOUT") {
                 AppLogger.log(logTag, "LLM translate timeout")

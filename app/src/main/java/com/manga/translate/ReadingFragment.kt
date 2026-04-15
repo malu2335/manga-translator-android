@@ -54,6 +54,7 @@ class ReadingFragment : Fragment() {
     private val binding get() = _binding!!
     private val readingSessionViewModel: ReadingSessionViewModel by activityViewModels()
     private val appContainer by lazy(LazyThreadSafetyMode.NONE) { requireContext().appContainer }
+    private val dialogs = LibraryDialogs()
     private val translationStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.translationStore }
     private val settingsStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.settingsStore }
     private val readingProgressStore by lazy(LazyThreadSafetyMode.NONE) {
@@ -83,6 +84,7 @@ class ReadingFragment : Fragment() {
     private val glossaryStore by lazy(LazyThreadSafetyMode.NONE) { appContainer.glossaryStore }
     private lateinit var emptyBubbleCoordinator: ReadingEmptyBubbleCoordinator
     private var emptyBubbleJob: Job? = null
+    private var activeEmptyBubbleModelErrorDialog: AlertDialog? = null
     private lateinit var webtoonAdapter: WebtoonReadingAdapter
     private lateinit var webtoonLayoutManager: LockedWebtoonLinearLayoutManager
     private var webtoonProgrammaticScroll = false
@@ -258,6 +260,8 @@ class ReadingFragment : Fragment() {
         translationWatchJob?.cancel()
         webtoonTranslationWatchJob?.cancel()
         emptyBubbleJob?.cancel()
+        activeEmptyBubbleModelErrorDialog?.dismiss()
+        activeEmptyBubbleModelErrorDialog = null
         cancelPageTransition()
         clearWebtoonEditSession(resetCurrentPage = true)
         binding.readingWebtoonList.adapter = null
@@ -1311,26 +1315,48 @@ class ReadingFragment : Fragment() {
         Toast.makeText(requireContext(), R.string.reading_empty_bubble_translating, Toast.LENGTH_SHORT).show()
         emptyBubbleJob?.cancel()
         emptyBubbleJob = viewLifecycleOwner.lifecycleScope.launch {
-            val outcome = emptyBubbleCoordinator.process(
-                imageFile,
-                folder,
-                translation
-            ) ?: return@launch
-            if (currentImageFile?.absolutePath == imageFile.absolutePath) {
-                currentTranslation = outcome.updatedTranslation
-                if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) {
-                    webtoonAdapter.notifyTranslationChanged(imageFile.absolutePath)
-                } else {
-                    binding.translationOverlay.setTranslations(outcome.updatedTranslation)
+            try {
+                val outcome = emptyBubbleCoordinator.process(
+                    imageFile,
+                    folder,
+                    translation
+                ) ?: return@launch
+                if (currentImageFile?.absolutePath == imageFile.absolutePath) {
+                    currentTranslation = outcome.updatedTranslation
+                    if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) {
+                        webtoonAdapter.notifyTranslationChanged(imageFile.absolutePath)
+                    } else {
+                        binding.translationOverlay.setTranslations(outcome.updatedTranslation)
+                    }
+                    if (outcome.translatedByLlm) {
+                        Toast.makeText(
+                            requireContext(),
+                            R.string.reading_empty_bubble_translated,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
-                if (outcome.translatedByLlm) {
-                    Toast.makeText(
-                        requireContext(),
-                        R.string.reading_empty_bubble_translated,
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+            } catch (e: LlmResponseException) {
+                AppLogger.log("Reading", "Reading empty bubble model response invalid", e)
+                showEmptyBubbleModelErrorDialog(e.responseContent)
+            } catch (e: LlmRequestException) {
+                AppLogger.log("Reading", "Reading empty bubble request failed", e)
+                if (!isAdded) return@launch
+                dialogs.showApiErrorDialog(requireContext(), e.errorCode, e.responseBody)
             }
+        }
+    }
+
+    private fun showEmptyBubbleModelErrorDialog(responseContent: String) {
+        if (!isAdded) return
+        activeEmptyBubbleModelErrorDialog?.dismiss()
+        activeEmptyBubbleModelErrorDialog = dialogs.showModelErrorDialog(
+            context = requireContext(),
+            responseContent = responseContent,
+            onRetry = { processEmptyBubbles() }
+        )
+        activeEmptyBubbleModelErrorDialog?.setOnDismissListener {
+            activeEmptyBubbleModelErrorDialog = null
         }
     }
 }
