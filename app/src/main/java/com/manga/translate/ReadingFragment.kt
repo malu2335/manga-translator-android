@@ -203,6 +203,7 @@ class ReadingFragment : Fragment() {
             hideResizePanel()
         }
         updateEditButtonState()
+        applyNormalBubbleRenderSettings()
         applyTextLayoutSetting()
         readingSessionViewModel.images.observe(viewLifecycleOwner) {
             reloadReadingContent()
@@ -243,8 +244,8 @@ class ReadingFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        applyNormalBubbleRenderSettings()
         applyTextLayoutSetting()
-        applyBubbleOpacitySetting()
         applyFolderReadingMode()
         applyReadingDisplayMode()
         (activity as? MainActivity)?.setPagerSwipeEnabled(false)
@@ -401,10 +402,11 @@ class ReadingFragment : Fragment() {
             binding.readingEmptyHint.visibility = View.VISIBLE
             binding.readingPageInfo.visibility = View.GONE
             updateEditButtonState()
+            val bubbleRenderSettings = settingsStore.loadNormalBubbleRenderSettings()
             webtoonAdapter.submit(
                 images = emptyList(),
-                verticalLayoutEnabled = !settingsStore.loadUseHorizontalText(),
-                bubbleOpacity = settingsStore.loadTranslationBubbleOpacity()
+                verticalLayoutEnabled = !bubbleRenderSettings.useHorizontalText,
+                bubbleRenderSettings = bubbleRenderSettings
             )
             syncWebtoonEditSession()
             stopWebtoonTranslationWatcher()
@@ -413,10 +415,11 @@ class ReadingFragment : Fragment() {
         binding.readingEmptyHint.visibility = View.GONE
         binding.readingPageInfo.visibility = View.VISIBLE
         updateEditButtonState()
+        val bubbleRenderSettings = settingsStore.loadNormalBubbleRenderSettings()
         webtoonAdapter.submit(
             images = images,
-            verticalLayoutEnabled = !settingsStore.loadUseHorizontalText(),
-            bubbleOpacity = settingsStore.loadTranslationBubbleOpacity()
+            verticalLayoutEnabled = !bubbleRenderSettings.useHorizontalText,
+            bubbleRenderSettings = bubbleRenderSettings
         )
         syncWebtoonEditSession()
         val targetIndex = (readingSessionViewModel.index.value ?: 0).coerceIn(0, images.lastIndex)
@@ -746,15 +749,17 @@ class ReadingFragment : Fragment() {
     }
 
     private fun applyTextLayoutSetting() {
-        val useHorizontal = settingsStore.loadUseHorizontalText()
+        val useHorizontal = settingsStore.loadNormalBubbleRenderSettings().useHorizontalText
         binding.translationOverlay.setVerticalLayoutEnabled(!useHorizontal)
         if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) {
             refreshWebtoonAdapterPresentation()
         }
     }
 
-    private fun applyBubbleOpacitySetting() {
-        binding.translationOverlay.setBubbleOpacity(settingsStore.loadTranslationBubbleOpacity())
+    private fun applyNormalBubbleRenderSettings() {
+        binding.translationOverlay.setNormalBubbleRenderSettings(
+            settingsStore.loadNormalBubbleRenderSettings()
+        )
         if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) {
             refreshWebtoonAdapterPresentation()
         }
@@ -867,8 +872,8 @@ class ReadingFragment : Fragment() {
         val images = readingSessionViewModel.images.value.orEmpty()
         webtoonAdapter.submit(
             images = images,
-            verticalLayoutEnabled = !settingsStore.loadUseHorizontalText(),
-            bubbleOpacity = settingsStore.loadTranslationBubbleOpacity()
+            verticalLayoutEnabled = !settingsStore.loadNormalBubbleRenderSettings().useHorizontalText,
+            bubbleRenderSettings = settingsStore.loadNormalBubbleRenderSettings()
         )
         syncWebtoonEditSession()
     }

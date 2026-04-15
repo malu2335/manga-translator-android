@@ -26,7 +26,9 @@ import com.manga.translate.databinding.DialogCustomRequestParamsBinding
 import com.manga.translate.databinding.DialogAiProviderProfilesBinding
 import com.manga.translate.databinding.DialogLlmParamsBinding
 import com.manga.translate.databinding.DialogOcrSettingsBinding
+import com.manga.translate.databinding.DialogFloatingBubbleRenderSettingsBinding
 import com.manga.translate.databinding.DialogFloatingTranslateSettingsBinding
+import com.manga.translate.databinding.DialogNormalBubbleRenderSettingsBinding
 import com.manga.translate.databinding.FragmentSettingsBinding
 import com.manga.translate.databinding.ItemCustomRequestParamBinding
 import com.manga.translate.di.appContainer
@@ -160,6 +162,51 @@ class SettingsFragment : Fragment() {
         } ?: defaultAction
     }
 
+    private fun setupFloatingBubbleShapeDropdown(
+        inputView: MaterialAutoCompleteTextView,
+        currentShape: FloatingBubbleShape
+    ) {
+        val shapes = FloatingBubbleShape.entries
+        val labels = shapes.map { getString(it.labelRes) }
+        val textColor = resolveColorAttr(R.attr.dialogTextColor)
+        inputView.setAdapter(
+            object : ArrayAdapter<String>(
+                requireContext(),
+                android.R.layout.simple_list_item_1,
+                labels
+            ) {
+                private fun applyThemeTextColor(view: View): View {
+                    (view as? TextView)?.setTextColor(textColor)
+                    return view
+                }
+
+                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                    return applyThemeTextColor(super.getView(position, convertView, parent))
+                }
+
+                override fun getDropDownView(
+                    position: Int,
+                    convertView: View?,
+                    parent: ViewGroup
+                ): View {
+                    return applyThemeTextColor(super.getDropDownView(position, convertView, parent))
+                }
+            }
+        )
+        inputView.setText(getString(currentShape.labelRes), false)
+    }
+
+    private fun parseFloatingBubbleShape(
+        inputView: MaterialAutoCompleteTextView,
+        defaultShape: FloatingBubbleShape
+    ): FloatingBubbleShape {
+        val selectedLabel = inputView.text?.toString()?.trim().orEmpty()
+        if (selectedLabel.isBlank()) return defaultShape
+        return FloatingBubbleShape.entries.firstOrNull {
+            getString(it.labelRes) == selectedLabel
+        } ?: defaultShape
+    }
+
     private fun resolveColorAttr(attrRes: Int): Int {
         val typedValue = android.util.TypedValue()
         requireContext().theme.resolveAttribute(attrRes, typedValue, true)
@@ -183,10 +230,6 @@ class SettingsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         settingsPersistenceController = SettingsPersistenceController(settingsStore)
         reloadSettingsUiFromStore()
-        binding.textLayoutSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsStore.saveUseHorizontalText(isChecked)
-            AppLogger.log("Settings", "Text layout set to ${if (isChecked) "horizontal" else "vertical"}")
-        }
         binding.modelIoLoggingSwitch.setOnCheckedChangeListener { _, isChecked ->
             settingsStore.saveModelIoLogging(isChecked)
             AppLogger.log(
@@ -238,6 +281,14 @@ class SettingsFragment : Fragment() {
             showFloatingTranslateSettingsDialog()
         }
 
+        binding.normalBubbleRenderSettingsButton.setOnClickListener {
+            showNormalBubbleRenderSettingsDialog()
+        }
+
+        binding.floatingBubbleRenderSettingsButton.setOnClickListener {
+            showFloatingBubbleRenderSettingsDialog()
+        }
+
         binding.viewLogsButton.setOnClickListener {
             AppLogger.log("Settings", "View current log")
             showLogsDialog()
@@ -273,9 +324,6 @@ class SettingsFragment : Fragment() {
         val timeoutSeconds = parseIntInput(timeoutInput) ?: settingsStore.loadApiTimeoutSeconds()
         val concurrencyInput = binding.maxConcurrencyInput.text?.toString()?.trim()
         val maxConcurrency = parseIntInput(concurrencyInput) ?: settingsStore.loadMaxConcurrency()
-        val bubbleOpacityInput = binding.translationBubbleOpacityInput.text?.toString()?.trim()
-        val bubbleOpacity = parseIntInput(bubbleOpacityInput)
-            ?: settingsStore.loadTranslationBubbleOpacityPercent()
         val persisted = settingsPersistenceController.persistMainForm(
             SettingsMainForm(
                 apiUrl = url,
@@ -283,8 +331,7 @@ class SettingsFragment : Fragment() {
                 modelName = model,
                 apiFormat = currentApiFormat(),
                 apiTimeoutSeconds = timeoutSeconds,
-                maxConcurrency = maxConcurrency,
-                translationBubbleOpacityPercent = bubbleOpacity
+                maxConcurrency = maxConcurrency
             )
         )
         val normalizedTimeoutText = formatNumber(persisted.apiTimeoutSeconds)
@@ -294,11 +341,6 @@ class SettingsFragment : Fragment() {
         val normalizedConcurrencyText = formatNumber(persisted.maxConcurrency)
         if (normalizedConcurrencyText != concurrencyInput) {
             binding.maxConcurrencyInput.setText(normalizedConcurrencyText)
-        }
-        val normalizedBubbleOpacity = persisted.translationBubbleOpacityPercent
-        val normalizedBubbleOpacityText = formatNumber(normalizedBubbleOpacity)
-        if (normalizedBubbleOpacityText != bubbleOpacityInput) {
-            binding.translationBubbleOpacityInput.setText(normalizedBubbleOpacityText)
         }
         AppLogger.log("Settings", "API settings saved")
     }
@@ -549,10 +591,6 @@ class SettingsFragment : Fragment() {
         updateApiSettingsNote(settings.apiFormat)
         binding.apiTimeoutInput.setText(formatNumber(settingsStore.loadApiTimeoutSeconds()))
         binding.maxConcurrencyInput.setText(formatNumber(settingsStore.loadMaxConcurrency()))
-        binding.translationBubbleOpacityInput.setText(
-            formatNumber(settingsStore.loadTranslationBubbleOpacityPercent())
-        )
-        binding.textLayoutSwitch.isChecked = settingsStore.loadUseHorizontalText()
         binding.modelIoLoggingSwitch.isChecked = settingsStore.loadModelIoLogging()
         updateLanguageButton(settingsStore.loadAppLanguage())
         updateThemeButton(settingsStore.loadThemeMode())
@@ -561,6 +599,100 @@ class SettingsFragment : Fragment() {
         updateLinkSourceButton(settingsStore.loadLinkSource())
         updateCustomRequestParamsButton(settingsStore.loadCustomRequestParameters())
         updateAiProviderProfilesButton()
+        updateNormalBubbleRenderSettingsButton(settingsStore.loadNormalBubbleRenderSettings())
+        updateFloatingBubbleRenderSettingsButton(settingsStore.loadFloatingBubbleRenderSettings())
+    }
+
+    private fun updateNormalBubbleRenderSettingsButton(settings: NormalBubbleRenderSettings) {
+        val layoutLabel = getString(
+            if (settings.useHorizontalText) R.string.normal_bubble_layout_horizontal
+            else R.string.normal_bubble_layout_vertical
+        )
+        binding.normalBubbleRenderSettingsButton.text = getString(
+            R.string.normal_bubble_render_settings_button_format,
+            settings.shrinkPercent,
+            settings.fontScalePercent,
+            layoutLabel
+        )
+    }
+
+    private fun updateFloatingBubbleRenderSettingsButton(settings: FloatingBubbleRenderSettings) {
+        binding.floatingBubbleRenderSettingsButton.text = getString(
+            R.string.floating_bubble_render_settings_button_format,
+            settings.sizeAdjustPercent,
+            settings.opacityPercent,
+            getString(settings.shape.labelRes)
+        )
+    }
+
+    private fun showNormalBubbleRenderSettingsDialog() {
+        val currentSettings = settingsStore.loadNormalBubbleRenderSettings()
+        val dialogBinding = DialogNormalBubbleRenderSettingsBinding.inflate(layoutInflater)
+        dialogBinding.normalBubbleShrinkPercentInput.setText(
+            formatNumber(currentSettings.shrinkPercent)
+        )
+        dialogBinding.normalBubbleFontScalePercentInput.setText(
+            formatNumber(currentSettings.fontScalePercent)
+        )
+        dialogBinding.normalBubbleHorizontalTextSwitch.isChecked = currentSettings.useHorizontalText
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.normal_bubble_render_settings_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val updated = NormalBubbleRenderSettings(
+                    shrinkPercent = parseIntInput(
+                        dialogBinding.normalBubbleShrinkPercentInput.text?.toString()
+                    ) ?: currentSettings.shrinkPercent,
+                    fontScalePercent = parseIntInput(
+                        dialogBinding.normalBubbleFontScalePercentInput.text?.toString()
+                    ) ?: currentSettings.fontScalePercent,
+                    useHorizontalText = dialogBinding.normalBubbleHorizontalTextSwitch.isChecked
+                )
+                settingsStore.saveNormalBubbleRenderSettings(updated)
+                updateNormalBubbleRenderSettingsButton(settingsStore.loadNormalBubbleRenderSettings())
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showFloatingBubbleRenderSettingsDialog() {
+        val currentSettings = settingsStore.loadFloatingBubbleRenderSettings()
+        val dialogBinding = DialogFloatingBubbleRenderSettingsBinding.inflate(layoutInflater)
+        dialogBinding.floatingBubbleSizeAdjustPercentInput.setText(
+            formatNumber(currentSettings.sizeAdjustPercent)
+        )
+        dialogBinding.floatingBubbleOpacityPercentInput.setText(
+            formatNumber(currentSettings.opacityPercent)
+        )
+        setupFloatingBubbleShapeDropdown(
+            dialogBinding.floatingBubbleShapeInput,
+            currentSettings.shape
+        )
+        dialogBinding.floatingBubbleHorizontalTextSwitch.isChecked = currentSettings.useHorizontalText
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.floating_bubble_render_settings_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val updated = FloatingBubbleRenderSettings(
+                    sizeAdjustPercent = parseIntInput(
+                        dialogBinding.floatingBubbleSizeAdjustPercentInput.text?.toString()
+                    ) ?: currentSettings.sizeAdjustPercent,
+                    opacityPercent = parseIntInput(
+                        dialogBinding.floatingBubbleOpacityPercentInput.text?.toString()
+                    ) ?: currentSettings.opacityPercent,
+                    shape = parseFloatingBubbleShape(
+                        dialogBinding.floatingBubbleShapeInput,
+                        currentSettings.shape
+                    ),
+                    useHorizontalText = dialogBinding.floatingBubbleHorizontalTextSwitch.isChecked
+                )
+                settingsStore.saveFloatingBubbleRenderSettings(updated)
+                updateFloatingBubbleRenderSettingsButton(
+                    settingsStore.loadFloatingBubbleRenderSettings()
+                )
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun showAiProviderProfilesDialog() {

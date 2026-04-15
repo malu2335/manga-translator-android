@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.text.Layout
 import android.text.StaticLayout
@@ -27,13 +28,8 @@ class FloatingTranslationView @JvmOverloads constructor(
         color = 0xFF1B1B1B.toInt()
     }
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xCCFFFFFF.toInt()
+        color = Color.WHITE
         style = Paint.Style.FILL
-    }
-    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF2D2D2D.toInt()
-        style = Paint.Style.STROKE
-        strokeWidth = resources.displayMetrics.density
     }
     private val deletePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFE53935.toInt()
@@ -53,6 +49,9 @@ class FloatingTranslationView @JvmOverloads constructor(
     private var imageHeight = 0
     private val displayRect = RectF()
     private val bubbleRect = RectF()
+    private val bubbleBounds = RectF()
+    private val textRect = RectF()
+    private val bubblePath = Path()
     private val hitRect = RectF()
     private val deleteRect = RectF()
     private val resizeRect = RectF()
@@ -73,7 +72,7 @@ class FloatingTranslationView @JvmOverloads constructor(
     private var editMode = false
     private var touchPassthroughEnabled = false
     private var editScrollThroughEnabled = false
-    private var bubbleOpacity = SettingsStore(context).loadTranslationBubbleOpacity()
+    private var bubbleRenderSettings = SettingsStore(context).loadNormalBubbleRenderSettings()
     private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
     private val longPressRunnable = Runnable {
         val id = activeId ?: return@Runnable
@@ -95,7 +94,6 @@ class FloatingTranslationView @JvmOverloads constructor(
     init {
         isClickable = true
         isFocusable = true
-        applyBubbleOpacity()
     }
 
     fun setTranslations(result: TranslationResult?) {
@@ -134,11 +132,9 @@ class FloatingTranslationView @JvmOverloads constructor(
         invalidate()
     }
 
-    fun setBubbleOpacity(opacity: Float) {
-        val normalized = opacity.coerceIn(0f, 1f)
-        if (bubbleOpacity == normalized) return
-        bubbleOpacity = normalized
-        applyBubbleOpacity()
+    fun setNormalBubbleRenderSettings(settings: NormalBubbleRenderSettings) {
+        if (bubbleRenderSettings == settings) return
+        bubbleRenderSettings = settings
         invalidate()
     }
 
@@ -165,7 +161,7 @@ class FloatingTranslationView @JvmOverloads constructor(
         for (bubble in bubbles) {
             if (bubble.text.isBlank() && !editMode) continue
             updateBubbleRect(bubbleRect, bubble)
-            drawBubble(canvas, bubble.text, bubbleRect)
+            drawBubble(canvas, bubble)
             if (editMode) {
                 drawDeleteIcon(canvas, bubbleRect)
                 drawResizeIcon(canvas, bubbleRect)
@@ -370,18 +366,29 @@ class FloatingTranslationView @JvmOverloads constructor(
         return null
     }
 
-    private fun drawBubble(canvas: Canvas, text: String, rect: RectF) {
-        if (rect.width() <= 0f || rect.height() <= 0f) return
-        val pad = (min(rect.width(), rect.height()) * 0.08f).coerceAtLeast(6f)
-        val textRect = RectF(rect)
-        textRect.inset(pad, pad)
-        canvas.drawRoundRect(rect, 6f, 6f, fillPaint)
-        canvas.drawRoundRect(rect, 6f, 6f, strokePaint)
-        drawTextInRect(canvas, text, textRect)
-    }
-
-    private fun applyBubbleOpacity() {
-        fillPaint.color = Color.argb((bubbleOpacity * 255f).toInt().coerceIn(0, 255), 255, 255, 255)
+    private fun drawBubble(canvas: Canvas, bubble: BubbleTranslation) {
+        val offset = offsets[bubble.id] ?: 0f to 0f
+        BubbleShapePaths.buildPath(
+            outPath = bubblePath,
+            bubble = bubble,
+            sourceWidth = imageWidth,
+            sourceHeight = imageHeight,
+            originX = displayRect.left,
+            originY = displayRect.top,
+            scaleX = scaleX,
+            scaleY = scaleY,
+            offsetX = offset.first,
+            offsetY = offset.second,
+            shrinkPercent = bubbleRenderSettings.shrinkPercent
+        )
+        bubblePath.computeBounds(bubbleBounds, true)
+        if (bubbleBounds.width() <= 0f || bubbleBounds.height() <= 0f) return
+        BubbleShapePaths.insetTextBounds(bubbleBounds, textRect)
+        canvas.drawPath(bubblePath, fillPaint)
+        val checkpoint = canvas.save()
+        canvas.clipPath(bubblePath)
+        drawTextInRect(canvas, bubble.text, textRect)
+        canvas.restoreToCount(checkpoint)
     }
 
     private fun drawDeleteIcon(canvas: Canvas, rect: RectF) {
@@ -429,7 +436,8 @@ class FloatingTranslationView @JvmOverloads constructor(
         } else {
             val maxWidth = rect.width().toInt().coerceAtLeast(1)
             val maxHeight = rect.height().toInt().coerceAtLeast(1)
-            var textSize = (rect.height() / 3f).coerceIn(12f, 42f)
+            val textScale = bubbleRenderSettings.fontScalePercent / 100f
+            var textSize = ((rect.height() / 3f) * textScale).coerceIn(12f, 42f)
             var layout = buildLayout(text, maxWidth, textSize)
             while (layout.height > maxHeight && textSize > 10f) {
                 textSize *= 0.9f
@@ -455,7 +463,8 @@ class FloatingTranslationView @JvmOverloads constructor(
     private fun drawVerticalTextInRect(canvas: Canvas, text: String, rect: RectF) {
         val maxWidth = rect.width().toInt().coerceAtLeast(1)
         val maxHeight = rect.height().toInt().coerceAtLeast(1)
-        var textSize = (rect.width() / 2.2f).coerceIn(12f, 42f)
+        val textScale = bubbleRenderSettings.fontScalePercent / 100f
+        var textSize = ((rect.width() / 2.2f) * textScale).coerceIn(12f, 42f)
         var layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
         while ((layout.columnWidth <= 0f || layout.lineHeight <= 0f || !layout.fits) && textSize > 10f) {
             textSize *= 0.9f

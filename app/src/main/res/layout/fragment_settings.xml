@@ -201,6 +201,24 @@
                 android:layout_marginEnd="2dp"
                 android:text="@string/floating_translate_settings_button" />
 
+            <Button
+                android:id="@+id/normal_bubble_render_settings_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:layout_marginStart="2dp"
+                android:layout_marginEnd="2dp"
+                android:text="@string/normal_bubble_render_settings_button" />
+
+            <Button
+                android:id="@+id/floating_bubble_render_settings_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:layout_marginStart="2dp"
+                android:layout_marginEnd="2dp"
+                android:text="@string/floating_bubble_render_settings_button" />
+
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/max_concurrency_layout"
                 style="@style/Widget.MangaTranslator.Input"
@@ -212,22 +230,6 @@
                 <com.google.android.material.textfield.TextInputEditText
                     style="@style/Widget.MangaTranslator.EditText"
                     android:id="@+id/max_concurrency_input"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/translation_bubble_opacity_layout"
-                style="@style/Widget.MangaTranslator.Input"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:hint="@string/translation_bubble_opacity_hint">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    style="@style/Widget.MangaTranslator.EditText"
-                    android:id="@+id/translation_bubble_opacity_input"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="number" />
@@ -258,18 +260,10 @@
                 android:textAppearance="@style/Widget.MangaTranslator.CardTitle" />
 
             <androidx.appcompat.widget.SwitchCompat
-                android:id="@+id/text_layout_switch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:textColor="?attr/dialogTextColor"
-                android:text="@string/text_layout_horizontal" />
-
-            <androidx.appcompat.widget.SwitchCompat
                 android:id="@+id/model_io_logging_switch"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="14dp"
                 android:textColor="?attr/dialogTextColor"
                 android:text="@string/model_io_logging" />
 

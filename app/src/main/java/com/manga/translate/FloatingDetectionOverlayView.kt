@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.text.Layout
 import android.text.StaticLayout
@@ -67,13 +68,16 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     ).coerceAtLeast(0.5f)
     private val sourceRect = RectF()
     private val tempRect = RectF()
+    private val shapeRect = RectF()
     private val deleteRect = RectF()
     private val drawingRect = RectF()
+    private val bubblePath = Path()
     private val textLayoutCache = mutableMapOf<TextLayoutCacheKey, StaticLayout>()
     private var sourceWidth = 1
     private var sourceHeight = 1
     private var bubbles: List<BubbleTranslation> = emptyList()
-    private var bubbleOpacity = SettingsStore(context).loadTranslationBubbleOpacity()
+    private var bubbleRenderSettings = SettingsStore(context).loadFloatingBubbleRenderSettings()
+    private var bubbleOpacity = bubbleRenderSettings.opacityPercent / 100f
     private var editMode = false
     private var createBubbleMode = false
     private val touchSlop = 3f * resources.displayMetrics.density
@@ -158,11 +162,12 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         invalidate()
     }
 
-    fun setBubbleOpacity(opacity: Float) {
-        val normalized = opacity.coerceIn(0f, 1f)
-        if (bubbleOpacity == normalized) return
-        bubbleOpacity = normalized
+    fun setFloatingBubbleRenderSettings(settings: FloatingBubbleRenderSettings) {
+        if (bubbleRenderSettings == settings) return
+        bubbleRenderSettings = settings
+        bubbleOpacity = settings.opacityPercent / 100f
         applyBubbleOpacity()
+        textLayoutCache.clear()
         invalidate()
     }
 
@@ -357,14 +362,14 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             drawBubbles(canvas)
         }
         if (editMode && createBubbleMode && !drawingRect.isEmpty) {
-            sourceRect.set(
-                drawingRect.left * scaleX(),
-                drawingRect.top * scaleY(),
-                drawingRect.right * scaleX(),
-                drawingRect.bottom * scaleY()
-            )
-            canvas.drawRoundRect(sourceRect, cornerRadius(), cornerRadius(), previewPaint)
-            canvas.drawRoundRect(sourceRect, cornerRadius(), cornerRadius(), previewStrokePaint)
+            updateDisplayRect(drawingRect, sourceRect)
+            if (bubbleRenderSettings.shape == FloatingBubbleShape.INSCRIBED_ELLIPSE) {
+                canvas.drawOval(sourceRect, previewPaint)
+                canvas.drawOval(sourceRect, previewStrokePaint)
+            } else {
+                canvas.drawRoundRect(sourceRect, cornerRadius(), cornerRadius(), previewPaint)
+                canvas.drawRoundRect(sourceRect, cornerRadius(), cornerRadius(), previewStrokePaint)
+            }
         }
     }
 
@@ -374,35 +379,54 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         val verticalPadding = resources.displayMetrics.density * 5f
         for (bubble in bubbles) {
             val rect = bubble.rect
-            sourceRect.set(
-                rect.left * scaleX(),
-                rect.top * scaleY(),
-                rect.right * scaleX(),
-                rect.bottom * scaleY()
-            )
+            updateDisplayRect(rect, sourceRect)
             if (sourceRect.width() < 2f || sourceRect.height() < 2f) continue
-            canvas.drawRoundRect(sourceRect, radius, radius, boxPaint)
-            canvas.drawRoundRect(sourceRect, radius, radius, borderPaint)
+            if (bubbleRenderSettings.shape == FloatingBubbleShape.INSCRIBED_ELLIPSE) {
+                canvas.drawOval(sourceRect, boxPaint)
+                canvas.drawOval(sourceRect, borderPaint)
+            } else {
+                canvas.drawRoundRect(sourceRect, radius, radius, boxPaint)
+                canvas.drawRoundRect(sourceRect, radius, radius, borderPaint)
+            }
             if (editMode) {
-                canvas.drawRoundRect(sourceRect, radius, radius, editBorderPaint)
+                if (bubbleRenderSettings.shape == FloatingBubbleShape.INSCRIBED_ELLIPSE) {
+                    canvas.drawOval(sourceRect, editBorderPaint)
+                } else {
+                    canvas.drawRoundRect(sourceRect, radius, radius, editBorderPaint)
+                }
                 computeDeleteRect(rect, tempRect)
-                tempRect.set(
-                    tempRect.left * scaleX(),
-                    tempRect.top * scaleY(),
-                    tempRect.right * scaleX(),
-                    tempRect.bottom * scaleY()
-                )
+                updateDisplayRect(tempRect, tempRect)
                 drawDeleteIcon(canvas, tempRect)
             }
             val text = bubble.text.ifBlank { context.getString(R.string.floating_bubble_placeholder) }
             val availableWidth = (sourceRect.width() - horizontalPadding * 2f).toInt().coerceAtLeast(1)
             val availableHeight = (sourceRect.height() - verticalPadding * 2f).toInt().coerceAtLeast(1)
-            val textLayout = buildFittedTextLayout(text, availableWidth, availableHeight)
-            val drawY = sourceRect.top + verticalPadding +
-                ((availableHeight - textLayout.height) / 2f).coerceAtLeast(0f)
-            canvas.withTranslation(sourceRect.left + horizontalPadding, drawY) {
-                textLayout.draw(this)
+            shapeRect.set(
+                sourceRect.left + horizontalPadding,
+                sourceRect.top + verticalPadding,
+                sourceRect.right - horizontalPadding,
+                sourceRect.bottom - verticalPadding
+            )
+            if (bubbleRenderSettings.shape == FloatingBubbleShape.INSCRIBED_ELLIPSE) {
+                bubblePath.reset()
+                bubblePath.addOval(sourceRect, Path.Direction.CW)
+            } else {
+                bubblePath.reset()
+                bubblePath.addRoundRect(sourceRect, radius, radius, Path.Direction.CW)
             }
+            val checkpoint = canvas.save()
+            canvas.clipPath(bubblePath)
+            if (bubbleRenderSettings.useHorizontalText) {
+                val textLayout = buildFittedTextLayout(text, availableWidth, availableHeight)
+                val drawY = shapeRect.top +
+                    ((availableHeight - textLayout.height) / 2f).coerceAtLeast(0f)
+                canvas.withTranslation(shapeRect.left, drawY) {
+                    textLayout.draw(this)
+                }
+            } else {
+                drawVerticalTextInRect(canvas, VerticalTextSymbolConverter.convert(text), shapeRect)
+            }
+            canvas.restoreToCount(checkpoint)
         }
     }
 
@@ -475,6 +499,94 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         boxPaint.color = Color.argb((bubbleOpacity * 255f).toInt().coerceIn(0, 255), 255, 255, 255)
     }
 
+    private fun updateDisplayRect(source: RectF, outRect: RectF) {
+        val adjustScale = (100f + bubbleRenderSettings.sizeAdjustPercent.coerceIn(-90, 90)) / 100f
+        val centerX = source.centerX()
+        val centerY = source.centerY()
+        val adjustedHalfWidth = (source.width() * adjustScale / 2f).coerceAtLeast(1f)
+        val adjustedHalfHeight = (source.height() * adjustScale / 2f).coerceAtLeast(1f)
+        outRect.set(
+            (centerX - adjustedHalfWidth) * scaleX(),
+            (centerY - adjustedHalfHeight) * scaleY(),
+            (centerX + adjustedHalfWidth) * scaleX(),
+            (centerY + adjustedHalfHeight) * scaleY()
+        )
+    }
+
+    private fun drawVerticalTextInRect(canvas: Canvas, text: String, rect: RectF) {
+        val maxWidth = rect.width().toInt().coerceAtLeast(1)
+        val maxHeight = rect.height().toInt().coerceAtLeast(1)
+        var textSize = (rect.width() / 2.2f).coerceIn(minTextSizePx, 42f * resources.displayMetrics.density / resources.configuration.fontScale)
+        var layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
+        while ((layout.columnWidth <= 0f || layout.lineHeight <= 0f || !layout.fits) && textSize > minTextSizePx) {
+            textSize = (textSize - textSizeStepPx).coerceAtLeast(minTextSizePx)
+            layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
+            if (textSize <= minTextSizePx) break
+        }
+        textPaint.textSize = textSize
+        val dx = rect.right - ((rect.width() - layout.totalWidth) / 2f) - layout.columnWidth
+        val dy = rect.top + ((rect.height() - layout.totalHeight) / 2f) - layout.fontMetrics.ascent
+        var col = 0
+        var row = 0
+        for (ch in text) {
+            if (ch == '\n') {
+                col += 1
+                row = 0
+                continue
+            }
+            if (row >= layout.maxRows) {
+                col += 1
+                row = 0
+            }
+            if (col >= layout.columns) break
+            val glyph = ch.toString()
+            val charWidth = textPaint.measureText(glyph)
+            val x = dx - col * layout.columnWidth + (layout.columnWidth - charWidth) / 2f
+            val y = dy + row * layout.lineHeight
+            canvas.drawText(glyph, x, y, textPaint)
+            row += 1
+        }
+    }
+
+    private fun buildVerticalLayout(
+        text: String,
+        maxWidth: Int,
+        maxHeight: Int,
+        textSize: Float
+    ): VerticalLayout {
+        textPaint.textSize = textSize
+        val fontMetrics = textPaint.fontMetrics
+        val lineHeight = (fontMetrics.descent - fontMetrics.ascent).coerceAtLeast(1f)
+        val maxRows = (maxHeight / lineHeight).toInt().coerceAtLeast(1)
+        val charCount = text.count { it != '\n' }.coerceAtLeast(1)
+        var maxCharWidth = 0f
+        for (ch in text) {
+            if (ch == '\n') continue
+            val width = textPaint.measureText(ch.toString())
+            if (width > maxCharWidth) {
+                maxCharWidth = width
+            }
+        }
+        if (maxCharWidth <= 0f) {
+            maxCharWidth = textPaint.measureText("国")
+        }
+        maxCharWidth = maxCharWidth.coerceAtLeast(1f)
+        val columns = ((charCount + maxRows - 1) / maxRows).coerceAtLeast(1)
+        val totalWidth = columns * maxCharWidth
+        val totalHeight = maxRows * lineHeight
+        val fits = totalWidth <= maxWidth && totalHeight <= maxHeight
+        return VerticalLayout(
+            columnWidth = maxCharWidth,
+            lineHeight = lineHeight,
+            maxRows = maxRows,
+            columns = columns,
+            totalWidth = totalWidth,
+            totalHeight = totalHeight,
+            fontMetrics = fontMetrics,
+            fits = fits
+        )
+    }
+
     private fun setDirty(value: Boolean) {
         if (dirty == value) return
         dirty = value
@@ -491,5 +603,16 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         val text: String,
         val availableWidth: Int,
         val availableHeight: Int
+    )
+
+    private data class VerticalLayout(
+        val columnWidth: Float,
+        val lineHeight: Float,
+        val maxRows: Int,
+        val columns: Int,
+        val totalWidth: Float,
+        val totalHeight: Float,
+        val fontMetrics: Paint.FontMetrics,
+        val fits: Boolean
     )
 }

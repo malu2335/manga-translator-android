@@ -416,7 +416,7 @@ class FloatingBallOverlayService : Service() {
             x = 0
             y = 0
         }
-        overlay.setBubbleOpacity(settingsStore.loadTranslationBubbleOpacity())
+        overlay.setFloatingBubbleRenderSettings(settingsStore.loadFloatingBubbleRenderSettings())
         overlay.setEditMode(editModeEnabled)
         overlay.setCreateBubbleMode(createBubbleModeEnabled)
         overlay.onBubblesChanged = { bubbles ->

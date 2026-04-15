@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.text.Layout
 import android.text.StaticLayout
@@ -13,20 +14,17 @@ import androidx.core.graphics.withTranslation
 import kotlin.math.min
 
 class BubbleRenderer(context: Context) {
-    private val bubbleOpacity = SettingsStore(context).loadTranslationBubbleOpacity()
+    private val bubbleRenderSettings = SettingsStore(context.applicationContext).loadNormalBubbleRenderSettings()
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFF1B1B1B.toInt()
     }
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb((bubbleOpacity * 255f).toInt().coerceIn(0, 255), 255, 255, 255)
+        color = Color.WHITE
         style = Paint.Style.FILL
     }
-    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF2D2D2D.toInt()
-        style = Paint.Style.STROKE
-        strokeWidth = context.resources.displayMetrics.density
-    }
-    private val bubbleRect = RectF()
+    private val bubblePath = Path()
+    private val bubbleBounds = RectF()
+    private val textRect = RectF()
 
     fun render(
         source: Bitmap,
@@ -48,25 +46,31 @@ class BubbleRenderer(context: Context) {
         for (bubble in translation.bubbles) {
             val text = bubble.text.trim()
             if (text.isBlank()) continue
-            bubbleRect.set(
-                bubble.rect.left * scaleX,
-                bubble.rect.top * scaleY,
-                bubble.rect.right * scaleX,
-                bubble.rect.bottom * scaleY
+            BubbleShapePaths.buildPath(
+                outPath = bubblePath,
+                bubble = bubble,
+                sourceWidth = translation.width,
+                sourceHeight = translation.height,
+                originX = 0f,
+                originY = 0f,
+                scaleX = scaleX,
+                scaleY = scaleY,
+                shrinkPercent = bubbleRenderSettings.shrinkPercent
             )
-            drawBubble(canvas, text, bubbleRect, verticalLayoutEnabled)
+            drawBubble(canvas, text, bubblePath, verticalLayoutEnabled)
         }
         return output
     }
 
-    private fun drawBubble(canvas: Canvas, text: String, rect: RectF, verticalLayoutEnabled: Boolean) {
-        if (rect.width() <= 0f || rect.height() <= 0f) return
-        val pad = (min(rect.width(), rect.height()) * 0.08f).coerceAtLeast(6f)
-        val textRect = RectF(rect)
-        textRect.inset(pad, pad)
-        canvas.drawRoundRect(rect, 6f, 6f, fillPaint)
-        canvas.drawRoundRect(rect, 6f, 6f, strokePaint)
+    private fun drawBubble(canvas: Canvas, text: String, path: Path, verticalLayoutEnabled: Boolean) {
+        path.computeBounds(bubbleBounds, true)
+        if (bubbleBounds.width() <= 0f || bubbleBounds.height() <= 0f) return
+        BubbleShapePaths.insetTextBounds(bubbleBounds, textRect)
+        canvas.drawPath(path, fillPaint)
+        val checkpoint = canvas.save()
+        canvas.clipPath(path)
         drawTextInRect(canvas, text, textRect, verticalLayoutEnabled)
+        canvas.restoreToCount(checkpoint)
     }
 
     private fun drawTextInRect(
@@ -80,7 +84,8 @@ class BubbleRenderer(context: Context) {
         } else {
             val maxWidth = rect.width().toInt().coerceAtLeast(1)
             val maxHeight = rect.height().toInt().coerceAtLeast(1)
-            var textSize = (rect.height() / 3f).coerceIn(12f, 42f)
+            val textScale = bubbleRenderSettings.fontScalePercent / 100f
+            var textSize = ((rect.height() / 3f) * textScale).coerceIn(12f, 42f)
             var layout = buildLayout(text, maxWidth, textSize)
             while (layout.height > maxHeight && textSize > 10f) {
                 textSize *= 0.9f
@@ -106,7 +111,8 @@ class BubbleRenderer(context: Context) {
     private fun drawVerticalTextInRect(canvas: Canvas, text: String, rect: RectF) {
         val maxWidth = rect.width().toInt().coerceAtLeast(1)
         val maxHeight = rect.height().toInt().coerceAtLeast(1)
-        var textSize = (rect.width() / 2.2f).coerceIn(12f, 42f)
+        val textScale = bubbleRenderSettings.fontScalePercent / 100f
+        var textSize = ((rect.width() / 2.2f) * textScale).coerceIn(12f, 42f)
         var layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
         while ((layout.columnWidth <= 0f || layout.lineHeight <= 0f || !layout.fits) && textSize > 10f) {
             textSize *= 0.9f

@@ -29,7 +29,7 @@ class WebtoonReadingAdapter(
 
     private data class PresentationConfig(
         val verticalLayoutEnabled: Boolean,
-        val bubbleOpacity: Float
+        val bubbleRenderSettings: NormalBubbleRenderSettings
     )
 
     private companion object {
@@ -40,7 +40,11 @@ class WebtoonReadingAdapter(
 
     private var items: List<File> = emptyList()
     private var verticalLayoutEnabled: Boolean = true
-    private var bubbleOpacity: Float = 1f
+    private var bubbleRenderSettings = NormalBubbleRenderSettings(
+        shrinkPercent = 0,
+        fontScalePercent = 100,
+        useHorizontalText = true
+    )
     private val rememberedPageHeights = mutableMapOf<String, Int>()
     private val boundHolders = mutableMapOf<String, WebtoonPageViewHolder>()
     private var editModeEnabled = false
@@ -57,16 +61,16 @@ class WebtoonReadingAdapter(
     fun submit(
         images: List<File>,
         verticalLayoutEnabled: Boolean,
-        bubbleOpacity: Float
+        bubbleRenderSettings: NormalBubbleRenderSettings
     ) {
         val previousItems = items
         val previousConfig = PresentationConfig(
             verticalLayoutEnabled = this.verticalLayoutEnabled,
-            bubbleOpacity = this.bubbleOpacity
+            bubbleRenderSettings = this.bubbleRenderSettings
         )
         val newConfig = PresentationConfig(
             verticalLayoutEnabled = verticalLayoutEnabled,
-            bubbleOpacity = bubbleOpacity
+            bubbleRenderSettings = bubbleRenderSettings
         )
         val diffResult = DiffUtil.calculateDiff(
             object : DiffUtil.Callback() {
@@ -86,7 +90,7 @@ class WebtoonReadingAdapter(
                     if (!areItemsTheSame(oldItemPosition, newItemPosition)) return null
                     return if (
                         previousConfig.verticalLayoutEnabled != newConfig.verticalLayoutEnabled ||
-                        previousConfig.bubbleOpacity != newConfig.bubbleOpacity
+                        previousConfig.bubbleRenderSettings != newConfig.bubbleRenderSettings
                     ) {
                         PAYLOAD_PRESENTATION_ONLY
                     } else {
@@ -97,7 +101,7 @@ class WebtoonReadingAdapter(
         )
         items = images
         this.verticalLayoutEnabled = verticalLayoutEnabled
-        this.bubbleOpacity = bubbleOpacity
+        this.bubbleRenderSettings = bubbleRenderSettings
         diffResult.dispatchUpdatesTo(this)
     }
 
@@ -138,7 +142,7 @@ class WebtoonReadingAdapter(
         holder.bind(
             imageFile = items[position],
             verticalLayoutEnabled = verticalLayoutEnabled,
-            bubbleOpacity = bubbleOpacity
+            bubbleRenderSettings = bubbleRenderSettings
         )
     }
 
@@ -154,7 +158,7 @@ class WebtoonReadingAdapter(
         if (payloads.contains(PAYLOAD_PRESENTATION_ONLY)) {
             holder.updatePresentation(
                 verticalLayoutEnabled = verticalLayoutEnabled,
-                bubbleOpacity = bubbleOpacity
+                bubbleRenderSettings = bubbleRenderSettings
             )
             return
         }
@@ -199,7 +203,7 @@ class WebtoonReadingAdapter(
         fun bind(
             imageFile: File,
             verticalLayoutEnabled: Boolean,
-            bubbleOpacity: Float
+            bubbleRenderSettings: NormalBubbleRenderSettings
         ) {
             val previousPath = boundPath
             if (previousPath != null && previousPath != imageFile.absolutePath) {
@@ -218,7 +222,7 @@ class WebtoonReadingAdapter(
             binding.readingPageOverlay.setTouchPassthroughEnabled(true)
             binding.readingPageOverlay.setEditScrollThroughEnabled(false)
             binding.readingPageOverlay.setVerticalLayoutEnabled(verticalLayoutEnabled)
-            binding.readingPageOverlay.setBubbleOpacity(bubbleOpacity)
+            binding.readingPageOverlay.setNormalBubbleRenderSettings(bubbleRenderSettings)
             binding.readingPageOverlay.onOffsetChanged = null
             binding.readingPageOverlay.onBubbleRemove = null
             binding.readingPageOverlay.onBubbleTap = null
@@ -233,9 +237,12 @@ class WebtoonReadingAdapter(
             }
         }
 
-        fun updatePresentation(verticalLayoutEnabled: Boolean, bubbleOpacity: Float) {
+        fun updatePresentation(
+            verticalLayoutEnabled: Boolean,
+            bubbleRenderSettings: NormalBubbleRenderSettings
+        ) {
             binding.readingPageOverlay.setVerticalLayoutEnabled(verticalLayoutEnabled)
-            binding.readingPageOverlay.setBubbleOpacity(bubbleOpacity)
+            binding.readingPageOverlay.setNormalBubbleRenderSettings(bubbleRenderSettings)
             refreshOverlayPresentation()
         }
 

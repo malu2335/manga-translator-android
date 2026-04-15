@@ -45,6 +45,30 @@ data class FloatingTranslateApiSettings(
     val tripleTapAction: FloatingBallGestureAction
 )
 
+data class NormalBubbleRenderSettings(
+    val shrinkPercent: Int,
+    val fontScalePercent: Int,
+    val useHorizontalText: Boolean
+)
+
+enum class FloatingBubbleShape(val prefValue: String, val labelRes: Int) {
+    RECTANGLE("rectangle", R.string.floating_bubble_shape_rectangle),
+    INSCRIBED_ELLIPSE("inscribed_ellipse", R.string.floating_bubble_shape_inscribed_ellipse);
+
+    companion object {
+        fun fromPref(value: String?): FloatingBubbleShape {
+            return entries.firstOrNull { it.prefValue == value } ?: RECTANGLE
+        }
+    }
+}
+
+data class FloatingBubbleRenderSettings(
+    val sizeAdjustPercent: Int,
+    val opacityPercent: Int,
+    val shape: FloatingBubbleShape,
+    val useHorizontalText: Boolean
+)
+
 data class CustomRequestParameter(
     val key: String,
     val value: String,
@@ -206,12 +230,96 @@ class SettingsStore(context: Context) {
     }
 
     fun loadUseHorizontalText(): Boolean {
-        return prefs.getBoolean(KEY_HORIZONTAL_TEXT, false)
+        return prefs.getBoolean(KEY_HORIZONTAL_TEXT, true)
     }
 
     fun saveUseHorizontalText(enabled: Boolean) {
         prefs.edit() {
                 putBoolean(KEY_HORIZONTAL_TEXT, enabled)
+            }
+    }
+
+    fun loadNormalBubbleRenderSettings(): NormalBubbleRenderSettings {
+        return NormalBubbleRenderSettings(
+            shrinkPercent = prefs.getInt(
+                KEY_NORMAL_BUBBLE_SHRINK_PERCENT,
+                DEFAULT_NORMAL_BUBBLE_SHRINK_PERCENT
+            ).coerceIn(
+                MIN_NORMAL_BUBBLE_SHRINK_PERCENT,
+                MAX_NORMAL_BUBBLE_SHRINK_PERCENT
+            ),
+            fontScalePercent = prefs.getInt(
+                KEY_NORMAL_BUBBLE_FONT_SCALE_PERCENT,
+                DEFAULT_NORMAL_BUBBLE_FONT_SCALE_PERCENT
+            ).coerceIn(
+                MIN_NORMAL_BUBBLE_FONT_SCALE_PERCENT,
+                MAX_NORMAL_BUBBLE_FONT_SCALE_PERCENT
+            ),
+            useHorizontalText = loadUseHorizontalText()
+        )
+    }
+
+    fun saveNormalBubbleRenderSettings(settings: NormalBubbleRenderSettings) {
+        prefs.edit() {
+                putInt(
+                    KEY_NORMAL_BUBBLE_SHRINK_PERCENT,
+                    settings.shrinkPercent.coerceIn(
+                        MIN_NORMAL_BUBBLE_SHRINK_PERCENT,
+                        MAX_NORMAL_BUBBLE_SHRINK_PERCENT
+                    )
+                )
+                .putInt(
+                    KEY_NORMAL_BUBBLE_FONT_SCALE_PERCENT,
+                    settings.fontScalePercent.coerceIn(
+                        MIN_NORMAL_BUBBLE_FONT_SCALE_PERCENT,
+                        MAX_NORMAL_BUBBLE_FONT_SCALE_PERCENT
+                    )
+                )
+                .putBoolean(KEY_HORIZONTAL_TEXT, settings.useHorizontalText)
+            }
+    }
+
+    fun loadFloatingBubbleRenderSettings(): FloatingBubbleRenderSettings {
+        return FloatingBubbleRenderSettings(
+            sizeAdjustPercent = prefs.getInt(
+                KEY_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT,
+                DEFAULT_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT
+            ).coerceIn(
+                MIN_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT,
+                MAX_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT
+            ),
+            opacityPercent = prefs.getInt(
+                KEY_FLOATING_BUBBLE_OPACITY_PERCENT,
+                loadTranslationBubbleOpacityPercent()
+            ).coerceIn(
+                MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT,
+                MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT
+            ),
+            shape = FloatingBubbleShape.fromPref(
+                prefs.getString(KEY_FLOATING_BUBBLE_SHAPE, FloatingBubbleShape.RECTANGLE.prefValue)
+            ),
+            useHorizontalText = prefs.getBoolean(KEY_FLOATING_BUBBLE_HORIZONTAL_TEXT, true)
+        )
+    }
+
+    fun saveFloatingBubbleRenderSettings(settings: FloatingBubbleRenderSettings) {
+        prefs.edit() {
+                putInt(
+                    KEY_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT,
+                    settings.sizeAdjustPercent.coerceIn(
+                        MIN_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT,
+                        MAX_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT
+                    )
+                )
+                .putInt(
+                    KEY_FLOATING_BUBBLE_OPACITY_PERCENT,
+                    settings.opacityPercent.coerceIn(
+                        MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT,
+                        MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT
+                    )
+                )
+                .putString(KEY_FLOATING_BUBBLE_SHAPE, settings.shape.prefValue)
+                .putBoolean(KEY_FLOATING_BUBBLE_HORIZONTAL_TEXT, settings.useHorizontalText)
             }
     }
 
@@ -774,8 +882,15 @@ class SettingsStore(context: Context) {
         private const val KEY_FLOATING_DOUBLE_TAP_ACTION = "floating_double_tap_action"
         private const val KEY_FLOATING_LONG_PRESS_ACTION = "floating_long_press_action"
         private const val KEY_FLOATING_TRIPLE_TAP_ACTION = "floating_triple_tap_action"
+        private const val KEY_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT =
+            "floating_bubble_size_adjust_percent"
+        private const val KEY_FLOATING_BUBBLE_OPACITY_PERCENT = "floating_bubble_opacity_percent"
+        private const val KEY_FLOATING_BUBBLE_SHAPE = "floating_bubble_shape"
+        private const val KEY_FLOATING_BUBBLE_HORIZONTAL_TEXT = "floating_bubble_horizontal_text"
         private const val KEY_OCR_API_TIMEOUT_SECONDS = "ocr_api_timeout_seconds"
         private const val KEY_HORIZONTAL_TEXT = "horizontal_text_layout"
+        private const val KEY_NORMAL_BUBBLE_SHRINK_PERCENT = "normal_bubble_shrink_percent"
+        private const val KEY_NORMAL_BUBBLE_FONT_SCALE_PERCENT = "normal_bubble_font_scale_percent"
         private const val KEY_MODEL_IO_LOGGING = "model_io_logging"
         private const val KEY_MAX_CONCURRENCY = "max_concurrency"
         private const val KEY_API_TIMEOUT_SECONDS = "api_timeout_seconds"
@@ -815,6 +930,15 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_FLOATING_API_TIMEOUT_SECONDS = 300
         private const val MIN_FLOATING_API_TIMEOUT_SECONDS = 30
         private const val MAX_FLOATING_API_TIMEOUT_SECONDS = 1200
+        private const val DEFAULT_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT = 0
+        private const val MIN_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT = -30
+        private const val MAX_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT = 30
+        private const val DEFAULT_NORMAL_BUBBLE_SHRINK_PERCENT = 0
+        private const val MIN_NORMAL_BUBBLE_SHRINK_PERCENT = 0
+        private const val MAX_NORMAL_BUBBLE_SHRINK_PERCENT = 30
+        private const val DEFAULT_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 100
+        private const val MIN_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 50
+        private const val MAX_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 200
         private const val DEFAULT_MAX_CONCURRENCY = 3
         private const val MIN_MAX_CONCURRENCY = 1
         private const val MAX_MAX_CONCURRENCY = 50

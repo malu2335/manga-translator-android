@@ -508,7 +508,7 @@ internal class LibraryImportExportCoordinator(
         } else {
             null
         }
-        val verticalLayoutEnabled = !settingsStore.loadUseHorizontalText()
+        val verticalLayoutEnabled = !settingsStore.loadNormalBubbleRenderSettings().useHorizontalText
 
         onSetExportEnabled(false)
         TranslationKeepAliveService.start(
