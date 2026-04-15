@@ -65,7 +65,7 @@ class BubbleRenderer(context: Context) {
     private fun drawBubble(canvas: Canvas, text: String, path: Path, verticalLayoutEnabled: Boolean) {
         path.computeBounds(bubbleBounds, true)
         if (bubbleBounds.width() <= 0f || bubbleBounds.height() <= 0f) return
-        BubbleShapePaths.insetTextBounds(bubbleBounds, textRect)
+        BubbleShapePaths.insetTextBounds(path, textRect)
         canvas.drawPath(path, fillPaint)
         val checkpoint = canvas.save()
         canvas.clipPath(path)

@@ -599,29 +599,19 @@ class SettingsFragment : Fragment() {
         updateLinkSourceButton(settingsStore.loadLinkSource())
         updateCustomRequestParamsButton(settingsStore.loadCustomRequestParameters())
         updateAiProviderProfilesButton()
-        updateNormalBubbleRenderSettingsButton(settingsStore.loadNormalBubbleRenderSettings())
-        updateFloatingBubbleRenderSettingsButton(settingsStore.loadFloatingBubbleRenderSettings())
+        updateNormalBubbleRenderSettingsButton()
+        updateFloatingBubbleRenderSettingsButton()
     }
 
-    private fun updateNormalBubbleRenderSettingsButton(settings: NormalBubbleRenderSettings) {
-        val layoutLabel = getString(
-            if (settings.useHorizontalText) R.string.normal_bubble_layout_horizontal
-            else R.string.normal_bubble_layout_vertical
-        )
-        binding.normalBubbleRenderSettingsButton.text = getString(
-            R.string.normal_bubble_render_settings_button_format,
-            settings.shrinkPercent,
-            settings.fontScalePercent,
-            layoutLabel
+    private fun updateNormalBubbleRenderSettingsButton() {
+        binding.normalBubbleRenderSettingsButton.setText(
+            R.string.normal_bubble_render_settings_button
         )
     }
 
-    private fun updateFloatingBubbleRenderSettingsButton(settings: FloatingBubbleRenderSettings) {
-        binding.floatingBubbleRenderSettingsButton.text = getString(
-            R.string.floating_bubble_render_settings_button_format,
-            settings.sizeAdjustPercent,
-            settings.opacityPercent,
-            getString(settings.shape.labelRes)
+    private fun updateFloatingBubbleRenderSettingsButton() {
+        binding.floatingBubbleRenderSettingsButton.setText(
+            R.string.floating_bubble_render_settings_button
         )
     }
 
@@ -649,7 +639,7 @@ class SettingsFragment : Fragment() {
                     useHorizontalText = dialogBinding.normalBubbleHorizontalTextSwitch.isChecked
                 )
                 settingsStore.saveNormalBubbleRenderSettings(updated)
-                updateNormalBubbleRenderSettingsButton(settingsStore.loadNormalBubbleRenderSettings())
+                updateNormalBubbleRenderSettingsButton()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -687,9 +677,7 @@ class SettingsFragment : Fragment() {
                     useHorizontalText = dialogBinding.floatingBubbleHorizontalTextSwitch.isChecked
                 )
                 settingsStore.saveFloatingBubbleRenderSettings(updated)
-                updateFloatingBubbleRenderSettingsButton(
-                    settingsStore.loadFloatingBubbleRenderSettings()
-                )
+                updateFloatingBubbleRenderSettingsButton()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

@@ -933,7 +933,7 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT = 0
         private const val MIN_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT = -30
         private const val MAX_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT = 30
-        private const val DEFAULT_NORMAL_BUBBLE_SHRINK_PERCENT = 0
+        private const val DEFAULT_NORMAL_BUBBLE_SHRINK_PERCENT = 10
         private const val MIN_NORMAL_BUBBLE_SHRINK_PERCENT = 0
         private const val MAX_NORMAL_BUBBLE_SHRINK_PERCENT = 30
         private const val DEFAULT_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 100

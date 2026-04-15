@@ -383,7 +383,7 @@ class FloatingTranslationView @JvmOverloads constructor(
         )
         bubblePath.computeBounds(bubbleBounds, true)
         if (bubbleBounds.width() <= 0f || bubbleBounds.height() <= 0f) return
-        BubbleShapePaths.insetTextBounds(bubbleBounds, textRect)
+        BubbleShapePaths.insetTextBounds(bubblePath, textRect)
         canvas.drawPath(bubblePath, fillPaint)
         val checkpoint = canvas.save()
         canvas.clipPath(bubblePath)
