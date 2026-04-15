@@ -15,13 +15,9 @@ class ReadingEmptyBubbleCoordinator(
     private val llmClient: LlmClient,
     private val libraryPrefs: SharedPreferences,
     private val settingsStore: SettingsStore = SettingsStore(context.applicationContext),
+    private val bubbleTextRecognizer: BubbleTextRecognizer,
     private val languageKeyPrefix: String = "translation_language_"
 ) {
-    private val appContext = context.applicationContext
-    private var mangaOcr: MangaOcr? = null
-    private var englishOcr: EnglishOcr? = null
-    private var koreanOcr: KoreanOcr? = null
-    private var englishLineDetector: EnglishLineDetector? = null
 
     suspend fun process(
         imageFile: File,
@@ -149,83 +145,13 @@ class ReadingEmptyBubbleCoordinator(
         language: TranslationLanguage,
         useLocalOcr: Boolean
     ): String {
-        return withBitmapCrop(bitmap, rect) { crop ->
-            if (!useLocalOcr) {
-                return@withBitmapCrop llmClient.recognizeImageText(crop)?.trim().orEmpty()
-            }
-            when (language) {
-                TranslationLanguage.JA_TO_ZH -> {
-                    val engine = getMangaOcr() ?: return@withBitmapCrop ""
-                    engine.recognize(crop).trim()
-                }
-                TranslationLanguage.EN_TO_ZH -> {
-                    val engine = getEnglishOcr() ?: return@withBitmapCrop ""
-                    val lineDetector = getEnglishLineDetector()
-                    val lineRects = lineDetector?.detectLines(crop).orEmpty()
-                    val lines = recognizeEnglishLines(crop, lineRects, engine)
-                    if (lines.isEmpty()) {
-                        engine.recognize(crop).trim()
-                    } else {
-                        lines.joinToString("\n") { it.text }
-                    }
-                }
-                TranslationLanguage.KO_TO_ZH -> {
-                    val engine = getKoreanOcr() ?: return@withBitmapCrop ""
-                    val lineDetector = getEnglishLineDetector()
-                    val lineRects = lineDetector?.detectLines(crop).orEmpty()
-                    val lines = recognizeKoreanLines(crop, lineRects, engine)
-                    if (lines.isEmpty()) {
-                        engine.recognize(crop).trim()
-                    } else {
-                        lines.joinToString("\n") { it.text }
-                    }
-                }
-            }
-        }.orEmpty()
-    }
-
-    private fun getMangaOcr(): MangaOcr? {
-        if (mangaOcr != null) return mangaOcr
-        return try {
-            mangaOcr = MangaOcr(appContext, settingsStore = settingsStore)
-            mangaOcr
-        } catch (e: Exception) {
-            AppLogger.log("Reading", "Failed to init OCR", e)
-            null
-        }
-    }
-
-    private fun getEnglishOcr(): EnglishOcr? {
-        if (englishOcr != null) return englishOcr
-        return try {
-            englishOcr = EnglishOcr(appContext, settingsStore = settingsStore)
-            englishOcr
-        } catch (e: Exception) {
-            AppLogger.log("Reading", "Failed to init English OCR", e)
-            null
-        }
-    }
-
-    private fun getKoreanOcr(): KoreanOcr? {
-        if (koreanOcr != null) return koreanOcr
-        return try {
-            koreanOcr = KoreanOcr(appContext, settingsStore = settingsStore)
-            koreanOcr
-        } catch (e: Exception) {
-            AppLogger.log("Reading", "Failed to init Korean OCR", e)
-            null
-        }
-    }
-
-    private fun getEnglishLineDetector(): EnglishLineDetector? {
-        if (englishLineDetector != null) return englishLineDetector
-        return try {
-            englishLineDetector = EnglishLineDetector(appContext, settingsStore = settingsStore)
-            englishLineDetector
-        } catch (e: Exception) {
-            AppLogger.log("Reading", "Failed to init English line detector", e)
-            null
-        }
+        return bubbleTextRecognizer.recognizeRegion(
+            source = bitmap,
+            rect = rect,
+            language = language,
+            useLocalOcr = useLocalOcr,
+            logTag = "Reading"
+        )
     }
 }
 

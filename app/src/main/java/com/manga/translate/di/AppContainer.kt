@@ -27,6 +27,12 @@ internal class AppContainer(private val appContext: Context) {
     val readingProgressStore by lazy(LazyThreadSafetyMode.NONE) { ReadingProgressStore(appContext) }
     val libraryRepository by lazy(LazyThreadSafetyMode.NONE) { LibraryRepository(appContext) }
     val llmClient by lazy(LazyThreadSafetyMode.NONE) { LlmClient(appContext, settingsStore) }
+    val ocrEngineRegistry by lazy(LazyThreadSafetyMode.NONE) {
+        com.manga.translate.OcrEngineRegistry(appContext, settingsStore)
+    }
+    val bubbleTextRecognizer by lazy(LazyThreadSafetyMode.NONE) {
+        com.manga.translate.BubbleTextRecognizer(llmClient, ocrEngineRegistry)
+    }
     val translationStore by lazy(LazyThreadSafetyMode.NONE) { TranslationStore() }
     val ocrStore by lazy(LazyThreadSafetyMode.NONE) { OcrStore() }
     val glossaryStore by lazy(LazyThreadSafetyMode.NONE) { GlossaryStore() }
@@ -45,6 +51,8 @@ internal class AppContainer(private val appContext: Context) {
             settingsStore = settingsStore,
             store = translationStore,
             ocrStore = ocrStore,
+            ocrEngineRegistry = ocrEngineRegistry,
+            bubbleTextRecognizer = bubbleTextRecognizer,
             floatingTranslationCacheStore = floatingTranslationCacheStore,
             floatingBubbleTranslationCoordinator = createFloatingBubbleTranslationCoordinator()
         )
@@ -73,7 +81,8 @@ internal class AppContainer(private val appContext: Context) {
             glossaryStore = glossaryStore,
             llmClient = llmClient,
             libraryPrefs = libraryPrefs,
-            settingsStore = settingsStore
+            settingsStore = settingsStore,
+            bubbleTextRecognizer = bubbleTextRecognizer
         )
     }
 
@@ -82,7 +91,8 @@ internal class AppContainer(private val appContext: Context) {
             context = appContext,
             llmClient = llmClient,
             floatingTranslationCacheStore = floatingTranslationCacheStore,
-            settingsStore = settingsStore
+            settingsStore = settingsStore,
+            bubbleTextRecognizer = bubbleTextRecognizer
         )
     }
 

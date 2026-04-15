@@ -67,6 +67,9 @@ class FloatingBallOverlayService : Service() {
     private val floatingBubbleTranslationCoordinator by lazy(LazyThreadSafetyMode.NONE) {
         appContainer.createFloatingBubbleTranslationCoordinator()
     }
+    private val bubbleTextRecognizer by lazy(LazyThreadSafetyMode.NONE) {
+        appContainer.bubbleTextRecognizer
+    }
     private val llmClient by lazy(LazyThreadSafetyMode.NONE) { appContainer.llmClient }
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var windowManager: WindowManager
@@ -90,10 +93,6 @@ class FloatingBallOverlayService : Service() {
         }
     }
     private var textDetector: TextDetector? = null
-    private var mangaOcr: MangaOcr? = null
-    private var englishOcr: EnglishOcr? = null
-    private var koreanOcr: KoreanOcr? = null
-    private var englishLineDetector: EnglishLineDetector? = null
     private var detectJob: Job? = null
     private var editModeToggleButton: AppCompatButton? = null
     private var swipeTranslateButton: AppCompatButton? = null
@@ -193,79 +192,12 @@ class FloatingBallOverlayService : Service() {
         language: TranslationLanguage
     ): String = withContext(Dispatchers.Default) {
         val ocrSettings = settingsStore.loadOcrApiSettings()
-        if (!ocrSettings.useLocalOcr) {
-            return@withContext llmClient.recognizeImageText(crop)?.trim().orEmpty()
-        }
-        when (language) {
-            TranslationLanguage.JA_TO_ZH -> {
-                val engine = getFloatingMangaOcr() ?: return@withContext ""
-                engine.recognize(crop).trim()
-            }
-            TranslationLanguage.EN_TO_ZH -> {
-                val engine = getFloatingEnglishOcr() ?: return@withContext ""
-                val lineDetector = getFloatingEnglishLineDetector()
-                val lineRects = lineDetector?.detectLines(crop).orEmpty()
-                val lines = recognizeEnglishLines(crop, lineRects, engine)
-                if (lines.isEmpty()) {
-                    engine.recognize(crop).trim()
-                } else {
-                    lines.joinToString("\n") { it.text }
-                }
-            }
-            TranslationLanguage.KO_TO_ZH -> {
-                val engine = getFloatingKoreanOcr() ?: return@withContext ""
-                val lineDetector = getFloatingEnglishLineDetector()
-                val lineRects = lineDetector?.detectLines(crop).orEmpty()
-                val lines = recognizeKoreanLines(crop, lineRects, engine)
-                if (lines.isEmpty()) {
-                    engine.recognize(crop).trim()
-                } else {
-                    lines.joinToString("\n") { it.text }
-                }
-            }
-        }
-    }
-
-    private fun getFloatingMangaOcr(): MangaOcr? {
-        if (mangaOcr != null) return mangaOcr
-        return try {
-            MangaOcr(applicationContext, settingsStore = settingsStore).also { mangaOcr = it }
-        } catch (e: Exception) {
-            AppLogger.log("FloatingOCR", "Failed to init MangaOCR", e)
-            null
-        }
-    }
-
-    private fun getFloatingEnglishOcr(): EnglishOcr? {
-        if (englishOcr != null) return englishOcr
-        return try {
-            EnglishOcr(applicationContext, settingsStore = settingsStore).also { englishOcr = it }
-        } catch (e: Exception) {
-            AppLogger.log("FloatingOCR", "Failed to init English OCR", e)
-            null
-        }
-    }
-
-    private fun getFloatingKoreanOcr(): KoreanOcr? {
-        if (koreanOcr != null) return koreanOcr
-        return try {
-            KoreanOcr(applicationContext, settingsStore = settingsStore).also { koreanOcr = it }
-        } catch (e: Exception) {
-            AppLogger.log("FloatingOCR", "Failed to init Korean OCR", e)
-            null
-        }
-    }
-
-    private fun getFloatingEnglishLineDetector(): EnglishLineDetector? {
-        if (englishLineDetector != null) return englishLineDetector
-        return try {
-            EnglishLineDetector(applicationContext, settingsStore = settingsStore).also {
-                englishLineDetector = it
-            }
-        } catch (e: Exception) {
-            AppLogger.log("FloatingOCR", "Failed to init English line detector", e)
-            null
-        }
+        bubbleTextRecognizer.recognizeCrop(
+            crop = crop,
+            language = language,
+            useLocalOcr = ocrSettings.useLocalOcr,
+            logTag = "FloatingOCR"
+        )
     }
 
     private fun canDrawOverlays(): Boolean {

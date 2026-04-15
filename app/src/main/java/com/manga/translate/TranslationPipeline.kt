@@ -19,6 +19,10 @@ internal class TranslationPipeline(
     private val settingsStore: SettingsStore = SettingsStore(context.applicationContext),
     private val store: TranslationStore = TranslationStore(),
     private val ocrStore: OcrStore = OcrStore(),
+    private val ocrEngineRegistry: OcrEngineRegistry =
+        OcrEngineRegistry(context.applicationContext, settingsStore),
+    private val bubbleTextRecognizer: BubbleTextRecognizer =
+        BubbleTextRecognizer(llmClient, ocrEngineRegistry),
     private val floatingTranslationCacheStore: FloatingTranslationCacheStore =
         FloatingTranslationCacheStore(context.applicationContext),
     private val floatingBubbleTranslationCoordinator: FloatingBubbleTranslationCoordinator =
@@ -30,11 +34,7 @@ internal class TranslationPipeline(
 ) {
     private val appContext = context.applicationContext
     private var detector: BubbleDetector? = null
-    private var ocr: MangaOcr? = null
-    private var englishOcr: EnglishOcr? = null
-    private var koreanOcr: KoreanOcr? = null
     private var textDetector: TextDetector? = null
-    private var englishLineDetector: EnglishLineDetector? = null
 
     suspend fun translateImage(
         imageFile: File,
@@ -124,11 +124,7 @@ internal class TranslationPipeline(
         val detector = getDetector() ?: return@withContext null
         val useLocalOcr = ocrSettings.useLocalOcr
         val ocrEngine: OcrEngine? = if (useLocalOcr) {
-            when (language) {
-                TranslationLanguage.EN_TO_ZH -> getEnglishOcr()
-                TranslationLanguage.KO_TO_ZH -> getKoreanOcr()
-                TranslationLanguage.JA_TO_ZH -> getOcr()
-            }
+            bubbleTextRecognizer.getLocalOcrEngine(language, "Pipeline")
         } else {
             null
         }
@@ -152,25 +148,26 @@ internal class TranslationPipeline(
             AppLogger.log("Pipeline", "Detected ${detections.size} bubbles in ${imageFile.name}")
             val bubbleRects = detections.map { it.rect }
             if (useLocalOcr && language == TranslationLanguage.EN_TO_ZH && ocrEngine is EnglishOcr) {
-                val lineDetector = getEnglishLineDetector()
                 val bubbles = ArrayList<OcrBubble>(bubbleRects.size)
                 if (bubbleRects.isEmpty()) {
-                    val lineRects = lineDetector?.detectLines(bitmap).orEmpty()
-                    val lines = recognizeEnglishLines(bitmap, lineRects, ocrEngine)
+                    val lines = bubbleTextRecognizer.detectRecognizedLines(
+                        source = bitmap,
+                        language = language,
+                        logTag = "Pipeline"
+                    )
                     for ((index, line) in lines.withIndex()) {
                         bubbles.add(OcrBubble(index, line.rect, line.text, BubbleSource.TEXT_DETECTOR))
                     }
                 } else {
                     for ((bubbleId, det) in detections.withIndex()) {
-                        val text = withBitmapCrop(bitmap, det.rect) { crop ->
-                            val lineRects = lineDetector?.detectLines(crop).orEmpty()
-                            val lines = recognizeEnglishLines(crop, lineRects, ocrEngine)
-                            if (lines.isEmpty()) {
-                                ocrEngine.recognize(crop).trim()
-                            } else {
-                                lines.joinToString("\n") { it.text }
-                            }
-                        } ?: continue
+                        val text = bubbleTextRecognizer.recognizeRegion(
+                            source = bitmap,
+                            rect = det.rect,
+                            language = language,
+                            useLocalOcr = true,
+                            logTag = "Pipeline"
+                        )
+                        if (text.isBlank()) continue
                         bubbles.add(OcrBubble(bubbleId, det.rect, text, BubbleSource.BUBBLE_DETECTOR, det.maskContour))
                     }
                 }
@@ -186,25 +183,26 @@ internal class TranslationPipeline(
                 return@withContext result
             }
             if (useLocalOcr && language == TranslationLanguage.KO_TO_ZH && ocrEngine is KoreanOcr) {
-                val lineDetector = getEnglishLineDetector()
                 val bubbles = ArrayList<OcrBubble>(bubbleRects.size)
                 if (bubbleRects.isEmpty()) {
-                    val lineRects = lineDetector?.detectLines(bitmap).orEmpty()
-                    val lines = recognizeKoreanLines(bitmap, lineRects, ocrEngine)
+                    val lines = bubbleTextRecognizer.detectRecognizedLines(
+                        source = bitmap,
+                        language = language,
+                        logTag = "Pipeline"
+                    )
                     for ((index, line) in lines.withIndex()) {
                         bubbles.add(OcrBubble(index, line.rect, line.text, BubbleSource.TEXT_DETECTOR))
                     }
                 } else {
                     for ((bubbleId, det) in detections.withIndex()) {
-                        val text = withBitmapCrop(bitmap, det.rect) { crop ->
-                            val lineRects = lineDetector?.detectLines(crop).orEmpty()
-                            val lines = recognizeKoreanLines(crop, lineRects, ocrEngine)
-                            if (lines.isEmpty()) {
-                                ocrEngine.recognize(crop).trim()
-                            } else {
-                                lines.joinToString("\n") { it.text }
-                            }
-                        } ?: continue
+                        val text = bubbleTextRecognizer.recognizeRegion(
+                            source = bitmap,
+                            rect = det.rect,
+                            language = language,
+                            useLocalOcr = true,
+                            logTag = "Pipeline"
+                        )
+                        if (text.isBlank()) continue
                         bubbles.add(OcrBubble(bubbleId, det.rect, text, BubbleSource.BUBBLE_DETECTOR, det.maskContour))
                     }
                 }
@@ -255,13 +253,16 @@ internal class TranslationPipeline(
             val bubbles = ArrayList<OcrBubble>(allRects.size)
             val bubbleDetectorCount = bubbleRects.size
             for ((bubbleId, rect) in allRects.withIndex()) {
-                val text = withBitmapCrop(bitmap, rect) { crop ->
-                    if (useLocalOcr) {
-                        ocrEngine?.recognize(crop)?.trim().orEmpty()
-                    } else {
-                        recognizeTextWithApiOcr(crop)
-                    }
-                } ?: continue
+                val text = bubbleTextRecognizer.recognizeRegion(
+                    source = bitmap,
+                    rect = rect,
+                    language = language,
+                    useLocalOcr = useLocalOcr,
+                    logTag = "Pipeline"
+                )
+                if (text.isBlank() && !useLocalOcr) {
+                    continue
+                }
                 val source = if (bubbleId < bubbleDetectorCount) {
                     BubbleSource.BUBBLE_DETECTOR
                 } else {
@@ -495,48 +496,6 @@ internal class TranslationPipeline(
         }
     }
 
-    private suspend fun recognizeTextWithApiOcr(crop: Bitmap): String {
-        return try {
-            llmClient.recognizeImageText(crop)?.trim().orEmpty()
-        } catch (e: Exception) {
-            AppLogger.log("Pipeline", "API OCR failed", e)
-            ""
-        }
-    }
-
-    private fun getOcr(): MangaOcr? {
-        if (ocr != null) return ocr
-        return try {
-            ocr = MangaOcr(appContext, settingsStore = settingsStore)
-            ocr
-        } catch (e: Exception) {
-            AppLogger.log("Pipeline", "Failed to init OCR", e)
-            null
-        }
-    }
-
-    private fun getEnglishOcr(): EnglishOcr? {
-        if (englishOcr != null) return englishOcr
-        return try {
-            englishOcr = EnglishOcr(appContext, settingsStore = settingsStore)
-            englishOcr
-        } catch (e: Exception) {
-            AppLogger.log("Pipeline", "Failed to init English OCR", e)
-            null
-        }
-    }
-
-    private fun getKoreanOcr(): KoreanOcr? {
-        if (koreanOcr != null) return koreanOcr
-        return try {
-            koreanOcr = KoreanOcr(appContext, settingsStore = settingsStore)
-            koreanOcr
-        } catch (e: Exception) {
-            AppLogger.log("Pipeline", "Failed to init Korean OCR", e)
-            null
-        }
-    }
-
     private fun getTextDetector(): TextDetector? {
         if (textDetector != null) return textDetector
         return try {
@@ -544,17 +503,6 @@ internal class TranslationPipeline(
             textDetector
         } catch (e: Exception) {
             AppLogger.log("Pipeline", "Failed to init text detector", e)
-            null
-        }
-    }
-
-    private fun getEnglishLineDetector(): EnglishLineDetector? {
-        if (englishLineDetector != null) return englishLineDetector
-        return try {
-            englishLineDetector = EnglishLineDetector(appContext, settingsStore = settingsStore)
-            englishLineDetector
-        } catch (e: Exception) {
-            AppLogger.log("Pipeline", "Failed to init English line detector", e)
             null
         }
     }
