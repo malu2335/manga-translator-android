@@ -8,9 +8,11 @@ import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.os.Build
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,7 +36,8 @@ class LibraryFragment : Fragment() {
     private data class PendingModelErrorDialog(
         val content: String,
         val onRetry: (() -> Unit)?,
-        val onSkip: (() -> Unit)?
+        val onSkip: (() -> Unit)?,
+        val useSystemOverlay: Boolean
     )
 
     private var _binding: FragmentLibraryBinding? = null
@@ -73,6 +76,7 @@ class LibraryFragment : Fragment() {
     private var isLibrarySelectionMode: Boolean = false
     private val pendingModelErrorDialogs = ArrayDeque<PendingModelErrorDialog>()
     private var activeModelErrorDialog: AlertDialog? = null
+    private var activeModelErrorRequest: PendingModelErrorDialog? = null
 
     private val tutorialUrlGithub =
         "https://github.com/jedzqer/manga-translator/blob/main/Tutorial/简中教程.md"
@@ -132,18 +136,20 @@ class LibraryFragment : Fragment() {
 
         override fun showModelError(
             content: String,
-            onContinue: (() -> Unit)?,
-            onCancel: (() -> Unit)?
+            useSystemOverlay: Boolean,
+            onRetry: (() -> Unit)?,
+            onSkip: (() -> Unit)?
         ) {
             if (!isAdded) {
-                onCancel?.invoke()
+                onSkip?.invoke()
                 return
             }
             pendingModelErrorDialogs.addLast(
                 PendingModelErrorDialog(
                     content = content,
-                    onRetry = onContinue,
-                    onSkip = onCancel
+                    onRetry = onRetry,
+                    onSkip = onSkip,
+                    useSystemOverlay = useSystemOverlay
                 )
             )
             showNextModelErrorDialog()
@@ -159,8 +165,20 @@ class LibraryFragment : Fragment() {
             loadImages(folder)
         }
 
+        override fun isUiAttached(): Boolean {
+            return isAdded
+        }
+
         override fun isFragmentActive(): Boolean {
             return isAdded && _binding != null
+        }
+
+        override fun isLibraryInForeground(): Boolean {
+            return isAdded && _binding != null && isResumed
+        }
+
+        override fun canShowSystemOverlay(): Boolean {
+            return isAdded && canDrawOverlays()
         }
     }
 
@@ -481,25 +499,48 @@ class LibraryFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        activeModelErrorRequest?.onSkip?.invoke()
+        activeModelErrorRequest = null
         activeModelErrorDialog?.dismiss()
         activeModelErrorDialog = null
-        pendingModelErrorDialogs.clear()
+        while (pendingModelErrorDialogs.isNotEmpty()) {
+            pendingModelErrorDialogs.removeFirst().onSkip?.invoke()
+        }
         super.onDestroyView()
         _binding = null
+    }
+
+    override fun onResume() {
+        super.onResume()
+        showNextModelErrorDialog()
     }
 
     private fun showNextModelErrorDialog() {
         if (!isAdded || activeModelErrorDialog != null) return
         if (pendingModelErrorDialogs.isEmpty()) return
-        val request = pendingModelErrorDialogs.removeFirst()
+        val request = pendingModelErrorDialogs.first()
+        if (!request.useSystemOverlay && !isResumed) return
+        pendingModelErrorDialogs.removeFirst()
         val dialog = dialogs.showModelErrorDialog(
             requireContext(),
             request.content,
-            onContinue = request.onRetry,
-            onCancel = request.onSkip
+            onRetry = request.onRetry,
+            onSkip = request.onSkip,
+            windowType = if (request.useSystemOverlay) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    @Suppress("DEPRECATION")
+                    WindowManager.LayoutParams.TYPE_PHONE
+                }
+            } else {
+                null
+            }
         )
+        activeModelErrorRequest = request
         activeModelErrorDialog = dialog
         dialog.setOnDismissListener {
+            activeModelErrorRequest = null
             activeModelErrorDialog = null
             showNextModelErrorDialog()
         }

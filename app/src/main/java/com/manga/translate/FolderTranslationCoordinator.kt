@@ -72,7 +72,6 @@ internal class FolderTranslationCoordinator(
     private val appContext = context.applicationContext
     private val translationRunning = AtomicBoolean(false)
     private val cancellationRequested = AtomicBoolean(false)
-    private val pendingModelErrorCount = AtomicInteger(0)
     @Volatile
     private var activeJob: Job? = null
     @Volatile
@@ -110,21 +109,6 @@ internal class FolderTranslationCoordinator(
                 onTranslateEnabled
             )
         }
-    }
-
-    fun resumeFailedTranslation(scope: CoroutineScope): Boolean {
-        val task = resumableTask ?: return false
-        translateFolder(
-            scope = scope,
-            folder = task.folder,
-            images = task.images,
-            force = task.force,
-            fullTranslate = task.fullTranslate,
-            useVlDirectTranslate = task.useVlDirectTranslate,
-            language = task.language,
-            onTranslateEnabled = task.onTranslateEnabled
-        )
-        return true
     }
 
     fun translateCollection(
@@ -398,26 +382,15 @@ internal class FolderTranslationCoordinator(
                             break
                         } catch (e: LlmResponseException) {
                             AppLogger.log("Library", "Invalid model response for ${image.name}", e)
-                            val action = reportModelError(
-                                scope = scope,
-                                content = e.responseContent,
-                                onRetry = {
-                                    scope.launch {
-                                        retryStandardImage(folder, image, force, language)
-                                    }
-                                },
-                                onSkip = {
-                                    skipStandardImage(folder, image, force, language)
-                                }
-                            )
-                            failed = true
-                            when (action) {
+                            when (reportModelError(e.responseContent)) {
                                 ModelErrorAction.RETRY -> {
                                     recoveredFromModelError =
                                         retryStandardImage(folder, image, force, language)
                                 }
-                                ModelErrorAction.SKIP -> Unit
-                                null -> Unit
+                                ModelErrorAction.SKIP -> {
+                                    skipStandardImage(folder, image, force, language)
+                                    recoveredFromModelError = true
+                                }
                             }
                             null
                         } catch (e: CancellationException) {
@@ -623,35 +596,34 @@ internal class FolderTranslationCoordinator(
                             imageName = glossaryImage.orEmpty()
                         )
                         val abstractPromptAsset = "llm_prompts_abstract.json"
-                        try {
-                            val extracted =
-                                llmClient.extractGlossary(glossaryText, glossary, abstractPromptAsset)
-                            if (extracted != null) {
-                                if (extracted.isNotEmpty()) {
-                                    for ((key, value) in extracted) {
-                                        if (!glossary.containsKey(key)) {
-                                            glossary[key] = value
+                        while (true) {
+                            try {
+                                val extracted =
+                                    llmClient.extractGlossary(glossaryText, glossary, abstractPromptAsset)
+                                if (extracted != null) {
+                                    if (extracted.isNotEmpty()) {
+                                        for ((key, value) in extracted) {
+                                            if (!glossary.containsKey(key)) {
+                                                glossary[key] = value
+                                            }
                                         }
+                                        glossaryStore.save(folder, glossary)
                                     }
-                                    glossaryStore.save(folder, glossary)
+                                    for (page in glossaryPages) {
+                                        extractState.add(page.imageFile.name)
+                                    }
+                                    extractStateStore.save(folder, extractState)
                                 }
-                                for (page in glossaryPages) {
-                                    extractState.add(page.imageFile.name)
+                                break
+                            } catch (e: LlmRequestException) {
+                                throw e
+                            } catch (e: LlmResponseException) {
+                                AppLogger.log("Library", "Full-page glossary response invalid", e)
+                                if (reportModelError(e.responseContent) == ModelErrorAction.SKIP) {
+                                    failed = true
+                                    break
                                 }
-                                extractStateStore.save(folder, extractState)
                             }
-                        } catch (e: LlmRequestException) {
-                            throw e
-                        } catch (e: LlmResponseException) {
-                            AppLogger.log("Library", "Full-page glossary response invalid", e)
-                            failed = true
-                            reportModelError(
-                                scope = scope,
-                                content = e.responseContent,
-                                onRetry = {
-                                    scope.launch { resumeFailedTranslation(scope) }
-                                }
-                            )
                         }
                         reportPreprocessProgress(
                             stage = glossaryStage,
@@ -693,30 +665,7 @@ internal class FolderTranslationCoordinator(
                                             e
                                         )
                                         hasFailures.set(true)
-                                        when (
-                                            reportModelError(
-                                                scope = scope,
-                                                content = e.responseContent,
-                                                onRetry = {
-                                                    scope.launch {
-                                                        retryFullPageImage(
-                                                            folder,
-                                                            page,
-                                                            fullTransPromptAsset,
-                                                            language
-                                                        )
-                                                    }
-                                                },
-                                                onSkip = {
-                                                    skipFullPageImage(
-                                                        folder,
-                                                        page,
-                                                        fullTransPromptAsset,
-                                                        language
-                                                    )
-                                                }
-                                            )
-                                        ) {
+                                        when (reportModelError(e.responseContent)) {
                                             ModelErrorAction.RETRY -> {
                                                 recoveredFromModelError = retryFullPageImage(
                                                     folder,
@@ -725,8 +674,15 @@ internal class FolderTranslationCoordinator(
                                                     language
                                                 )
                                             }
-                                            ModelErrorAction.SKIP -> Unit
-                                            null -> Unit
+                                            ModelErrorAction.SKIP -> {
+                                                skipFullPageImage(
+                                                    folder,
+                                                    page,
+                                                    fullTransPromptAsset,
+                                                    language
+                                                )
+                                                recoveredFromModelError = true
+                                            }
                                         }
                                         null
                                     } catch (e: LlmRequestException) {
@@ -760,17 +716,17 @@ internal class FolderTranslationCoordinator(
                                         hasFailures.set(true)
                                     }
                                     withContext(Dispatchers.Main) {
-                                        val count = translatedCount.get()
+                                        val processedCount: Int = translatedCount.get()
                                         ui.setFolderStatus(
                                             appContext.getString(
                                                 R.string.folder_translation_count,
-                                                count,
+                                                processedCount,
                                                 pendingImages.size
                                             )
                                         )
                                         TranslationKeepAliveService.updateProgress(
                                             appContext,
-                                            count,
+                                            processedCount,
                                             pendingImages.size
                                         )
                                     }
@@ -909,28 +865,16 @@ internal class FolderTranslationCoordinator(
                 return CollectionTaskResult.ABORTED
             } catch (e: LlmResponseException) {
                 AppLogger.log("Library", "Invalid model response for ${image.name}", e)
-                when (
-                    reportModelError(
-                        scope = scope,
-                        content = e.responseContent,
-                        onRetry = {
-                            scope.launch {
-                                retryStandardImage(task.folder, image, task.force, task.language)
-                            }
-                        },
-                        onSkip = {
-                            skipStandardImage(task.folder, image, task.force, task.language)
-                        }
-                    )
-                ) {
+                when (reportModelError(e.responseContent)) {
                     ModelErrorAction.RETRY -> {
                         recoveredFromModelError =
                             retryStandardImage(task.folder, image, task.force, task.language)
                     }
-                    ModelErrorAction.SKIP -> Unit
-                    null -> Unit
+                    ModelErrorAction.SKIP -> {
+                        skipStandardImage(task.folder, image, task.force, task.language)
+                        recoveredFromModelError = true
+                    }
                 }
-                failed = true
                 null
             } catch (e: CancellationException) {
                 throw e
@@ -1005,37 +949,36 @@ internal class FolderTranslationCoordinator(
         }
         val glossaryText = buildGlossaryText(glossaryPages)
         if (glossaryText.isNotBlank()) {
-            try {
-                val abstractPromptAsset = "llm_prompts_abstract.json"
-                val extracted = llmClient.extractGlossary(glossaryText, glossary, abstractPromptAsset)
-                if (extracted != null) {
-                    if (extracted.isNotEmpty()) {
-                        for ((key, value) in extracted) {
-                            if (!glossary.containsKey(key)) {
-                                glossary[key] = value
+            val abstractPromptAsset = "llm_prompts_abstract.json"
+            while (true) {
+                try {
+                    val extracted = llmClient.extractGlossary(glossaryText, glossary, abstractPromptAsset)
+                    if (extracted != null) {
+                        if (extracted.isNotEmpty()) {
+                            for ((key, value) in extracted) {
+                                if (!glossary.containsKey(key)) {
+                                    glossary[key] = value
+                                }
                             }
+                            glossaryStore.save(task.folder, glossary)
                         }
-                        glossaryStore.save(task.folder, glossary)
+                        for (page in glossaryPages) {
+                            extractState.add(page.imageFile.name)
+                        }
+                        extractStateStore.save(task.folder, extractState)
                     }
-                    for (page in glossaryPages) {
-                        extractState.add(page.imageFile.name)
+                    break
+                } catch (e: LlmRequestException) {
+                    AppLogger.log("Library", "Collection glossary extraction aborted", e)
+                    ui.showApiError(e.errorCode, e.responseBody)
+                    return CollectionTaskResult.ABORTED
+                } catch (e: LlmResponseException) {
+                    AppLogger.log("Library", "Collection glossary response invalid", e)
+                    if (reportModelError(e.responseContent) == ModelErrorAction.SKIP) {
+                        failed = true
+                        break
                     }
-                    extractStateStore.save(task.folder, extractState)
                 }
-            } catch (e: LlmRequestException) {
-                AppLogger.log("Library", "Collection glossary extraction aborted", e)
-                ui.showApiError(e.errorCode, e.responseBody)
-                return CollectionTaskResult.ABORTED
-            } catch (e: LlmResponseException) {
-                AppLogger.log("Library", "Collection glossary response invalid", e)
-                failed = true
-                reportModelError(
-                    content = e.responseContent,
-                    scope = scope,
-                    onRetry = {
-                        scope.launch { resumeFailedTranslation(scope) }
-                    }
-                )
             }
         }
 
@@ -1060,30 +1003,7 @@ internal class FolderTranslationCoordinator(
                 ) { }
             } catch (e: LlmResponseException) {
                 AppLogger.log("Library", "Invalid collection model response for ${page.imageFile.name}", e)
-                when (
-                    reportModelError(
-                        scope = scope,
-                        content = e.responseContent,
-                        onRetry = {
-                            scope.launch {
-                                retryFullPageImage(
-                                    task.folder,
-                                    page,
-                                    fullTransPromptAsset,
-                                    task.language
-                                )
-                            }
-                        },
-                        onSkip = {
-                            skipFullPageImage(
-                                task.folder,
-                                page,
-                                fullTransPromptAsset,
-                                task.language
-                            )
-                        }
-                    )
-                ) {
+                when (reportModelError(e.responseContent)) {
                     ModelErrorAction.RETRY -> {
                         recoveredFromModelError = retryFullPageImage(
                             task.folder,
@@ -1092,10 +1012,16 @@ internal class FolderTranslationCoordinator(
                             task.language
                         )
                     }
-                    ModelErrorAction.SKIP -> Unit
-                    null -> Unit
+                    ModelErrorAction.SKIP -> {
+                        skipFullPageImage(
+                            task.folder,
+                            page,
+                            fullTransPromptAsset,
+                            task.language
+                        )
+                        recoveredFromModelError = true
+                    }
                 }
-                failed = true
                 null
             } catch (e: LlmRequestException) {
                 AppLogger.log("Library", "Collection full translation aborted for ${page.imageFile.name}", e)
@@ -1160,45 +1086,20 @@ internal class FolderTranslationCoordinator(
         )
     }
 
-    private suspend fun reportModelError(
-        scope: CoroutineScope,
-        content: String,
-        onRetry: (() -> Unit)? = null,
-        onSkip: (suspend () -> Unit)? = null
-    ): ModelErrorAction? {
+    private suspend fun reportModelError(content: String): ModelErrorAction {
         val resolution = CompletableDeferred<ModelErrorAction>()
-        val shouldBlock = pendingModelErrorCount.incrementAndGet() > MAX_PENDING_MODEL_ERRORS
-        if (!ui.isFragmentActive()) {
-            try {
-                onSkip?.invoke()
-            } finally {
-                pendingModelErrorCount.decrementAndGet()
-            }
+        if (!ui.isUiAttached()) {
             return ModelErrorAction.SKIP
         }
         withContext(Dispatchers.Main) {
             ui.showModelError(
                 content = content,
-                onContinue = {
-                    if (resolution.complete(ModelErrorAction.RETRY)) {
-                        pendingModelErrorCount.decrementAndGet()
-                        onRetry?.invoke()
-                    }
-                },
-                onCancel = {
-                    scope.launch {
-                        try {
-                            onSkip?.invoke()
-                        } finally {
-                            if (resolution.complete(ModelErrorAction.SKIP)) {
-                                pendingModelErrorCount.decrementAndGet()
-                            }
-                        }
-                    }
-                }
+                useSystemOverlay = !ui.isLibraryInForeground() && ui.canShowSystemOverlay(),
+                onRetry = { resolution.complete(ModelErrorAction.RETRY) },
+                onSkip = { resolution.complete(ModelErrorAction.SKIP) }
             )
         }
-        return if (shouldBlock) resolution.await() else null
+        return resolution.await()
     }
 
     private suspend fun skipStandardImage(
@@ -1365,7 +1266,6 @@ internal class FolderTranslationCoordinator(
     }
 
     private companion object {
-        private const val MAX_PENDING_MODEL_ERRORS = 3
         private const val USER_CANCELED_REASON = "user_canceled_translation"
     }
 }

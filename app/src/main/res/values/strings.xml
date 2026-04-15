@@ -377,6 +377,7 @@
     <string name="model_response_failed_message">模型返回有问题的结果，翻译已终止：
 %1$s</string>
     <string name="translation_continue">重试</string>
+    <string name="translation_skip">跳过</string>
     <string name="error_code_with_label">错误码：%1$s</string>
 
     <!-- Foreground Notifications -->

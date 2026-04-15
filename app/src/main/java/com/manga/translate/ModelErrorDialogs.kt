@@ -6,24 +6,24 @@ import androidx.appcompat.app.AlertDialog
 internal fun showModelErrorDialog(
     context: Context,
     responseContent: String,
-    onContinue: (() -> Unit)? = null,
-    onCancel: (() -> Unit)? = null,
+    onRetry: (() -> Unit)? = null,
+    onSkip: (() -> Unit)? = null,
     windowType: Int? = null
 ): AlertDialog {
     val dialog = AlertDialog.Builder(context)
         .setTitle(R.string.model_response_failed_title)
         .setMessage(ErrorDialogFormatter.formatModelErrorMessage(context, responseContent))
-        .setNegativeButton(android.R.string.cancel) { _, _ -> onCancel?.invoke() }
+        .setNegativeButton(R.string.translation_skip) { _, _ -> onSkip?.invoke() }
         .apply {
-            if (onContinue != null) {
-                setPositiveButton(R.string.translation_continue) { _, _ -> onContinue.invoke() }
+            if (onRetry != null) {
+                setPositiveButton(R.string.translation_continue) { _, _ -> onRetry.invoke() }
             } else {
                 setPositiveButton(android.R.string.ok, null)
             }
         }
         .create()
     dialog.setCanceledOnTouchOutside(false)
-    dialog.setOnCancelListener { onCancel?.invoke() }
+    dialog.setOnCancelListener { onSkip?.invoke() }
     if (windowType != null) {
         dialog.window?.setType(windowType)
     }

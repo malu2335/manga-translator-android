@@ -8,8 +8,16 @@ internal interface LibraryUiCallbacks {
     fun showToast(resId: Int)
     fun showToastMessage(message: String)
     fun showApiError(code: String, detail: String? = null)
-    fun showModelError(content: String, onContinue: (() -> Unit)?, onCancel: (() -> Unit)? = null)
+    fun showModelError(
+        content: String,
+        useSystemOverlay: Boolean,
+        onRetry: (() -> Unit)?,
+        onSkip: (() -> Unit)? = null
+    )
     fun refreshFolders()
     fun refreshImages(folder: File)
+    fun isUiAttached(): Boolean
     fun isFragmentActive(): Boolean
+    fun isLibraryInForeground(): Boolean
+    fun canShowSystemOverlay(): Boolean
 }

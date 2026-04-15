@@ -1279,7 +1279,7 @@ class FloatingBallOverlayService : Service() {
         val dialog = com.manga.translate.showModelErrorDialog(
             context = this,
             responseContent = responseContent,
-            onContinue = onContinue,
+            onRetry = onContinue,
             windowType =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
