@@ -376,7 +376,7 @@
     <string name="model_response_failed_title">模型返回異常</string>
     <string name="model_response_failed_message">模型返回有問題的結果，翻譯已終止：
 %1$s</string>
-    <string name="translation_continue">繼續翻譯</string>
+    <string name="translation_continue">重試</string>
     <string name="error_code_with_label">錯誤碼：%1$s</string>
 
     <!-- Foreground Notifications -->

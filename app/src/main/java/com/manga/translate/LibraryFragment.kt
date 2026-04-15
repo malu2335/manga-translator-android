@@ -28,8 +28,15 @@ import androidx.recyclerview.widget.SimpleItemAnimator
 import com.manga.translate.databinding.FragmentLibraryBinding
 import com.manga.translate.di.appContainer
 import java.io.File
+import java.util.ArrayDeque
 
 class LibraryFragment : Fragment() {
+    private data class PendingModelErrorDialog(
+        val content: String,
+        val onRetry: (() -> Unit)?,
+        val onSkip: (() -> Unit)?
+    )
+
     private var _binding: FragmentLibraryBinding? = null
     private val binding get() = _binding!!
 
@@ -64,6 +71,8 @@ class LibraryFragment : Fragment() {
     private var folderDetailContentBaseTopPadding: Int = 0
     private var isChapterSelectionMode: Boolean = false
     private var isLibrarySelectionMode: Boolean = false
+    private val pendingModelErrorDialogs = ArrayDeque<PendingModelErrorDialog>()
+    private var activeModelErrorDialog: AlertDialog? = null
 
     private val tutorialUrlGithub =
         "https://github.com/jedzqer/manga-translator/blob/main/Tutorial/简中教程.md"
@@ -126,8 +135,18 @@ class LibraryFragment : Fragment() {
             onContinue: (() -> Unit)?,
             onCancel: (() -> Unit)?
         ) {
-            if (!isAdded) return
-            dialogs.showModelErrorDialog(requireContext(), content, onContinue, onCancel)
+            if (!isAdded) {
+                onCancel?.invoke()
+                return
+            }
+            pendingModelErrorDialogs.addLast(
+                PendingModelErrorDialog(
+                    content = content,
+                    onRetry = onContinue,
+                    onSkip = onCancel
+                )
+            )
+            showNextModelErrorDialog()
         }
 
         override fun refreshFolders() {
@@ -462,8 +481,28 @@ class LibraryFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        activeModelErrorDialog?.dismiss()
+        activeModelErrorDialog = null
+        pendingModelErrorDialogs.clear()
         super.onDestroyView()
         _binding = null
+    }
+
+    private fun showNextModelErrorDialog() {
+        if (!isAdded || activeModelErrorDialog != null) return
+        if (pendingModelErrorDialogs.isEmpty()) return
+        val request = pendingModelErrorDialogs.removeFirst()
+        val dialog = dialogs.showModelErrorDialog(
+            requireContext(),
+            request.content,
+            onContinue = request.onRetry,
+            onCancel = request.onSkip
+        )
+        activeModelErrorDialog = dialog
+        dialog.setOnDismissListener {
+            activeModelErrorDialog = null
+            showNextModelErrorDialog()
+        }
     }
 
     private fun showFolderList() {

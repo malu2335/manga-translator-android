@@ -246,8 +246,8 @@ internal class LibraryDialogs {
         responseContent: String,
         onContinue: (() -> Unit)? = null,
         onCancel: (() -> Unit)? = null
-    ) {
-        com.manga.translate.showModelErrorDialog(
+    ): AlertDialog {
+        return com.manga.translate.showModelErrorDialog(
             context = context,
             responseContent = responseContent,
             onContinue = onContinue,

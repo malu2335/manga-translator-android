@@ -22,6 +22,8 @@ internal fun showModelErrorDialog(
             }
         }
         .create()
+    dialog.setCanceledOnTouchOutside(false)
+    dialog.setOnCancelListener { onCancel?.invoke() }
     if (windowType != null) {
         dialog.window?.setType(windowType)
     }
