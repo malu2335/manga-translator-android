@@ -20,7 +20,11 @@ internal class PageRegionDetector(
 
     fun detect(bitmap: Bitmap, logTag: String = "PageRegionDetector"): PageRegionDetectionResult? {
         val bubbleDetector = getBubbleDetector(logTag) ?: return null
-        val detections = bubbleDetector.detect(bitmap)
+        val detections = filterTinyBubbleDetections(
+            detections = bubbleDetector.detect(bitmap),
+            bitmap = bitmap,
+            logTag = logTag
+        )
         val bubbleRects = detections.map { it.rect }
         val textRects = detectSupplementTextRects(bitmap, detections)
         if (textRects.isNotEmpty()) {
@@ -171,6 +175,42 @@ internal class PageRegionDetector(
         return filtered
     }
 
+    private fun filterTinyBubbleDetections(
+        detections: List<BubbleDetection>,
+        bitmap: Bitmap,
+        logTag: String
+    ): List<BubbleDetection> {
+        if (detections.isEmpty()) return detections
+        val filtered = detections.filterNot { isTinyErrorBubble(it.rect, bitmap) }
+        val removedCount = detections.size - filtered.size
+        if (removedCount > 0) {
+            AppLogger.log(
+                logTag,
+                "Filtered $removedCount tiny bubble false positives, kept ${filtered.size}"
+            )
+        }
+        return filtered
+    }
+
+    private fun isTinyErrorBubble(rect: RectF, bitmap: Bitmap): Boolean {
+        val width = rect.width().coerceAtLeast(0f)
+        val height = rect.height().coerceAtLeast(0f)
+        if (width <= 0f || height <= 0f) return true
+
+        val shortSide = min(width, height)
+        val longSide = max(width, height)
+        val imageMinSide = min(bitmap.width, bitmap.height).toFloat().coerceAtLeast(1f)
+        val imageArea = (bitmap.width.toFloat() * bitmap.height.toFloat()).coerceAtLeast(1f)
+        val areaRatio = (width * height) / imageArea
+
+        val maxShortSide = max(TINY_BUBBLE_SHORT_SIDE_MIN_PX, imageMinSide * TINY_BUBBLE_SHORT_SIDE_RATIO)
+        val maxLongSide = max(TINY_BUBBLE_LONG_SIDE_MIN_PX, imageMinSide * TINY_BUBBLE_LONG_SIDE_RATIO)
+
+        return shortSide <= maxShortSide &&
+            longSide <= maxLongSide &&
+            areaRatio <= TINY_BUBBLE_MAX_AREA_RATIO
+    }
+
     private fun iou(a: RectF, b: RectF): Float {
         val left = max(a.left, b.left)
         val top = max(a.top, b.top)
@@ -194,6 +234,11 @@ internal class PageRegionDetector(
         private const val TEXT_IOU_THRESHOLD = 0.2f
         private const val MASK_EXPAND_RATIO = 0.1f
         private const val MASK_EXPAND_MIN = 4f
+        private const val TINY_BUBBLE_SHORT_SIDE_MIN_PX = 26f
+        private const val TINY_BUBBLE_LONG_SIDE_MIN_PX = 56f
+        private const val TINY_BUBBLE_SHORT_SIDE_RATIO = 0.032f
+        private const val TINY_BUBBLE_LONG_SIDE_RATIO = 0.075f
+        private const val TINY_BUBBLE_MAX_AREA_RATIO = 0.0022f
     }
 }
 
