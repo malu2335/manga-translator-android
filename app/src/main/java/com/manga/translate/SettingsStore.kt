@@ -47,6 +47,7 @@ data class FloatingTranslateApiSettings(
 
 data class NormalBubbleRenderSettings(
     val shrinkPercent: Int,
+    val opacityPercent: Int,
     val freeBubbleShrinkPercent: Int,
     val freeBubbleOpacityPercent: Int,
     val fontScalePercent: Int,
@@ -250,6 +251,7 @@ class SettingsStore(context: Context) {
                 MIN_NORMAL_BUBBLE_SHRINK_PERCENT,
                 MAX_NORMAL_BUBBLE_SHRINK_PERCENT
             ),
+            opacityPercent = loadTranslationBubbleOpacityPercent(),
             freeBubbleShrinkPercent = prefs.getInt(
                 KEY_NORMAL_FREE_BUBBLE_SHRINK_PERCENT,
                 DEFAULT_NORMAL_FREE_BUBBLE_SHRINK_PERCENT
@@ -282,6 +284,13 @@ class SettingsStore(context: Context) {
                     settings.shrinkPercent.coerceIn(
                         MIN_NORMAL_BUBBLE_SHRINK_PERCENT,
                         MAX_NORMAL_BUBBLE_SHRINK_PERCENT
+                    )
+                )
+                .putInt(
+                    KEY_TRANSLATION_BUBBLE_OPACITY_PERCENT,
+                    settings.opacityPercent.coerceIn(
+                        MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT,
+                        MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT
                     )
                 )
                 .putInt(

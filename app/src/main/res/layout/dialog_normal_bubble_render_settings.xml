@@ -36,6 +36,21 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
+            android:hint="@string/normal_bubble_opacity_percent_hint">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/normal_bubble_opacity_percent_input"
+                style="@style/Widget.MangaTranslator.EditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.MangaTranslator.Input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:hint="@string/normal_bubble_free_shrink_percent_hint">
 
             <com.google.android.material.textfield.TextInputEditText

@@ -75,7 +75,7 @@ class BubbleRenderer(context: Context) {
         val opacityPercent = if (bubble.source == BubbleSource.TEXT_DETECTOR) {
             bubbleRenderSettings.freeBubbleOpacityPercent
         } else {
-            100
+            bubbleRenderSettings.opacityPercent
         }
         return ((opacityPercent.coerceIn(0, 100) / 100f) * 255f).toInt()
     }

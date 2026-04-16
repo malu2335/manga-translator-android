@@ -123,6 +123,7 @@
     <string name="normal_bubble_render_settings_title">普通气泡框设置</string>
     <string name="normal_bubble_render_settings_note">用于阅读页、条漫页和导出图片的普通气泡框绘制。可分别设置普通气泡和游离气泡的回缩与透明度。游离气泡仅指普通模式下由文本检测补出的框，不包含用户手动新增气泡。</string>
     <string name="normal_bubble_shrink_percent_hint">气泡框回缩 (0–30)</string>
+    <string name="normal_bubble_opacity_percent_hint">普通气泡透明度 (0–100)</string>
     <string name="normal_bubble_free_shrink_percent_hint">游离气泡回缩 (0–30)</string>
     <string name="normal_bubble_free_opacity_percent_hint">游离气泡透明度 (0–100)</string>
     <string name="normal_bubble_font_scale_percent_hint">字体大小 (50–200，100 为默认)</string>
