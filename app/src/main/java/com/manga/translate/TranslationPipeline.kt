@@ -21,7 +21,6 @@ internal class TranslationPipeline(
     private val textBubbleTranslationCoordinator: TextBubbleTranslationCoordinator =
         TextBubbleTranslationCoordinator(
             llmClient = llmClient,
-            settingsStore = settingsStore,
             floatingTranslationCacheStore = floatingTranslationCacheStore
         ),
     private val floatingBubbleTranslationCoordinator: FloatingBubbleTranslationCoordinator =
@@ -81,7 +80,7 @@ internal class TranslationPipeline(
                     promptAsset = promptAsset,
                     language = language,
                     logTag = "Pipeline",
-                    invalidResponseMode = "standard"
+                    translationMode = "standard"
                 )
             } ?: return@withContext null
             if (translated.glossaryUsed.isNotEmpty()) {
@@ -299,7 +298,7 @@ internal class TranslationPipeline(
                     promptAsset = promptAsset,
                     language = language,
                     logTag = "Pipeline",
-                    invalidResponseMode = "full_page"
+                    translationMode = "full_page"
                 )
             } ?: return@withContext null
             translated.bubbles

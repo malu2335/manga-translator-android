@@ -2,7 +2,6 @@ package com.manga.translate
 
 internal class TextBubbleTranslationCoordinator(
     private val llmClient: LlmClient,
-    private val settingsStore: SettingsStore,
     private val floatingTranslationCacheStore: FloatingTranslationCacheStore? = null
 ) {
 
@@ -16,7 +15,7 @@ internal class TextBubbleTranslationCoordinator(
         language: TranslationLanguage = TranslationLanguage.JA_TO_ZH,
         logTag: String,
         useFloatingTextCache: Boolean = false,
-        invalidResponseMode: String
+        translationMode: String
     ): TextBubbleTranslationBatchResult? {
         if (bubbles.isEmpty()) {
             return TextBubbleTranslationBatchResult(bubbles = bubbles, glossaryUsed = emptyMap())
@@ -63,9 +62,11 @@ internal class TextBubbleTranslationCoordinator(
 
         fun merge(): List<BubbleTranslation> {
             return bubbles.map { bubble ->
-                translatedMap[bubble.id]?.takeIf { it.isNotBlank() }?.let { translated ->
-                    bubble.copy(text = translated)
-                } ?: bubble
+                if (translatedMap.containsKey(bubble.id)) {
+                    bubble.copy(text = translatedMap[bubble.id].orEmpty())
+                } else {
+                    bubble
+                }
             }
         }
 
@@ -77,11 +78,14 @@ internal class TextBubbleTranslationCoordinator(
         }
 
         AppLogger.log(logTag, "Translate request segments=${cacheMisses.size}")
-        val taggedText = cacheMisses.joinToString("\n") {
-            "<b>${normalizeOcrText(it.text, language)}</b>"
+        val requestItems = cacheMisses.map {
+            LlmBubbleTranslationRequestItem(
+                id = it.id,
+                text = normalizeOcrText(it.text, language)
+            )
         }
-        val translated = llmClient.translate(
-            text = taggedText,
+        val translated = llmClient.translateBubbleItems(
+            items = requestItems,
             glossary = glossary,
             promptAsset = promptAsset,
             requestTimeoutMs = requestTimeoutMs,
@@ -89,38 +93,33 @@ internal class TextBubbleTranslationCoordinator(
             apiSettings = resolvedApiSettings
         ) ?: return null
 
-        var missingTags = false
-        var countMismatch = false
-        val segments = extractTaggedSegments(
-            translated.translation,
-            cacheMisses.map { it.text },
-            onMissingTags = {
-                missingTags = true
-                AppLogger.log(logTag, "Missing <b> tags in $invalidResponseMode translation")
-            },
-            onCountMismatch = { expected, actual ->
-                countMismatch = true
-                AppLogger.log(
-                    logTag,
-                    "Translation count mismatch in $invalidResponseMode: expected $expected, got $actual"
+        val translationById = LinkedHashMap<Int, String>(translated.items.size)
+        val duplicateIds = LinkedHashSet<Int>()
+        for (item in translated.items) {
+            val normalizedTranslation = item.translation.trim()
+            if (translationById.putIfAbsent(item.id, normalizedTranslation) != null) {
+                duplicateIds.add(item.id)
+            }
+        }
+        val requestedIds = requestItems.map { it.id }
+        val requestedIdSet = requestedIds.toSet()
+        val unexpectedIds = translationById.keys.filter { it !in requestedIdSet }
+        val missingIds = requestedIds.filter { translationById[it].isNullOrBlank() }
+        if (duplicateIds.isNotEmpty() || unexpectedIds.isNotEmpty() || missingIds.isNotEmpty()) {
+            AppLogger.log(
+                logTag,
+                buildStructuredTranslationErrorLog(
+                    mode = translationMode,
+                    requestedIds = requestedIds,
+                    duplicateIds = duplicateIds.toList(),
+                    unexpectedIds = unexpectedIds,
+                    missingIds = missingIds
                 )
-            }
-        )
-        if (missingTags || countMismatch || segments.any { it.isBlank() }) {
-            val reason = when {
-                missingTags -> "模型返回内容缺少 <b> 标签"
-                countMismatch -> "模型返回的气泡数量与请求数量不一致"
-                else -> "模型返回空白结果"
-            }
-            throw LlmResponseException(
-                errorCode = "EMPTY_TRANSLATION_SEGMENT",
-                responseContent = "$reason：$invalidResponseMode 模式下未返回有效翻译内容。"
             )
         }
 
-        for (i in cacheMisses.indices) {
-            val source = cacheMisses[i]
-            val translatedText = segments.getOrElse(i) { source.text }
+        for (source in cacheMisses) {
+            val translatedText = translationById[source.id].orEmpty()
             translatedMap[source.id] = translatedText
             if (useFloatingTextCache && translatedText.isNotBlank()) {
                 floatingTranslationCacheStore?.putTextTranslation(source.text, translatedText)
@@ -138,3 +137,37 @@ internal data class TextBubbleTranslationBatchResult(
     val bubbles: List<BubbleTranslation>,
     val glossaryUsed: Map<String, String>
 )
+
+private fun buildStructuredTranslationErrorLog(
+    mode: String,
+    requestedIds: List<Int>,
+    duplicateIds: List<Int>,
+    unexpectedIds: List<Int>,
+    missingIds: List<Int>
+): String {
+    return buildString {
+        append("Structured translation partial in ")
+        append(mode)
+        append(": requested=")
+        append(summarizeIdsForLog(requestedIds))
+        if (duplicateIds.isNotEmpty()) {
+            append(", duplicate=")
+            append(summarizeIdsForLog(duplicateIds))
+        }
+        if (unexpectedIds.isNotEmpty()) {
+            append(", unexpected=")
+            append(summarizeIdsForLog(unexpectedIds))
+        }
+        if (missingIds.isNotEmpty()) {
+            append(", missing=")
+            append(summarizeIdsForLog(missingIds))
+        }
+    }
+}
+
+private fun summarizeIdsForLog(ids: List<Int>, limit: Int = 12): String {
+    if (ids.isEmpty()) return "[]"
+    val normalized = ids.distinct()
+    val shown = normalized.take(limit).joinToString(prefix = "[", postfix = "]")
+    return if (normalized.size <= limit) shown else "$shown...(${normalized.size} total)"
+}

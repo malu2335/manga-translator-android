@@ -15,7 +15,6 @@ internal class FloatingBubbleTranslationCoordinator(
 ) {
     private val textBubbleTranslationCoordinator = TextBubbleTranslationCoordinator(
         llmClient = llmClient,
-        settingsStore = settingsStore,
         floatingTranslationCacheStore = floatingTranslationCacheStore
     )
 
@@ -84,7 +83,7 @@ internal class FloatingBubbleTranslationCoordinator(
                 language = language,
                 logTag = logTag,
                 useFloatingTextCache = false,
-                invalidResponseMode = "floating_text"
+                translationMode = "floating_text"
             ) ?: return null
             for (bubble in result.bubbles) {
                 if (bubble.text.isNotBlank()) {
@@ -216,16 +215,9 @@ internal class FloatingBubbleTranslationCoordinator(
 
 private fun buildBlankModelResponseMessage(
     bubbleCount: Int,
-    mode: String,
-    countMismatch: Boolean = false,
-    missingTags: Boolean = false
+    mode: String
 ): String {
-    val reason = when {
-        missingTags -> "模型返回内容缺少 <b> 标签"
-        countMismatch -> "模型返回的气泡数量与请求数量不一致"
-        else -> "模型返回空白结果"
-    }
-    return "$reason：$mode 模式下有 $bubbleCount 个气泡未返回有效翻译内容。"
+    return "模型返回空白结果：$mode 模式下有 $bubbleCount 个气泡未返回有效翻译内容。"
 }
 
 internal data class FloatingBubbleImageTranslateOutcome(

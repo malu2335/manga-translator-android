@@ -55,6 +55,29 @@ class LlmClient(
             parseTranslationContent(content)
     }
 
+    suspend fun translateBubbleItems(
+        items: List<LlmBubbleTranslationRequestItem>,
+        glossary: Map<String, String>,
+        promptAsset: String = PROMPT_CONFIG_ASSET,
+        requestTimeoutMs: Int? = null,
+        retryCount: Int = RETRY_COUNT,
+        apiSettings: ApiSettings? = null
+    ): LlmBubbleTranslationResult? =
+        withContext(Dispatchers.IO) {
+            val content = requestContent(
+                text = "",
+                glossary = glossary,
+                promptAsset = promptAsset,
+                useJsonPayload = true,
+                requestTimeoutMs = requestTimeoutMs,
+                retryCount = retryCount,
+                apiSettings = apiSettings,
+                userPayloadOverride = buildBubbleItemsUserPayload(items, glossary)
+            )
+                ?: return@withContext null
+            parseBubbleTranslationContent(content, items.map { it.id })
+        }
+
     suspend fun extractGlossary(
         text: String,
         glossary: Map<String, String>,
@@ -154,20 +177,24 @@ class LlmClient(
         useJsonPayload: Boolean,
         requestTimeoutMs: Int? = null,
         retryCount: Int = RETRY_COUNT,
-        apiSettings: ApiSettings? = null
+        apiSettings: ApiSettings? = null,
+        userPayloadOverride: String? = null
     ): String? {
         val settings = apiSettings ?: settingsStore.load()
         if (!settings.isValid()) return null
         val selectedModel = selectModelForRequest(settings.modelName)
         val endpoint = buildEndpoint(settings, selectedModel)
+        val userPayload = userPayloadOverride ?: if (useJsonPayload) {
+            buildUserPayload(text, glossary)
+        } else {
+            text
+        }
         val payload = buildPayload(
-            text = text,
-            glossary = glossary,
             settings = settings,
             modelName = selectedModel,
             promptAsset = promptAsset,
-            useJsonPayload = useJsonPayload,
-            apiFormat = settings.apiFormat
+            apiFormat = settings.apiFormat,
+            userPayload = userPayload
         )
         val logModelIo = settingsStore.loadModelIoLogging()
         if (logModelIo) {
@@ -421,40 +448,32 @@ class LlmClient(
     }
 
     private fun buildPayload(
-        text: String,
-        glossary: Map<String, String>,
         settings: ApiSettings,
         modelName: String,
         promptAsset: String,
-        useJsonPayload: Boolean,
-        apiFormat: ApiFormat
+        apiFormat: ApiFormat,
+        userPayload: String
     ): JSONObject {
         val config = getPromptConfig(promptAsset)
         return when (apiFormat) {
             ApiFormat.OPENAI_COMPATIBLE -> buildOpenAiPayload(
-                text = text,
-                glossary = glossary,
                 settings = settings,
                 modelName = modelName,
                 config = config,
-                useJsonPayload = useJsonPayload
+                userPayload = userPayload
             )
             ApiFormat.GEMINI -> buildGeminiTextPayload(
-                text = text,
-                glossary = glossary,
                 config = config,
-                useJsonPayload = useJsonPayload
+                userPayload = userPayload
             )
         }
     }
 
     private fun buildOpenAiPayload(
-        text: String,
-        glossary: Map<String, String>,
         settings: ApiSettings,
         modelName: String,
         config: LlmPromptConfig,
-        useJsonPayload: Boolean
+        userPayload: String
     ): JSONObject {
         val llmParams = settingsStore.loadLlmParameters()
         val messages = JSONArray()
@@ -475,11 +494,7 @@ class LlmClient(
                 .put("role", "user")
                 .put(
                     "content",
-                    config.userPromptPrefix + if (useJsonPayload) {
-                        buildUserPayload(text, glossary)
-                    } else {
-                        text
-                    }
+                    config.userPromptPrefix + userPayload
                 )
         )
         val payload = JSONObject()
@@ -492,22 +507,16 @@ class LlmClient(
     }
 
     private fun buildGeminiTextPayload(
-        text: String,
-        glossary: Map<String, String>,
         config: LlmPromptConfig,
-        useJsonPayload: Boolean
+        userPayload: String
     ): JSONObject {
-        val userText = config.userPromptPrefix + if (useJsonPayload) {
-            buildUserPayload(text, glossary)
-        } else {
-            text
-        }
+        val userText = config.userPromptPrefix + userPayload
         val payload = JSONObject()
             .put("contents", buildGeminiContents(config, buildGeminiUserParts(buildGeminiTextPart(userText))))
         if (config.systemPrompt.isNotBlank()) {
             payload.put("systemInstruction", buildGeminiSystemInstruction(config.systemPrompt))
         }
-        buildGeminiGenerationConfig(useJsonPayload)?.let { payload.put("generationConfig", it) }
+        buildGeminiGenerationConfig(useJsonPayload = true)?.let { payload.put("generationConfig", it) }
         applyCustomRequestParameters(payload, ApiFormat.GEMINI)
         return payload
     }
@@ -819,17 +828,7 @@ class LlmClient(
                 AppLogger.log("LlmClient", "Missing translation field in response")
                 throw LlmResponseException("MISSING_TRANSLATION", content)
             }
-            val glossary = mutableMapOf<String, String>()
-            val glossaryJson = json.optJSONObject("glossary_used")
-            if (glossaryJson != null) {
-                for (key in glossaryJson.keys()) {
-                    val value = glossaryJson.optString(key).trim()
-                    if (key.isNotBlank() && value.isNotBlank()) {
-                        glossary[key] = value
-                    }
-                }
-            }
-            LlmTranslationResult(translation, glossary)
+            LlmTranslationResult(translation, parseGlossaryUsed(json))
         } catch (e: LlmResponseException) {
             throw e
         } catch (e: Exception) {
@@ -848,6 +847,119 @@ class LlmClient(
         if (trimmed.startsWith("{") || trimmed.startsWith("[")) return null
         // Some OpenAI-compatible providers still return the translation as plain text.
         return LlmTranslationResult(trimmed, emptyMap())
+    }
+
+    private fun parseBubbleTranslationContent(
+        content: String,
+        requestedIds: List<Int>
+    ): LlmBubbleTranslationResult {
+        val cleaned = stripCodeFence(content)
+        val directFallback = parseBubbleTranslationFallback(cleaned, requestedIds)
+        if (directFallback != null) {
+            return directFallback
+        }
+        return try {
+            if (cleaned.trim().startsWith("[")) {
+                val items = parseBubbleTranslationItems(JSONArray(cleaned), requestedIds)
+                if (items.isEmpty()) {
+                    throw LlmResponseException("MISSING_TRANSLATION_ITEMS", content)
+                }
+                return LlmBubbleTranslationResult(items = items, glossaryUsed = emptyMap())
+            }
+            val json = JSONObject(cleaned)
+            val items = extractBubbleTranslationItems(json, requestedIds)
+            if (items.isEmpty()) {
+                AppLogger.log("LlmClient", "Missing items field in structured translation response")
+                throw LlmResponseException("MISSING_TRANSLATION_ITEMS", content)
+            }
+            LlmBubbleTranslationResult(items = items, glossaryUsed = parseGlossaryUsed(json))
+        } catch (e: LlmResponseException) {
+            throw e
+        } catch (e: Exception) {
+            AppLogger.log(
+                "LlmClient",
+                "Invalid structured translation response format: ${summarizeBody(content)}",
+                e
+            )
+            throw LlmResponseException("INVALID_FORMAT", content, e)
+        }
+    }
+
+    private fun parseBubbleTranslationFallback(
+        content: String,
+        requestedIds: List<Int>
+    ): LlmBubbleTranslationResult? {
+        val trimmed = content.trim()
+        if (trimmed.isBlank()) return null
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) return null
+        val singleId = requestedIds.singleOrNull() ?: return null
+        return LlmBubbleTranslationResult(
+            items = listOf(LlmBubbleTranslationItem(id = singleId, translation = trimmed)),
+            glossaryUsed = emptyMap()
+        )
+    }
+
+    private fun extractBubbleTranslationItems(
+        json: JSONObject,
+        requestedIds: List<Int>
+    ): List<LlmBubbleTranslationItem> {
+        findBubbleTranslationItemsArray(json)?.let { array ->
+            return parseBubbleTranslationItems(array, requestedIds)
+        }
+        val singleId = requestedIds.singleOrNull()
+        val translation = extractTranslationText(json)
+        if (singleId != null && translation.isNotBlank()) {
+            return listOf(LlmBubbleTranslationItem(id = singleId, translation = translation))
+        }
+        return emptyList()
+    }
+
+    private fun findBubbleTranslationItemsArray(json: JSONObject): JSONArray? {
+        val directKeys = listOf("items", "translations", "translation_items", "translationItems")
+        for (key in directKeys) {
+            json.optJSONArray(key)?.let { return it }
+        }
+        val nestedKeys = listOf("data", "result", "output", "response", "message")
+        for (key in nestedKeys) {
+            val nested = json.optJSONObject(key) ?: continue
+            findBubbleTranslationItemsArray(nested)?.let { return it }
+        }
+        return null
+    }
+
+    private fun parseBubbleTranslationItems(
+        array: JSONArray,
+        requestedIds: List<Int>
+    ): List<LlmBubbleTranslationItem> {
+        val items = ArrayList<LlmBubbleTranslationItem>(array.length())
+        for (i in 0 until array.length()) {
+            val fallbackId = requestedIds.getOrNull(i)
+            when (val item = array.opt(i)) {
+                is JSONObject -> {
+                    val id = parseBubbleTranslationItemId(item.opt("id"))
+                        ?: parseBubbleTranslationItemId(item.opt("index"))
+                        ?: fallbackId
+                    val translation = extractTranslationText(item).trim()
+                    if (id != null) {
+                        items.add(LlmBubbleTranslationItem(id = id, translation = translation))
+                    }
+                }
+                is String -> {
+                    if (fallbackId != null) {
+                        items.add(LlmBubbleTranslationItem(id = fallbackId, translation = item.trim()))
+                    }
+                }
+            }
+        }
+        return items
+    }
+
+    private fun parseBubbleTranslationItemId(value: Any?): Int? {
+        return when (value) {
+            is Number -> value.toInt()
+            is String -> value.trim().toIntOrNull()
+            else -> null
+        }
     }
 
     private fun extractTranslationText(json: JSONObject): String {
@@ -894,15 +1006,7 @@ class LlmClient(
         return try {
             val cleaned = stripCodeFence(content)
             val json = JSONObject(cleaned)
-            val glossaryJson = json.optJSONObject("glossary_used") ?: return emptyMap()
-            val glossary = mutableMapOf<String, String>()
-            for (key in glossaryJson.keys()) {
-                val value = glossaryJson.optString(key).trim()
-                if (key.isNotBlank() && value.isNotBlank()) {
-                    glossary[key] = value
-                }
-            }
-            glossary
+            parseGlossaryUsed(json)
         } catch (e: Exception) {
             AppLogger.log("LlmClient", "Glossary parse failed", e)
             emptyMap()
@@ -1167,14 +1271,57 @@ class LlmClient(
     }
 
     private fun buildUserPayload(text: String, glossary: Map<String, String>): String {
+        return JSONObject()
+            .put("text", text)
+            .put("glossary", buildGlossaryJson(glossary))
+            .toString()
+    }
+
+    private fun buildBubbleItemsUserPayload(
+        items: List<LlmBubbleTranslationRequestItem>,
+        glossary: Map<String, String>
+    ): String {
+        val itemsJson = JSONArray()
+        items.forEach { item ->
+            itemsJson.put(
+                JSONObject()
+                    .put("id", item.id)
+                    .put("text", item.text)
+            )
+        }
+        return JSONObject()
+            .put("items", itemsJson)
+            .put("glossary", buildGlossaryJson(glossary))
+            .toString()
+    }
+
+    private fun buildGlossaryJson(glossary: Map<String, String>): JSONObject {
         val glossaryJson = JSONObject()
         for ((key, value) in glossary) {
             glossaryJson.put(key, value)
         }
-        return JSONObject()
-            .put("text", text)
-            .put("glossary", glossaryJson)
-            .toString()
+        return glossaryJson
+    }
+
+    private fun parseGlossaryUsed(json: JSONObject): Map<String, String> {
+        json.optJSONObject("glossary_used")?.let { return parseGlossaryJson(it) }
+        val nestedKeys = listOf("data", "result", "output", "response", "message")
+        for (key in nestedKeys) {
+            val nested = json.optJSONObject(key) ?: continue
+            parseGlossaryUsed(nested).takeIf { it.isNotEmpty() }?.let { return it }
+        }
+        return emptyMap()
+    }
+
+    private fun parseGlossaryJson(glossaryJson: JSONObject): Map<String, String> {
+        val glossary = mutableMapOf<String, String>()
+        for (key in glossaryJson.keys()) {
+            val value = glossaryJson.optString(key).trim()
+            if (key.isNotBlank() && value.isNotBlank()) {
+                glossary[key] = value
+            }
+        }
+        return glossary
     }
 
     private fun stripCodeFence(content: String): String {
@@ -1244,6 +1391,21 @@ class LlmResponseException(
 data class LlmTranslationResult(
     val translation: String,
     val glossaryUsed: Map<String, String>
+)
+
+data class LlmBubbleTranslationRequestItem(
+    val id: Int,
+    val text: String
+)
+
+data class LlmBubbleTranslationResult(
+    val items: List<LlmBubbleTranslationItem>,
+    val glossaryUsed: Map<String, String>
+)
+
+data class LlmBubbleTranslationItem(
+    val id: Int,
+    val translation: String
 )
 
 private data class LlmPromptConfig(

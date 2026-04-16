@@ -118,7 +118,7 @@ internal class ReadingEmptyBubbleCoordinator(
                 promptAsset = promptAsset,
                 language = language,
                 logTag = "Reading",
-                invalidResponseMode = "reading_empty_bubble"
+                translationMode = "reading_empty_bubble"
             )
         } catch (e: LlmResponseException) {
             throw e.withPageName(imageFile.name)

@@ -44,7 +44,6 @@ internal class AppContainer(private val appContext: Context) {
     val textBubbleTranslationCoordinator by lazy(LazyThreadSafetyMode.NONE) {
         TextBubbleTranslationCoordinator(
             llmClient = llmClient,
-            settingsStore = settingsStore,
             floatingTranslationCacheStore = floatingTranslationCacheStore
         )
     }

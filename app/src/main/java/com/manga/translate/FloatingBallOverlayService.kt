@@ -1124,13 +1124,6 @@ class FloatingBallOverlayService : Service() {
                         }
                     } else {
                         firstPass
-                    }.also { translation ->
-                        if (translation.bubbles.any { it.text.isBlank() }) {
-                            throw LlmResponseException(
-                                errorCode = "EMPTY_TRANSLATION_SEGMENT",
-                                responseContent = "模型返回空白结果：检测到的部分气泡未返回有效翻译内容。"
-                            )
-                        }
                     }
                 }
                 withContext(Dispatchers.Main) {
