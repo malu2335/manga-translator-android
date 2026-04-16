@@ -84,6 +84,13 @@ class MainActivity : AppCompatActivity() {
         requestNotificationPermissionIfNeeded()
         maybeShowCrashDialog()
         checkForUpdate()
+        handleLaunchIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleLaunchIntent(intent)
     }
 
     fun switchToTab(index: Int) {
@@ -92,6 +99,13 @@ class MainActivity : AppCompatActivity() {
 
     fun setPagerSwipeEnabled(enabled: Boolean) {
         binding.mainPager.isUserInputEnabled = enabled
+    }
+
+    private fun handleLaunchIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(TranslationKeepAliveService.EXTRA_OPEN_LIBRARY_TAB, false) == true) {
+            switchToTab(MainPagerAdapter.LIBRARY_INDEX)
+            intent.removeExtra(TranslationKeepAliveService.EXTRA_OPEN_LIBRARY_TAB)
+        }
     }
 
     private fun checkForUpdate() {

@@ -18,6 +18,7 @@ internal interface LibraryUiCallbacks {
     fun refreshImages(folder: File)
     fun isUiAttached(): Boolean
     fun isFragmentActive(): Boolean
+    fun isAppInForeground(): Boolean
     fun isLibraryInForeground(): Boolean
     fun canShowSystemOverlay(): Boolean
 }

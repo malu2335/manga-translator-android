@@ -23,6 +23,7 @@ import androidx.core.view.isVisible
 import androidx.core.view.doOnLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -171,6 +172,14 @@ class LibraryFragment : Fragment() {
 
         override fun isFragmentActive(): Boolean {
             return isAdded && _binding != null
+        }
+
+        override fun isAppInForeground(): Boolean {
+            val hostActivity = activity ?: return false
+            return isAdded &&
+                hostActivity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) &&
+                !hostActivity.isFinishing &&
+                !hostActivity.isDestroyed
         }
 
         override fun isLibraryInForeground(): Boolean {
@@ -519,7 +528,7 @@ class LibraryFragment : Fragment() {
         if (!isAdded || activeModelErrorDialog != null) return
         if (pendingModelErrorDialogs.isEmpty()) return
         val request = pendingModelErrorDialogs.first()
-        if (!request.useSystemOverlay && !isResumed) return
+        if (!request.useSystemOverlay && !uiCallbacks.isAppInForeground()) return
         pendingModelErrorDialogs.removeFirst()
         val dialog = dialogs.showModelErrorDialog(
             requireContext(),

@@ -1089,14 +1089,30 @@ internal class FolderTranslationCoordinator(
     private suspend fun reportModelError(content: String): ModelErrorAction {
         val resolution = CompletableDeferred<ModelErrorAction>()
         if (!ui.isUiAttached()) {
+            AppLogger.log("Library", "Model error dialog skipped because UI is detached")
             return ModelErrorAction.SKIP
+        }
+        val appInForeground = ui.isAppInForeground()
+        val useSystemOverlay = !appInForeground && ui.canShowSystemOverlay()
+        if (!appInForeground && !useSystemOverlay) {
+            AppLogger.log(
+                "Library",
+                "Model error dialog queued for foreground display because library is in background and overlay is unavailable"
+            )
+            TranslationKeepAliveService.notifyModelErrorNeedsAttention(appContext)
         }
         withContext(Dispatchers.Main) {
             ui.showModelError(
                 content = content,
-                useSystemOverlay = !ui.isLibraryInForeground() && ui.canShowSystemOverlay(),
-                onRetry = { resolution.complete(ModelErrorAction.RETRY) },
-                onSkip = { resolution.complete(ModelErrorAction.SKIP) }
+                useSystemOverlay = useSystemOverlay,
+                onRetry = {
+                    TranslationKeepAliveService.clearModelErrorAttention(appContext)
+                    resolution.complete(ModelErrorAction.RETRY)
+                },
+                onSkip = {
+                    TranslationKeepAliveService.clearModelErrorAttention(appContext)
+                    resolution.complete(ModelErrorAction.SKIP)
+                }
             )
         }
         return resolution.await()

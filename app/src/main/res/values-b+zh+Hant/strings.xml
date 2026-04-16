@@ -397,6 +397,8 @@
 %1$s</string>
     <string name="translation_continue">重試</string>
     <string name="translation_skip">跳過</string>
+    <string name="model_error_attention_message">翻譯已暫停，點此返回應用處理模型錯誤</string>
+    <string name="model_error_attention_channel">翻譯錯誤提醒</string>
     <string name="error_code_with_label">錯誤碼：%1$s</string>
 
     <!-- Foreground Notifications -->

@@ -79,14 +79,18 @@ class TranslationKeepAliveService : Service() {
 
     companion object {
         private const val CHANNEL_ID = "translation_keepalive"
+        private const val ALERT_CHANNEL_ID = "translation_alerts"
         private const val NOTIFICATION_ID = 1001
+        private const val ALERT_NOTIFICATION_ID = 1002
         private const val NOTIFICATION_REQUEST_CODE = 0
+        private const val ALERT_NOTIFICATION_REQUEST_CODE = 2
         private const val CANCEL_REQUEST_CODE = 1
         private const val WAKELOCK_TIMEOUT_MS = 60 * 60 * 1000L
         private const val EXTRA_TITLE = "extra_title"
         private const val EXTRA_MESSAGE = "extra_message"
         private const val EXTRA_CONTENT = "extra_content"
         private const val ACTION_CANCEL_TRANSLATION = "com.manga.translate.action.CANCEL_TRANSLATION"
+        const val EXTRA_OPEN_LIBRARY_TAB = "extra_open_library_tab"
         @Volatile
         private var cancelActionEnabled: Boolean = false
 
@@ -130,6 +134,7 @@ class TranslationKeepAliveService : Service() {
 
         fun stop(context: Context) {
             cancelActionEnabled = false
+            clearModelErrorAttention(context)
             val intent = Intent(context, TranslationKeepAliveService::class.java)
             context.stopService(intent)
         }
@@ -147,6 +152,36 @@ class TranslationKeepAliveService : Service() {
                 null,
                 null
             )
+        }
+
+        fun notifyModelErrorNeedsAttention(context: Context) {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            ensureAlertChannel(context, manager)
+            val openIntent = Intent(context, MainActivity::class.java).apply {
+                putExtra(EXTRA_OPEN_LIBRARY_TAB, true)
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                ALERT_NOTIFICATION_REQUEST_CODE,
+                openIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val notification = NotificationCompat.Builder(context, ALERT_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_notify_error)
+                .setContentTitle(context.getString(R.string.model_response_failed_title))
+                .setContentText(context.getString(R.string.model_error_attention_message))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_ERROR)
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent)
+                .build()
+            manager.notify(ALERT_NOTIFICATION_ID, notification)
+        }
+
+        fun clearModelErrorAttention(context: Context) {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.cancel(ALERT_NOTIFICATION_ID)
         }
 
         fun updateStatus(context: Context, status: String, title: String, message: String) {
@@ -255,6 +290,17 @@ class TranslationKeepAliveService : Service() {
                     CHANNEL_ID,
                     context.getString(R.string.translation_keepalive_channel),
                     NotificationManager.IMPORTANCE_LOW
+                )
+                manager.createNotificationChannel(channel)
+            }
+        }
+
+        private fun ensureAlertChannel(context: Context, manager: NotificationManager) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    ALERT_CHANNEL_ID,
+                    context.getString(R.string.model_error_attention_channel),
+                    NotificationManager.IMPORTANCE_HIGH
                 )
                 manager.createNotificationChannel(channel)
             }
