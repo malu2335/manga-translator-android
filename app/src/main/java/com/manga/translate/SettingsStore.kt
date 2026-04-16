@@ -979,8 +979,8 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_NORMAL_BUBBLE_SHRINK_PERCENT = 10
         private const val MIN_NORMAL_BUBBLE_SHRINK_PERCENT = 0
         private const val MAX_NORMAL_BUBBLE_SHRINK_PERCENT = 30
-        private const val DEFAULT_NORMAL_FREE_BUBBLE_SHRINK_PERCENT = 0
-        private const val DEFAULT_NORMAL_FREE_BUBBLE_OPACITY_PERCENT = 65
+        private const val DEFAULT_NORMAL_FREE_BUBBLE_SHRINK_PERCENT = 10
+        private const val DEFAULT_NORMAL_FREE_BUBBLE_OPACITY_PERCENT = 90
         private const val DEFAULT_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 100
         private const val MIN_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 50
         private const val MAX_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 200
@@ -990,7 +990,7 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_API_TIMEOUT_SECONDS = 300
         private const val MIN_API_TIMEOUT_SECONDS = 30
         private const val MAX_API_TIMEOUT_SECONDS = 1200
-        private const val DEFAULT_TRANSLATION_BUBBLE_OPACITY_PERCENT = 80
+        private const val DEFAULT_TRANSLATION_BUBBLE_OPACITY_PERCENT = 100
         private const val MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT = 0
         private const val MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT = 100
         private const val DEFAULT_BUBBLE_CONF_THRESHOLD_PERCENT = 20
