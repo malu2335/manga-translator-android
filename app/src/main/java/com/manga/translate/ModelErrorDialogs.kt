@@ -22,13 +22,12 @@ internal fun showModelErrorDialog(
                 setPositiveButton(android.R.string.ok, null)
             }
         }
-        .create()
+        .createWithScrollableMessage()
     dialog.setCanceledOnTouchOutside(false)
     dialog.setOnCancelListener { onSkip?.invoke() }
     if (windowType != null) {
         dialog.window?.setType(windowType)
     }
     dialog.show()
-    dialog.enableScrollableMessage()
     return dialog
 }

@@ -12,11 +12,15 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.widget.NestedScrollView
 
 internal fun AlertDialog.Builder.showWithScrollableMessage(): AlertDialog {
-    attachSafeScrollableMessageIfNeeded()
-    return create().also { dialog ->
+    return createWithScrollableMessage().also { dialog ->
         dialog.show()
         dialog.enableScrollableMessage()
     }
+}
+
+internal fun AlertDialog.Builder.createWithScrollableMessage(): AlertDialog {
+    attachSafeScrollableMessageIfNeeded()
+    return create()
 }
 
 internal fun AlertDialog.enableScrollableMessage() {
