@@ -1127,6 +1127,9 @@ class ReadingFragment : Fragment() {
         val updated = translation.copy(bubbles = updatedBubbles)
         translationStore.save(imageFile, updated)
         currentTranslation = updated
+        if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) {
+            webtoonAdapter.notifyTranslationChanged(imageFile.absolutePath)
+        }
         applyOverlayOffsets(emptyMap())
         renderCurrentTranslation()
     }

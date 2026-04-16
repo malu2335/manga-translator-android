@@ -42,6 +42,8 @@ class WebtoonReadingAdapter(
     private var verticalLayoutEnabled: Boolean = true
     private var bubbleRenderSettings = NormalBubbleRenderSettings(
         shrinkPercent = 0,
+        freeBubbleShrinkPercent = 0,
+        freeBubbleOpacityPercent = 100,
         fontScalePercent = 100,
         useHorizontalText = true
     )

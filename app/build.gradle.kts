@@ -19,8 +19,8 @@ android {
         applicationId = "com.manga.translate.v3"
         minSdk = 24
         targetSdk = 36
-        versionCode = 41
-        versionName = "3.0.0"
+        versionCode = 42
+        versionName = "3.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

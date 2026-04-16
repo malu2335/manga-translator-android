@@ -47,6 +47,8 @@ data class FloatingTranslateApiSettings(
 
 data class NormalBubbleRenderSettings(
     val shrinkPercent: Int,
+    val freeBubbleShrinkPercent: Int,
+    val freeBubbleOpacityPercent: Int,
     val fontScalePercent: Int,
     val useHorizontalText: Boolean
 )
@@ -248,6 +250,20 @@ class SettingsStore(context: Context) {
                 MIN_NORMAL_BUBBLE_SHRINK_PERCENT,
                 MAX_NORMAL_BUBBLE_SHRINK_PERCENT
             ),
+            freeBubbleShrinkPercent = prefs.getInt(
+                KEY_NORMAL_FREE_BUBBLE_SHRINK_PERCENT,
+                DEFAULT_NORMAL_FREE_BUBBLE_SHRINK_PERCENT
+            ).coerceIn(
+                MIN_NORMAL_BUBBLE_SHRINK_PERCENT,
+                MAX_NORMAL_BUBBLE_SHRINK_PERCENT
+            ),
+            freeBubbleOpacityPercent = prefs.getInt(
+                KEY_NORMAL_FREE_BUBBLE_OPACITY_PERCENT,
+                DEFAULT_NORMAL_FREE_BUBBLE_OPACITY_PERCENT
+            ).coerceIn(
+                MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT,
+                MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT
+            ),
             fontScalePercent = prefs.getInt(
                 KEY_NORMAL_BUBBLE_FONT_SCALE_PERCENT,
                 DEFAULT_NORMAL_BUBBLE_FONT_SCALE_PERCENT
@@ -273,6 +289,20 @@ class SettingsStore(context: Context) {
                     settings.fontScalePercent.coerceIn(
                         MIN_NORMAL_BUBBLE_FONT_SCALE_PERCENT,
                         MAX_NORMAL_BUBBLE_FONT_SCALE_PERCENT
+                    )
+                )
+                .putInt(
+                    KEY_NORMAL_FREE_BUBBLE_SHRINK_PERCENT,
+                    settings.freeBubbleShrinkPercent.coerceIn(
+                        MIN_NORMAL_BUBBLE_SHRINK_PERCENT,
+                        MAX_NORMAL_BUBBLE_SHRINK_PERCENT
+                    )
+                )
+                .putInt(
+                    KEY_NORMAL_FREE_BUBBLE_OPACITY_PERCENT,
+                    settings.freeBubbleOpacityPercent.coerceIn(
+                        MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT,
+                        MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT
                     )
                 )
                 .putBoolean(KEY_HORIZONTAL_TEXT, settings.useHorizontalText)
@@ -891,6 +921,10 @@ class SettingsStore(context: Context) {
         private const val KEY_HORIZONTAL_TEXT = "horizontal_text_layout"
         private const val KEY_NORMAL_BUBBLE_SHRINK_PERCENT = "normal_bubble_shrink_percent"
         private const val KEY_NORMAL_BUBBLE_FONT_SCALE_PERCENT = "normal_bubble_font_scale_percent"
+        private const val KEY_NORMAL_FREE_BUBBLE_SHRINK_PERCENT =
+            "normal_free_bubble_shrink_percent"
+        private const val KEY_NORMAL_FREE_BUBBLE_OPACITY_PERCENT =
+            "normal_free_bubble_opacity_percent"
         private const val KEY_MODEL_IO_LOGGING = "model_io_logging"
         private const val KEY_MAX_CONCURRENCY = "max_concurrency"
         private const val KEY_API_TIMEOUT_SECONDS = "api_timeout_seconds"
@@ -936,6 +970,8 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_NORMAL_BUBBLE_SHRINK_PERCENT = 10
         private const val MIN_NORMAL_BUBBLE_SHRINK_PERCENT = 0
         private const val MAX_NORMAL_BUBBLE_SHRINK_PERCENT = 30
+        private const val DEFAULT_NORMAL_FREE_BUBBLE_SHRINK_PERCENT = 0
+        private const val DEFAULT_NORMAL_FREE_BUBBLE_OPACITY_PERCENT = 65
         private const val DEFAULT_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 100
         private const val MIN_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 50
         private const val MAX_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 200

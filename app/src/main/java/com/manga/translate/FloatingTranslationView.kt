@@ -368,6 +368,8 @@ class FloatingTranslationView @JvmOverloads constructor(
 
     private fun drawBubble(canvas: Canvas, bubble: BubbleTranslation) {
         val offset = offsets[bubble.id] ?: 0f to 0f
+        val shrinkPercent = resolveBubbleShrinkPercent(bubble)
+        fillPaint.alpha = resolveBubbleOpacityAlpha(bubble)
         BubbleShapePaths.buildPath(
             outPath = bubblePath,
             bubble = bubble,
@@ -379,7 +381,7 @@ class FloatingTranslationView @JvmOverloads constructor(
             scaleY = scaleY,
             offsetX = offset.first,
             offsetY = offset.second,
-            shrinkPercent = bubbleRenderSettings.shrinkPercent
+            shrinkPercent = shrinkPercent
         )
         bubblePath.computeBounds(bubbleBounds, true)
         if (bubbleBounds.width() <= 0f || bubbleBounds.height() <= 0f) return
@@ -389,6 +391,23 @@ class FloatingTranslationView @JvmOverloads constructor(
         canvas.clipPath(bubblePath)
         drawTextInRect(canvas, bubble.text, textRect)
         canvas.restoreToCount(checkpoint)
+    }
+
+    private fun resolveBubbleShrinkPercent(bubble: BubbleTranslation): Int {
+        return if (bubble.source == BubbleSource.TEXT_DETECTOR) {
+            bubbleRenderSettings.freeBubbleShrinkPercent
+        } else {
+            bubbleRenderSettings.shrinkPercent
+        }
+    }
+
+    private fun resolveBubbleOpacityAlpha(bubble: BubbleTranslation): Int {
+        val opacityPercent = if (bubble.source == BubbleSource.TEXT_DETECTOR) {
+            bubbleRenderSettings.freeBubbleOpacityPercent
+        } else {
+            100
+        }
+        return ((opacityPercent.coerceIn(0, 100) / 100f) * 255f).toInt()
     }
 
     private fun drawDeleteIcon(canvas: Canvas, rect: RectF) {

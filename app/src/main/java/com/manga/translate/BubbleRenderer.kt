@@ -46,6 +46,7 @@ class BubbleRenderer(context: Context) {
         for (bubble in translation.bubbles) {
             val text = bubble.text.trim()
             if (text.isBlank()) continue
+            fillPaint.alpha = resolveBubbleOpacityAlpha(bubble)
             BubbleShapePaths.buildPath(
                 outPath = bubblePath,
                 bubble = bubble,
@@ -55,11 +56,28 @@ class BubbleRenderer(context: Context) {
                 originY = 0f,
                 scaleX = scaleX,
                 scaleY = scaleY,
-                shrinkPercent = bubbleRenderSettings.shrinkPercent
+                shrinkPercent = resolveBubbleShrinkPercent(bubble)
             )
             drawBubble(canvas, text, bubblePath, verticalLayoutEnabled)
         }
         return output
+    }
+
+    private fun resolveBubbleShrinkPercent(bubble: BubbleTranslation): Int {
+        return if (bubble.source == BubbleSource.TEXT_DETECTOR) {
+            bubbleRenderSettings.freeBubbleShrinkPercent
+        } else {
+            bubbleRenderSettings.shrinkPercent
+        }
+    }
+
+    private fun resolveBubbleOpacityAlpha(bubble: BubbleTranslation): Int {
+        val opacityPercent = if (bubble.source == BubbleSource.TEXT_DETECTOR) {
+            bubbleRenderSettings.freeBubbleOpacityPercent
+        } else {
+            100
+        }
+        return ((opacityPercent.coerceIn(0, 100) / 100f) * 255f).toInt()
     }
 
     private fun drawBubble(canvas: Canvas, text: String, path: Path, verticalLayoutEnabled: Boolean) {

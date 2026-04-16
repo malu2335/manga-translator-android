@@ -621,6 +621,12 @@ class SettingsFragment : Fragment() {
         dialogBinding.normalBubbleShrinkPercentInput.setText(
             formatNumber(currentSettings.shrinkPercent)
         )
+        dialogBinding.normalBubbleFreeShrinkPercentInput.setText(
+            formatNumber(currentSettings.freeBubbleShrinkPercent)
+        )
+        dialogBinding.normalBubbleFreeOpacityPercentInput.setText(
+            formatNumber(currentSettings.freeBubbleOpacityPercent)
+        )
         dialogBinding.normalBubbleFontScalePercentInput.setText(
             formatNumber(currentSettings.fontScalePercent)
         )
@@ -633,6 +639,12 @@ class SettingsFragment : Fragment() {
                     shrinkPercent = parseIntInput(
                         dialogBinding.normalBubbleShrinkPercentInput.text?.toString()
                     ) ?: currentSettings.shrinkPercent,
+                    freeBubbleShrinkPercent = parseIntInput(
+                        dialogBinding.normalBubbleFreeShrinkPercentInput.text?.toString()
+                    ) ?: currentSettings.freeBubbleShrinkPercent,
+                    freeBubbleOpacityPercent = parseIntInput(
+                        dialogBinding.normalBubbleFreeOpacityPercentInput.text?.toString()
+                    ) ?: currentSettings.freeBubbleOpacityPercent,
                     fontScalePercent = parseIntInput(
                         dialogBinding.normalBubbleFontScalePercentInput.text?.toString()
                     ) ?: currentSettings.fontScalePercent,
