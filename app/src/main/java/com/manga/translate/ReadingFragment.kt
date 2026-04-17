@@ -152,6 +152,9 @@ class ReadingFragment : Fragment() {
         binding.translationOverlay.onTap = { x ->
             handleTap(x)
         }
+        binding.translationOverlay.onDoubleTap = { x, y ->
+            handleDoubleTap(x, y)
+        }
         binding.translationOverlay.onSwipe = { direction ->
             handleSwipe(direction)
         }
@@ -721,6 +724,7 @@ class ReadingFragment : Fragment() {
     private fun handleTap(x: Float) {
         if (isEditMode) return
         if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) return
+        if (imageTransformController.isZoomed()) return
         val width = binding.readingRoot.width
         if (width <= 0) return
         val ratio = x / width
@@ -739,6 +743,7 @@ class ReadingFragment : Fragment() {
     private fun handleSwipe(direction: Int) {
         if (isEditMode) return
         if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) return
+        if (imageTransformController.isZoomed()) return
         if (direction == 0) return
         persistCurrentTranslation()
         if (direction > 0) {
@@ -746,6 +751,12 @@ class ReadingFragment : Fragment() {
         } else {
             readingSessionViewModel.next()
         }
+    }
+
+    private fun handleDoubleTap(x: Float, y: Float) {
+        if (isEditMode) return
+        if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) return
+        imageTransformController.toggleDoubleTapZoom(x, y)
     }
 
     private fun applyTextLayoutSetting() {

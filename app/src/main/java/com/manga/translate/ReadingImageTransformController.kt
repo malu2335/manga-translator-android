@@ -138,6 +138,27 @@ class ReadingImageTransformController(
         return isScaling || isPanning
     }
 
+    fun toggleDoubleTapZoom(x: Float, y: Float): Boolean {
+        val bitmap = currentBitmap ?: return false
+        if (imageView.width <= 0 || imageView.height <= 0) return false
+        if (isZoomed()) {
+            imageMatrix.set(baseMatrix)
+            imageUserScale = minScale
+        } else {
+            val targetScale = 2f.coerceIn(minScale, maxScale)
+            val factor = targetScale / imageUserScale
+            imageMatrix.postScale(factor, factor, x, y)
+            imageUserScale = targetScale
+            fixTranslation(bitmap)
+        }
+        applyImageMatrix()
+        return true
+    }
+
+    fun isZoomed(): Boolean {
+        return imageUserScale > minScale + 0.01f
+    }
+
     fun computeImageDisplayRect(): RectF? {
         val drawable = imageView.drawable ?: return null
         val rect = RectF(

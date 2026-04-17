@@ -74,6 +74,8 @@ class FloatingTranslationView @JvmOverloads constructor(
     private var editScrollThroughEnabled = false
     private var bubbleRenderSettings = SettingsStore(context).loadNormalBubbleRenderSettings()
     private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
+    private val doubleTapTimeout = ViewConfiguration.getDoubleTapTimeout().toLong()
+    private val doubleTapSlop = ViewConfiguration.get(context).scaledDoubleTapSlop.toFloat()
     private val longPressRunnable = Runnable {
         val id = activeId ?: return@Runnable
         if (!editMode || dragging) return@Runnable
@@ -81,9 +83,13 @@ class FloatingTranslationView @JvmOverloads constructor(
         performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         onBubbleLongPress?.invoke(id)
     }
+    private var lastTapTime = 0L
+    private var lastTapX = 0f
+    private var lastTapY = 0f
 
     var onOffsetChanged: ((Int, Float, Float) -> Unit)? = null
     var onTap: ((Float) -> Unit)? = null
+    var onDoubleTap: ((Float, Float) -> Unit)? = null
     var onSwipe: ((Int) -> Unit)? = null
     var onTransformTouch: ((MotionEvent) -> Boolean)? = null
     var onBubbleRemove: ((Int) -> Unit)? = null
@@ -184,6 +190,7 @@ class FloatingTranslationView @JvmOverloads constructor(
                 longPressTriggered = false
                 removeCallbacks(longPressRunnable)
             }
+            parent?.requestDisallowInterceptTouchEvent(true)
             swipeTriggered = true
             return true
         }
@@ -262,8 +269,20 @@ class FloatingTranslationView @JvmOverloads constructor(
                         activeId = null
                         return true
                     }
-                    onTap?.invoke(event.x)
-                    performClick()
+                    val now = event.eventTime
+                    val isDoubleTap = now - lastTapTime <= doubleTapTimeout &&
+                        abs(event.x - lastTapX) <= doubleTapSlop &&
+                        abs(event.y - lastTapY) <= doubleTapSlop
+                    if (isDoubleTap) {
+                        lastTapTime = 0L
+                        onDoubleTap?.invoke(event.x, event.y)
+                    } else {
+                        lastTapTime = now
+                        lastTapX = event.x
+                        lastTapY = event.y
+                        onTap?.invoke(event.x)
+                        performClick()
+                    }
                 }
                 dragging = false
                 activeId = null
