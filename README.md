@@ -4,9 +4,9 @@
 
 使用教程：https://github.com/jedzqer/manga-translator/blob/main/Tutorial/简中教程.md
 
-| 原图 | 翻译结果 | 嵌入效果 |
-|------|----------|----------|
-|![原图](https://raw.githubusercontent.com/jedzqer/manga-translator/main/Tutorial/FirePunch.webp) | ![翻译结果](https://raw.githubusercontent.com/jedzqer/manga-translator/main/Tutorial/translated.jpg) | ![嵌入效果](https://raw.githubusercontent.com/jedzqer/manga-translator/main/Tutorial/embedded.jpg) |
+| 原图 | 翻译结果 |
+|------|----------|
+|![原图](https://raw.githubusercontent.com/jedzqer/manga-translator/main/Tutorial/FirePunch.webp) | ![翻译结果](https://raw.githubusercontent.com/jedzqer/manga-translator/main/Tutorial/translated.webp) |
 
 
 ## 主要功能 ✨
