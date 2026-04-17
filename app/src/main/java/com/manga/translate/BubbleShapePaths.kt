@@ -112,32 +112,23 @@ internal object BubbleShapePaths {
         maskCanvas.drawColor(Color.TRANSPARENT)
         maskCanvas.drawPath(maskPath, maskPaint)
 
-        val rowFill = FloatArray(maskHeight)
-        val colFill = FloatArray(maskWidth)
         val pixels = IntArray(maskWidth * maskHeight)
         maskBitmap.getPixels(pixels, 0, maskWidth, 0, 0, maskWidth, maskHeight)
         maskBitmap.recycle()
 
+        val filled = BooleanArray(maskWidth * maskHeight)
         for (y in 0 until maskHeight) {
-            var filled = 0
             val rowOffset = y * maskWidth
             for (x in 0 until maskWidth) {
-                if ((pixels[rowOffset + x] ushr 24) != 0) {
-                    filled += 1
-                    colFill[x] += 1f
-                }
+                filled[rowOffset + x] = (pixels[rowOffset + x] ushr 24) >= 224
             }
-            rowFill[y] = filled / maskWidth.toFloat()
-        }
-        for (x in 0 until maskWidth) {
-            colFill[x] /= maskHeight.toFloat()
         }
 
-        val top = findEdge(rowFill, fromStart = true)
-        val bottom = findEdge(rowFill, fromStart = false)
-        val left = findEdge(colFill, fromStart = true)
-        val right = findEdge(colFill, fromStart = false)
-        if (left >= right || top >= bottom) return null
+        val safeMaskRect = findLargestFilledRect(filled, maskWidth, maskHeight) ?: return null
+        val left = safeMaskRect.left
+        val top = safeMaskRect.top
+        val right = safeMaskRect.right
+        val bottom = safeMaskRect.bottom
 
         val widthScale = pathBounds.width() / maskWidth.toFloat()
         val heightScale = pathBounds.height() / maskHeight.toFloat()
@@ -146,8 +137,8 @@ internal object BubbleShapePaths {
         val safeRect = RectF(
             pathBounds.left + left * widthScale + extraPadX * 0.35f,
             pathBounds.top + top * heightScale + extraPadY * 0.35f,
-            pathBounds.left + (right + 1) * widthScale - extraPadX * 0.35f,
-            pathBounds.top + (bottom + 1) * heightScale - extraPadY * 0.35f
+            pathBounds.left + right * widthScale - extraPadX * 0.35f,
+            pathBounds.top + bottom * heightScale - extraPadY * 0.35f
         )
         return if (safeRect.width() > pathBounds.width() * 0.18f &&
             safeRect.height() > pathBounds.height() * 0.18f
@@ -158,27 +149,56 @@ internal object BubbleShapePaths {
         }
     }
 
-    private fun findEdge(fillRatios: FloatArray, fromStart: Boolean): Int {
-        val preferredThreshold = 0.82f
-        val fallbackThreshold = 0.68f
-        val preferred = findEdge(fillRatios, fromStart, preferredThreshold)
-        if (preferred != -1) return preferred
-        val fallback = findEdge(fillRatios, fromStart, fallbackThreshold)
-        if (fallback != -1) return fallback
-        return if (fromStart) 0 else max(fillRatios.lastIndex, 0)
-    }
-
-    private fun findEdge(fillRatios: FloatArray, fromStart: Boolean, threshold: Float): Int {
-        val range = if (fromStart) {
-            0..fillRatios.lastIndex
-        } else {
-            fillRatios.lastIndex downTo 0
-        }
-        for (index in range) {
-            if (fillRatios[index] >= threshold) {
-                return index
+    private fun findLargestFilledRect(filled: BooleanArray, width: Int, height: Int): MaskRect? {
+        val heights = IntArray(width)
+        val stack = IntArray(width)
+        var best: MaskRect? = null
+        var bestScore = 0f
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                heights[x] = if (filled[y * width + x]) heights[x] + 1 else 0
+            }
+            var stackSize = 0
+            var x = 0
+            while (x <= width) {
+                val currentHeight = if (x == width) 0 else heights[x]
+                if (stackSize == 0 || currentHeight >= heights[stack[stackSize - 1]]) {
+                    stack[stackSize++] = x
+                    x += 1
+                } else {
+                    val topIndex = stack[--stackSize]
+                    val rectHeight = heights[topIndex]
+                    if (rectHeight <= 0) continue
+                    val rectRight = x
+                    val rectLeft = if (stackSize == 0) 0 else stack[stackSize - 1] + 1
+                    val rectWidth = rectRight - rectLeft
+                    val score = scoreTextRect(rectWidth, rectHeight)
+                    if (score > bestScore) {
+                        bestScore = score
+                        best = MaskRect(
+                            left = rectLeft,
+                            top = y - rectHeight + 1,
+                            right = rectRight,
+                            bottom = y + 1
+                        )
+                    }
+                }
             }
         }
-        return -1
+        return best
     }
+
+    private fun scoreTextRect(width: Int, height: Int): Float {
+        val minSide = min(width, height).toFloat()
+        val maxSide = max(width, height).toFloat().coerceAtLeast(1f)
+        val balance = (minSide / maxSide).coerceIn(0.35f, 1f)
+        return width * height * balance
+    }
+
+    private data class MaskRect(
+        val left: Int,
+        val top: Int,
+        val right: Int,
+        val bottom: Int
+    )
 }

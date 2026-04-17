@@ -375,8 +375,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
 
     private fun drawBubbles(canvas: Canvas) {
         val radius = cornerRadius()
-        val horizontalPadding = resources.displayMetrics.density * 6f
-        val verticalPadding = resources.displayMetrics.density * 5f
         for (bubble in bubbles) {
             val rect = bubble.rect
             updateDisplayRect(rect, sourceRect)
@@ -399,14 +397,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                 drawDeleteIcon(canvas, tempRect)
             }
             val text = bubble.text.ifBlank { context.getString(R.string.floating_bubble_placeholder) }
-            val availableWidth = (sourceRect.width() - horizontalPadding * 2f).toInt().coerceAtLeast(1)
-            val availableHeight = (sourceRect.height() - verticalPadding * 2f).toInt().coerceAtLeast(1)
-            shapeRect.set(
-                sourceRect.left + horizontalPadding,
-                sourceRect.top + verticalPadding,
-                sourceRect.right - horizontalPadding,
-                sourceRect.bottom - verticalPadding
-            )
             if (bubbleRenderSettings.shape == FloatingBubbleShape.INSCRIBED_ELLIPSE) {
                 bubblePath.reset()
                 bubblePath.addOval(sourceRect, Path.Direction.CW)
@@ -414,6 +404,9 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                 bubblePath.reset()
                 bubblePath.addRoundRect(sourceRect, radius, radius, Path.Direction.CW)
             }
+            BubbleShapePaths.insetTextBounds(bubblePath, shapeRect)
+            val availableWidth = shapeRect.width().toInt().coerceAtLeast(1)
+            val availableHeight = shapeRect.height().toInt().coerceAtLeast(1)
             val checkpoint = canvas.save()
             canvas.clipPath(bubblePath)
             if (bubbleRenderSettings.useHorizontalText) {
