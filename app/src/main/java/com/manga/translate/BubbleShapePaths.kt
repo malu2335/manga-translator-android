@@ -151,7 +151,7 @@ internal object BubbleShapePaths {
 
     private fun findLargestFilledRect(filled: BooleanArray, width: Int, height: Int): MaskRect? {
         val heights = IntArray(width)
-        val stack = IntArray(width)
+        val stack = IntArray(width + 1)
         var best: MaskRect? = null
         var bestScore = 0f
         for (y in 0 until height) {

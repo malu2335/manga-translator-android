@@ -754,7 +754,6 @@ class ReadingFragment : Fragment() {
     }
 
     private fun handleDoubleTap(x: Float, y: Float) {
-        if (isEditMode) return
         if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) return
         imageTransformController.toggleDoubleTapZoom(x, y)
     }
@@ -930,8 +929,8 @@ class ReadingFragment : Fragment() {
             overlayParams.height = ViewGroup.LayoutParams.MATCH_PARENT
             binding.readingImage.scaleType = android.widget.ImageView.ScaleType.MATRIX
             binding.readingTransitionImage.scaleType = android.widget.ImageView.ScaleType.MATRIX
-            binding.readingImage.adjustViewBounds = true
-            binding.readingTransitionImage.adjustViewBounds = true
+            binding.readingImage.adjustViewBounds = false
+            binding.readingTransitionImage.adjustViewBounds = false
             binding.readingContentContainer.layoutParams = contentParams
             binding.readingImage.layoutParams = imageParams
             binding.readingTransitionImage.layoutParams = transitionImageParams
@@ -1161,6 +1160,7 @@ class ReadingFragment : Fragment() {
     }
 
     private fun handleBubbleEdit(bubbleId: Int) {
+        if (blockBubbleEditingWhileZoomed()) return
         if (!isEditMode) return
         val translation = currentTranslation ?: return
         val bubble = translation.bubbles.firstOrNull { it.id == bubbleId } ?: return
@@ -1198,6 +1198,7 @@ class ReadingFragment : Fragment() {
     }
 
     private fun showBubbleActionDialog(bubbleId: Int) {
+        if (blockBubbleEditingWhileZoomed()) return
         if (!isEditMode) return
         val dialogView = layoutInflater.inflate(R.layout.dialog_bubble_actions, null)
         val resizeButton = dialogView.findViewById<android.widget.Button>(R.id.bubbleActionResize)
@@ -1218,6 +1219,7 @@ class ReadingFragment : Fragment() {
     }
 
     private fun showResizePanel(bubbleId: Int) {
+        if (blockBubbleEditingWhileZoomed()) return
         if (!isEditMode) return
         persistCurrentTranslation(forceSave = true)
         val translation = currentTranslation ?: return
@@ -1248,6 +1250,17 @@ class ReadingFragment : Fragment() {
         resizeTargetId = null
         resizeBaseRect = null
         binding.readingResizePanel.visibility = View.GONE
+    }
+
+    private fun blockBubbleEditingWhileZoomed(): Boolean {
+        if (folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) return false
+        if (!imageTransformController.isZoomed()) return false
+        Toast.makeText(
+            requireContext(),
+            R.string.reading_exit_zoom_before_edit,
+            Toast.LENGTH_SHORT
+        ).show()
+        return true
     }
 
     private fun applyResizePercent(widthPercent: Int?, heightPercent: Int?) {

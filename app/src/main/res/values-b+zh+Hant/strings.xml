@@ -425,6 +425,7 @@
     <string name="reading_bubble_resize_done">確認</string>
     <string name="reading_bubble_action_resize">調整氣泡大小</string>
     <string name="reading_bubble_action_delete">刪除氣泡</string>
+    <string name="reading_exit_zoom_before_edit">請先雙擊退出放大</string>
     <string name="image_translated">已翻譯</string>
     <string name="image_not_translated">未翻譯</string>
 
