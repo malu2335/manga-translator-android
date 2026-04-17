@@ -335,6 +335,7 @@ class LibraryFragment : Fragment() {
         )
 
         binding.folderList.layoutManager = LinearLayoutManager(requireContext())
+        binding.folderList.isNestedScrollingEnabled = false
         binding.folderList.adapter = folderAdapter
         (binding.folderList.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
         binding.root.setOnClickListener { folderAdapter.clearActionSelection() }
@@ -369,6 +370,7 @@ class LibraryFragment : Fragment() {
         binding.tutorialButton.setOnClickListener { openTutorial() }
         binding.librarySelectAll.setOnClickListener { toggleSelectAllLibraryFolders() }
         binding.libraryTranslateSelected.setOnClickListener { translateSelectedLibraryFolders() }
+        binding.libraryRenameSelected.setOnClickListener { renameSelectedLibraryFolder() }
         binding.libraryDeleteSelected.setOnClickListener { confirmDeleteSelectedLibraryFolders() }
         binding.libraryCancelSelection.setOnClickListener { exitLibrarySelectionMode() }
         binding.folderBackButton.setOnClickListener { navigateBackFromDetail() }
@@ -380,6 +382,7 @@ class LibraryFragment : Fragment() {
         binding.folderRead.setOnClickListener { startReading() }
         binding.folderSelectAll.setOnClickListener { handleSelectAllClick() }
         binding.folderDeleteSelected.setOnClickListener { handleDeleteSelectedClick() }
+        binding.folderRenameSelected.setOnClickListener { renameSelectedChapter() }
         binding.folderCancelSelection.setOnClickListener { exitActiveSelectionMode() }
         binding.folderRetranslateSelected.setOnClickListener {
             val folder = currentFolder
@@ -1302,6 +1305,7 @@ class LibraryFragment : Fragment() {
         binding.folderReadingSettings.visibility =
             if (useParentCollectionSettings) View.GONE else View.VISIBLE
         binding.folderSelectionActions.visibility = View.GONE
+        binding.folderRenameSelected.visibility = View.GONE
         binding.folderRetranslateSelected.visibility = if (isCollection) View.GONE else View.VISIBLE
         if (isCollection) {
             selectionController.exitSelectionMode()
@@ -1345,6 +1349,7 @@ class LibraryFragment : Fragment() {
         binding.librarySelectAll.text = getString(
             if (folderAdapter.areAllSelected()) R.string.clear_all else R.string.select_all
         )
+        binding.libraryRenameSelected.visibility = if (count == 1) View.VISIBLE else View.GONE
     }
 
     private fun toggleSelectAllLibraryFolders() {
@@ -1399,6 +1404,13 @@ class LibraryFragment : Fragment() {
         }
     }
 
+    private fun renameSelectedLibraryFolder() {
+        val selected = folderAdapter.getSelectedFolders()
+        if (selected.size != 1) return
+        exitLibrarySelectionMode()
+        showRenameFolderDialog(selected.first())
+    }
+
     private fun handleDeleteSelectedClick() {
         if (isChapterSelectionMode) {
             confirmDeleteSelectedChapters()
@@ -1430,6 +1442,7 @@ class LibraryFragment : Fragment() {
         isChapterSelectionMode = false
         chapterAdapter.setSelectionMode(false)
         binding.folderSelectionActions.visibility = View.GONE
+        binding.folderRenameSelected.visibility = View.GONE
         binding.folderRetranslateSelected.visibility = View.GONE
         uiCallbacks.clearFolderStatus()
     }
@@ -1441,6 +1454,7 @@ class LibraryFragment : Fragment() {
         binding.folderSelectAll.text = getString(
             if (chapterAdapter.areAllSelected()) R.string.clear_all else R.string.select_all
         )
+        binding.folderRenameSelected.visibility = if (count == 1) View.VISIBLE else View.GONE
     }
 
     private fun confirmDeleteSelectedChapters() {
@@ -1467,6 +1481,13 @@ class LibraryFragment : Fragment() {
             loadImages(folder)
             loadFolders()
         }
+    }
+
+    private fun renameSelectedChapter() {
+        val selected = chapterAdapter.getSelectedFolders()
+        if (selected.size != 1) return
+        exitChapterSelectionMode()
+        showRenameFolderDialog(selected.first())
     }
 
 }
