@@ -79,7 +79,6 @@
 - `korean_PP-OCRv3_rec_infer.onnx`（韩文 OCR）
 - `ysgyolo_1.2_OS1.0.onnx`（文本补检 + 文字蒙版）
 - `Multilingual_PP-OCRv3_det_infer.onnx`（英文行检测）
-- `migan_512.onnx`、`migan_512.onnx.data`（嵌字抹除）
 
 模型下载链接：
 - 气泡检测模型：https://huggingface.co/ogkalu/comic-speech-bubble-detector-yolov8m
