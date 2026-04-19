@@ -19,6 +19,7 @@ internal class ReadingEmptyBubbleCoordinator(
     private val textBubbleTranslationCoordinator: TextBubbleTranslationCoordinator,
     private val languageKeyPrefix: String = "translation_language_"
 ) {
+    private val appContext = context.applicationContext
 
     suspend fun process(
         imageFile: File,
@@ -27,6 +28,13 @@ internal class ReadingEmptyBubbleCoordinator(
     ): EmptyBubbleProcessOutcome? = withContext(Dispatchers.Default) {
         val targets = baseTranslation.bubbles.filter { it.text.isBlank() }
         if (targets.isEmpty()) return@withContext null
+        if (!settingsStore.load().isValid()) {
+            AppLogger.log("Reading", "Missing translate API settings for empty bubble translation")
+            throw LlmRequestException(
+                "MISSING_TRANSLATE_API_SETTINGS",
+                appContext.getString(R.string.missing_translate_api_settings)
+            )
+        }
 
         val ocrSettings = settingsStore.loadOcrApiSettings()
         val useLocalOcr = ocrSettings.useLocalOcr
@@ -64,33 +72,25 @@ internal class ReadingEmptyBubbleCoordinator(
             }
 
             val translated = translateOcrBubbles(imageFile, candidates, glossary, language)
-            if (translated != null) {
-                if (translated.glossaryUsed.isNotEmpty()) {
-                    glossary.putAll(translated.glossaryUsed)
-                    withContext(Dispatchers.IO) {
-                        glossaryStore.save(folder, glossary)
-                    }
-                }
-                val translationMap = translated.bubbles.associateBy({ it.id }, { it.text })
-                val merged = remainingBubbles.map { bubble ->
-                    translationMap[bubble.id]?.let { bubble.copy(text = it) } ?: bubble
-                }
-                val updated = baseTranslation.copy(bubbles = merged)
-                withContext(Dispatchers.IO) {
-                    translationStore.save(imageFile, updated)
-                }
-                return@withContext EmptyBubbleProcessOutcome(updated, translatedByLlm = true)
+            if (translated == null) {
+                AppLogger.log("Reading", "Empty bubble translation returned null, keep bubble empty")
+                return@withContext null
             }
-
-            val fallbackMap = candidates.associate { it.id to it.text }
+            if (translated.glossaryUsed.isNotEmpty()) {
+                glossary.putAll(translated.glossaryUsed)
+                withContext(Dispatchers.IO) {
+                    glossaryStore.save(folder, glossary)
+                }
+            }
+            val translationMap = translated.bubbles.associateBy({ it.id }, { it.text })
             val merged = remainingBubbles.map { bubble ->
-                fallbackMap[bubble.id]?.let { bubble.copy(text = it) } ?: bubble
+                translationMap[bubble.id]?.let { bubble.copy(text = it) } ?: bubble
             }
             val updated = baseTranslation.copy(bubbles = merged)
             withContext(Dispatchers.IO) {
                 translationStore.save(imageFile, updated)
             }
-            EmptyBubbleProcessOutcome(updated, translatedByLlm = false)
+            EmptyBubbleProcessOutcome(updated, translatedByLlm = true)
         } finally {
             bitmap.recycleSafely()
         }

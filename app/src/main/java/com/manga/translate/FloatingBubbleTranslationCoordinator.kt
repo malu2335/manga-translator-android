@@ -34,8 +34,10 @@ internal class FloatingBubbleTranslationCoordinator(
             return bubbles
         }
         if (!llmClient.isConfigured(apiSettings)) {
-            AppLogger.log(logTag, "Skip translate: LLM client not configured")
-            return bubbles
+            AppLogger.log(logTag, "Missing translate API settings")
+            throw LlmRequestException(
+                "MISSING_TRANSLATE_API_SETTINGS"
+            )
         }
 
         val translatedMap = HashMap<Int, String>(translatable.size)
@@ -100,14 +102,13 @@ internal class FloatingBubbleTranslationCoordinator(
                 AppLogger.log(logTag, "LLM translate timeout")
                 null
             } else {
-                AppLogger.log(logTag, "LLM translate request failed, fallback to cached/OCR text", e)
-                merge()
+                throw e
             }
         } catch (e: LlmResponseException) {
             throw e
         } catch (e: Exception) {
-            AppLogger.log(logTag, "LLM translate failed, fallback to cached/OCR text", e)
-            merge()
+            AppLogger.log(logTag, "LLM translate failed", e)
+            throw e
         }
     }
 

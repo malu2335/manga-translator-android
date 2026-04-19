@@ -810,6 +810,11 @@ class FloatingBallOverlayService : Service() {
                         onContinue = { confirmEditSession() }
                     )
                 }
+            } catch (e: LlmRequestException) {
+                AppLogger.log("FloatingOCR", "Floating edit request failed", e)
+                withContext(Dispatchers.Main) {
+                    showApiErrorDialog(e.errorCode, e.responseBody)
+                }
             } finally {
                 bitmapSnapshot.recycle()
                 withContext(Dispatchers.Main) {
@@ -1174,6 +1179,11 @@ class FloatingBallOverlayService : Service() {
                         onContinue = { runTextDetection() }
                     )
                 }
+            } catch (e: LlmRequestException) {
+                AppLogger.log("FloatingOCR", "Floating detection request failed", e)
+                withContext(Dispatchers.Main) {
+                    showApiErrorDialog(e.errorCode, e.responseBody)
+                }
             } catch (e: Exception) {
                 AppLogger.log("FloatingOCR", "Floating detection failed", e)
                 withContext(Dispatchers.Main) {
@@ -1219,6 +1229,38 @@ class FloatingBallOverlayService : Service() {
             }
         }
         blankBubbleErrorDialog = dialog
+    }
+
+    private fun showApiErrorDialog(
+        errorCode: String,
+        detail: String?
+    ) {
+        blankBubbleErrorDialog?.dismiss()
+        val message = getString(
+            R.string.api_request_failed_message,
+            ErrorDialogFormatter.formatApiErrorMessage(this, errorCode, detail)
+        )
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.api_request_failed_title)
+            .setMessage(message)
+            .setPositiveButton(android.R.string.ok, null)
+            .createWithScrollableMessage()
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.window?.setType(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+        )
+        dialog.setOnDismissListener {
+            if (blankBubbleErrorDialog === dialog) {
+                blankBubbleErrorDialog = null
+            }
+        }
+        blankBubbleErrorDialog = dialog
+        dialog.show()
     }
 
     private suspend fun <T> executeWithModelResponseRetries(

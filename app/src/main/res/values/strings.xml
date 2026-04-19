@@ -34,6 +34,7 @@
     <string name="api_settings_note_gemini">示例 URL：https://generativelanguage.googleapis.com/v1beta</string>
     <string name="api_url_required">请先填写 API 地址</string>
     <string name="missing_api_settings">请先在设置中填写 API 地址与 Key</string>
+    <string name="missing_translate_api_settings">请先在设置中填写 API 地址、Key 与模型名称</string>
 
     <!-- Settings / Display -->
     <string name="text_layout_horizontal">漫画使用横向排版</string>
