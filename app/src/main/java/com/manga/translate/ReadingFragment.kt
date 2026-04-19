@@ -366,7 +366,18 @@ class ReadingFragment : Fragment() {
                     readingDisplayMode = settingsStore.loadReadingDisplayMode()
                     updateReadingContentLayout(bitmap)
                     if (folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) {
-                        imageTransformController.reset(bitmap, readingDisplayMode)
+                        binding.readingContentContainer.doOnLayout {
+                            if (!isAdded || _binding == null || currentBitmap !== bitmap) return@doOnLayout
+                            binding.readingScrollContainer.scrollTo(0, 0)
+                            imageTransformController.reset(bitmap, readingDisplayMode)
+                            updateOverlay(translation, bitmap)
+                            if (shouldAnimate) {
+                                startPageTransition(previousPageSnapshot, direction)
+                            } else {
+                                finishPageTransitionImmediately()
+                            }
+                        }
+                        return@post
                     }
                 }
                 updateOverlay(translation, bitmap)
@@ -935,6 +946,12 @@ class ReadingFragment : Fragment() {
             binding.readingImage.layoutParams = imageParams
             binding.readingTransitionImage.layoutParams = transitionImageParams
             binding.translationOverlay.layoutParams = overlayParams
+            binding.readingContentContainer.doOnLayout {
+                if (!isAdded || _binding == null || folderReadingMode == FolderReadingMode.WEBTOON_SCROLL) {
+                    return@doOnLayout
+                }
+                binding.readingScrollContainer.scrollTo(0, 0)
+            }
         }
     }
 
