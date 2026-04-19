@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.util.TypedValue
@@ -92,6 +93,8 @@ class ReadingFragment : Fragment() {
     private var webtoonLockedPagePath: String? = null
     private val webtoonEditOffsets = mutableMapOf<Int, Pair<Float, Float>>()
     private var webtoonPreparingEdit = false
+    private var activeWebtoonZoomHolder: WebtoonReadingAdapter.WebtoonPageViewHolder? = null
+    private var webtoonTouchHolder: WebtoonReadingAdapter.WebtoonPageViewHolder? = null
     private var displayedPageIndex: Int? = null
     private var displayedImagePath: String? = null
     private var pageTransitionGeneration: Int = 0
@@ -132,6 +135,37 @@ class ReadingFragment : Fragment() {
         binding.readingWebtoonList.layoutManager = webtoonLayoutManager
         binding.readingWebtoonList.adapter = webtoonAdapter
         binding.readingWebtoonList.setItemViewCacheSize(4)
+        binding.readingWebtoonList.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
+            override fun onInterceptTouchEvent(rv: RecyclerView, event: MotionEvent): Boolean {
+                if (folderReadingMode != FolderReadingMode.WEBTOON_SCROLL || isEditMode) return false
+                val target = webtoonTouchHolder ?: findWebtoonTouchHolder(rv, event)
+                val handled = target?.let { dispatchWebtoonTouch(it, event) } == true
+                if (handled) {
+                    webtoonTouchHolder = target
+                } else if (
+                    event.actionMasked == MotionEvent.ACTION_UP ||
+                    event.actionMasked == MotionEvent.ACTION_CANCEL
+                ) {
+                    webtoonTouchHolder = null
+                }
+                syncActiveWebtoonZoomHolder(target)
+                return handled
+            }
+
+            override fun onTouchEvent(rv: RecyclerView, event: MotionEvent) {
+                val target = webtoonTouchHolder ?: return
+                dispatchWebtoonTouch(target, event)
+                syncActiveWebtoonZoomHolder(target)
+                if (
+                    event.actionMasked == MotionEvent.ACTION_UP ||
+                    event.actionMasked == MotionEvent.ACTION_CANCEL
+                ) {
+                    webtoonTouchHolder = null
+                }
+            }
+
+            override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) = Unit
+        })
         binding.readingWebtoonList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 if (folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) return
@@ -1054,6 +1088,58 @@ class ReadingFragment : Fragment() {
     private fun stopWebtoonTranslationWatcher(clearCache: Boolean = true) {
         webtoonTranslationWatchJob?.cancel()
         webtoonTranslationWatchJob = null
+    }
+
+    private fun findWebtoonTouchHolder(
+        recyclerView: RecyclerView,
+        event: MotionEvent
+    ): WebtoonReadingAdapter.WebtoonPageViewHolder? {
+        val zoomedHolder = activeWebtoonZoomHolder
+        if (zoomedHolder != null && zoomedHolder.bindingAdapterPosition != RecyclerView.NO_POSITION) {
+            val itemView = zoomedHolder.itemView
+            if (
+                event.x >= itemView.x &&
+                event.x <= itemView.x + itemView.width &&
+                event.y >= itemView.y &&
+                event.y <= itemView.y + itemView.height
+            ) {
+                return zoomedHolder
+            }
+        }
+        val child = recyclerView.findChildViewUnder(event.x, event.y) ?: return null
+        return recyclerView.getChildViewHolder(child) as? WebtoonReadingAdapter.WebtoonPageViewHolder
+    }
+
+    private fun dispatchWebtoonTouch(
+        holder: WebtoonReadingAdapter.WebtoonPageViewHolder,
+        event: MotionEvent
+    ): Boolean {
+        val localized = MotionEvent.obtain(event)
+        localized.offsetLocation(-holder.itemView.x, -holder.itemView.y)
+        return try {
+            holder.handleTouchEvent(localized)
+        } finally {
+            localized.recycle()
+        }
+    }
+
+    private fun syncActiveWebtoonZoomHolder(
+        preferredHolder: WebtoonReadingAdapter.WebtoonPageViewHolder? = null
+    ) {
+        val preferredZoomed = preferredHolder?.takeIf {
+            it.bindingAdapterPosition != RecyclerView.NO_POSITION && it.isZoomed()
+        }
+        if (preferredZoomed != null) {
+            val previous = activeWebtoonZoomHolder
+            if (previous != null && previous !== preferredZoomed && previous.isZoomed()) {
+                previous.resetZoom()
+            }
+            activeWebtoonZoomHolder = preferredZoomed
+            return
+        }
+        if (activeWebtoonZoomHolder?.isZoomed() != true) {
+            activeWebtoonZoomHolder = null
+        }
     }
 
     private fun isVisibleWebtoonPath(path: String): Boolean {

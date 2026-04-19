@@ -172,6 +172,13 @@ class ReadingImageTransformController(
         return imageUserScale > minScale + 0.01f
     }
 
+    fun resetZoom() {
+        if (currentBitmap == null) return
+        imageMatrix.set(baseMatrix)
+        imageUserScale = minScale
+        applyImageMatrix()
+    }
+
     fun computeImageDisplayRect(): RectF? {
         val drawable = imageView.drawable ?: return null
         val rect = RectF(

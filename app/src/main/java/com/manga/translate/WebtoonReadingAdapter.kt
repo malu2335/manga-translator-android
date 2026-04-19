@@ -2,9 +2,11 @@ package com.manga.translate
 
 import android.graphics.Bitmap
 import android.graphics.RectF
+import android.view.MotionEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewConfiguration
 import androidx.core.view.doOnLayout
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
@@ -194,6 +196,15 @@ class WebtoonReadingAdapter(
     inner class WebtoonPageViewHolder(
         private val binding: ItemReadingWebtoonPageBinding
     ) : RecyclerView.ViewHolder(binding.root) {
+        private val imageTransformController = ReadingImageTransformController(
+            context = binding.root.context,
+            imageView = binding.readingPageImage,
+            hasBubbleAt = { x, y -> binding.readingPageOverlay.hasBubbleAt(x, y) },
+            onMatrixUpdated = { updateOverlayDisplayRect() }
+        )
+        private val touchSlop = ViewConfiguration.get(binding.root.context).scaledTouchSlop.toFloat()
+        private val doubleTapTimeout = ViewConfiguration.getDoubleTapTimeout().toLong()
+        private val doubleTapSlop = ViewConfiguration.get(binding.root.context).scaledDoubleTapSlop.toFloat()
         private var bindJob: Job? = null
         private var overlayReloadJob: Job? = null
         private var boundPath: String? = null
@@ -202,6 +213,12 @@ class WebtoonReadingAdapter(
         private var currentImageWidth: Int = 0
         private var currentImageHeight: Int = 0
         private var currentTranslation: TranslationResult? = null
+        private var downX = 0f
+        private var downY = 0f
+        private var touchMoved = false
+        private var lastTapTime = 0L
+        private var lastTapX = 0f
+        private var lastTapY = 0f
 
         fun bind(
             imageFile: File,
@@ -218,6 +235,12 @@ class WebtoonReadingAdapter(
             currentImageWidth = 0
             currentImageHeight = 0
             currentTranslation = null
+            downX = 0f
+            downY = 0f
+            touchMoved = false
+            lastTapTime = 0L
+            lastTapX = 0f
+            lastTapY = 0f
             bindJob?.cancel()
             overlayReloadJob?.cancel()
             boundHolders[imageFile.absolutePath] = this
@@ -234,6 +257,7 @@ class WebtoonReadingAdapter(
             binding.readingPageOverlay.visibility = View.GONE
             applyPlaceholder(imageFile)
             binding.readingPageImage.setImageDrawable(null)
+            imageTransformController.setCurrentBitmap(null)
             binding.root.doOnLayout {
                 if (boundPath != imageFile.absolutePath) return@doOnLayout
                 loadPage(imageFile)
@@ -264,6 +288,64 @@ class WebtoonReadingAdapter(
             )
         }
 
+        fun isZoomed(): Boolean = imageTransformController.isZoomed()
+
+        fun resetZoom() {
+            imageTransformController.resetZoom()
+        }
+
+        fun handleTouchEvent(event: MotionEvent): Boolean {
+            val transformHandled = imageTransformController.handleTouch(event)
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    downY = event.y
+                    touchMoved = false
+                    return transformHandled || isZoomed()
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    if (!touchMoved &&
+                        (kotlin.math.abs(event.x - downX) > touchSlop ||
+                            kotlin.math.abs(event.y - downY) > touchSlop)
+                    ) {
+                        touchMoved = true
+                    }
+                    return transformHandled || isZoomed()
+                }
+
+                MotionEvent.ACTION_POINTER_DOWN,
+                MotionEvent.ACTION_POINTER_UP -> {
+                    return transformHandled || isZoomed()
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    if (!touchMoved && !isLockedEditPage()) {
+                        val now = event.eventTime
+                        val isDoubleTap = now - lastTapTime <= doubleTapTimeout &&
+                            kotlin.math.abs(event.x - lastTapX) <= doubleTapSlop &&
+                            kotlin.math.abs(event.y - lastTapY) <= doubleTapSlop
+                        if (isDoubleTap) {
+                            lastTapTime = 0L
+                            touchMoved = false
+                            return toggleDoubleTapZoom(event.x, event.y)
+                        }
+                        lastTapTime = now
+                        lastTapX = event.x
+                        lastTapY = event.y
+                    }
+                    touchMoved = false
+                    return transformHandled || isZoomed()
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    touchMoved = false
+                    return transformHandled || isZoomed()
+                }
+            }
+            return transformHandled || isZoomed()
+        }
+
         private fun loadPage(imageFile: File) {
             bindJob?.cancel()
             bindJob = scope.launch {
@@ -289,6 +371,7 @@ class WebtoonReadingAdapter(
                 binding.readingPageImage.setImageBitmap(bitmap)
                 binding.readingPageImage.doOnLayout {
                     if (boundPath != imageFile.absolutePath) return@doOnLayout
+                    imageTransformController.reset(bitmap, ReadingDisplayMode.FIT_WIDTH)
                     rememberedPageHeights[imageFile.absolutePath] = binding.readingPageImage.height
                     binding.readingPagePlaceholder.visibility = View.GONE
                     bindOverlay(bitmap, currentTranslation)
@@ -307,6 +390,7 @@ class WebtoonReadingAdapter(
             currentImageHeight = 0
             currentTranslation = null
             binding.readingPageImage.setImageDrawable(null)
+            imageTransformController.setCurrentBitmap(null)
             binding.readingPageOverlay.onOffsetChanged = null
             binding.readingPageOverlay.onBubbleRemove = null
             binding.readingPageOverlay.onBubbleTap = null
@@ -350,7 +434,7 @@ class WebtoonReadingAdapter(
             }
             val resolved = resolveOverlayTranslation(translation)
             val lockedForEdit = isLockedEditPage()
-            binding.readingPageOverlay.setDisplayRect(RectF(0f, 0f, width, height))
+            updateOverlayDisplayRect(width, height)
             binding.readingPageOverlay.setTranslations(resolved)
             binding.readingPageOverlay.setOffsets(if (lockedForEdit) lockedPageOffsets else emptyMap())
             binding.readingPageOverlay.setTouchPassthroughEnabled(!lockedForEdit)
@@ -382,6 +466,19 @@ class WebtoonReadingAdapter(
             }
             binding.readingPageOverlay.setEditMode(lockedForEdit)
             binding.readingPageOverlay.visibility = if (resolved.bubbles.isEmpty()) View.GONE else View.VISIBLE
+        }
+
+        private fun toggleDoubleTapZoom(x: Float, y: Float): Boolean {
+            return imageTransformController.toggleDoubleTapZoom(x, y)
+        }
+
+        private fun updateOverlayDisplayRect(
+            fallbackWidth: Float = binding.readingPageImage.width.toFloat(),
+            fallbackHeight: Float = binding.readingPageImage.height.toFloat()
+        ) {
+            val rect = imageTransformController.computeImageDisplayRect()
+                ?: RectF(0f, 0f, fallbackWidth, fallbackHeight)
+            binding.readingPageOverlay.setDisplayRect(rect)
         }
 
         fun reloadTranslationOverlay() {
