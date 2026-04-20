@@ -1073,6 +1073,7 @@ class ReadingFragment : Fragment() {
     private fun startWebtoonTranslationWatcher() {
         if (folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) return
         if (webtoonTranslationWatchJob?.isActive == true) return
+        refreshVisibleWebtoonTranslations()
         webtoonTranslationWatchJob = viewLifecycleOwner.lifecycleScope.launch {
             translationStore.updates.collect { path ->
                 if (!isAdded || _binding == null || folderReadingMode != FolderReadingMode.WEBTOON_SCROLL) {
@@ -1081,6 +1082,23 @@ class ReadingFragment : Fragment() {
                 if (isVisibleWebtoonPath(path)) {
                     webtoonAdapter.notifyTranslationChanged(path)
                 }
+            }
+        }
+    }
+
+    private fun refreshVisibleWebtoonTranslations() {
+        val images = readingSessionViewModel.images.value.orEmpty()
+        if (images.isEmpty()) return
+        val firstVisible = webtoonLayoutManager.findFirstVisibleItemPosition()
+        val lastVisible = webtoonLayoutManager.findLastVisibleItemPosition()
+        if (firstVisible == RecyclerView.NO_POSITION || lastVisible == RecyclerView.NO_POSITION) return
+        val start = firstVisible.coerceAtLeast(0)
+        val end = lastVisible.coerceAtMost(images.lastIndex)
+        if (start > end) return
+        for (index in start..end) {
+            val imageFile = images[index]
+            if (translationStore.translationFileFor(imageFile).exists()) {
+                webtoonAdapter.notifyTranslationChanged(imageFile.absolutePath)
             }
         }
     }

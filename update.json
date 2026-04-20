@@ -1,11 +1,19 @@
 {
-  "versionCode": 44,
-  "versionName": "3.0.3",
+  "versionCode": 45,
+  "versionName": "3.0.4",
   "releaseChannel": "stable",
-  "releasedAt": "2026-04-16",
-  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v3.0.3/app-release.apk",
-  "changelog": "V3更新之后的稳定版，修复了图片无法放大问题，采用双击进入放大状态。修复异形气泡显示异常问题",
+  "releasedAt": "2026-04-20",
+  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v3.0.4/app-release.apk",
+  "changelog": "进一步优化稳定性与阅读体验：新增自动重试次数设置，支持条漫双击放大，修复图片不居中、后台翻译卡进度以及无法取消翻译等问题。",
   "history": [
+    {
+      "versionCode": 44,
+      "versionName": "3.0.3",
+      "releaseChannel": "stable",
+      "releasedAt": "2026-04-16",
+      "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v3.0.3/app-release.apk",
+      "changelog": "V3更新之后的稳定版，修复了图片无法放大问题，采用双击进入放大状态。修复异形气泡显示异常问题"
+    },
     {
     "versionCode": 43,
     "versionName": "3.0.2",
