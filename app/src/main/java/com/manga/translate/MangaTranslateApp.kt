@@ -21,5 +21,8 @@ class MangaTranslateApp : Application() {
             crashStateStore.markCrashed()
             previousHandler?.uncaughtException(thread, throwable)
         }
+        if (TranslationTaskPersistence(this).load() != null) {
+            TranslationKeepAliveService.resumePendingTask(this)
+        }
     }
 }

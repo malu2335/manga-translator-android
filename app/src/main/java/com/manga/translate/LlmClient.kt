@@ -9,13 +9,17 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.SocketTimeoutException
 import java.net.URLEncoder
-import java.net.URL
 import java.io.ByteArrayOutputStream
+import java.net.SocketTimeoutException
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 class LlmClient(
@@ -24,6 +28,7 @@ class LlmClient(
 ) {
     private val appContext = context.applicationContext
     private val promptCache = mutableMapOf<String, LlmPromptConfig>()
+    private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     fun isConfigured(apiSettings: ApiSettings? = null): Boolean {
         return (apiSettings ?: settingsStore.load()).isValid()
@@ -107,21 +112,18 @@ class LlmClient(
         var lastErrorBody: String? = null
         for (attempt in 1..RETRY_COUNT) {
             currentCoroutineContext().ensureActive()
-            val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("Authorization", "Bearer ${ocrSettings.apiKey}")
-                connectTimeout = timeoutMs
-                readTimeout = timeoutMs
-                doOutput = true
-            }
             val result = try {
-                connection.outputStream.use { output ->
-                    output.write(payload.toString().toByteArray(Charsets.UTF_8))
-                }
-                val code = connection.responseCode
-                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                val body = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                val response = executeRequest(
+                    request = Request.Builder()
+                        .url(endpoint)
+                        .post(payload.toString().toRequestBody(jsonMediaType))
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", "Bearer ${ocrSettings.apiKey}")
+                        .build(),
+                    timeoutMs = timeoutMs
+                )
+                val code = response.code
+                val body = response.body?.string().orEmpty()
                 if (code !in 200..299) {
                     AppLogger.log("LlmClient", "OCR HTTP $code on $endpoint: ${summarizeBody(body)}")
                     lastErrorCode = "HTTP $code"
@@ -136,8 +138,6 @@ class LlmClient(
                 AppLogger.log("LlmClient", "OCR request failed on $endpoint (attempt $attempt)", e)
                 lastErrorCode = "NETWORK_ERROR"
                 null
-            } finally {
-                connection.disconnect()
             }
             if (result != null || attempt == RETRY_COUNT) {
                 if (result != null) return@withContext result
@@ -208,18 +208,13 @@ class LlmClient(
         var lastResponseException: LlmResponseException? = null
         for (attempt in 1..retries) {
             currentCoroutineContext().ensureActive()
-            val connection = openTextRequestConnection(endpoint, settings, timeoutMs)
             val result = try {
-                connection.outputStream.use { output ->
-                    output.write(payload.toString().toByteArray(Charsets.UTF_8))
-                }
-                val code = connection.responseCode
-                val stream = if (code in 200..299) {
-                    connection.inputStream
-                } else {
-                    connection.errorStream
-                }
-                val body = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                val response = executeRequest(
+                    request = buildJsonPostRequest(endpoint, payload, settings),
+                    timeoutMs = timeoutMs
+                )
+                val code = response.code
+                val body = response.body?.string().orEmpty()
                 if (code !in 200..299) {
                     AppLogger.log(
                         "LlmClient",
@@ -256,8 +251,6 @@ class LlmClient(
                 AppLogger.log("LlmClient", "Request failed on $endpoint (attempt $attempt)", e)
                 lastErrorCode = "NETWORK_ERROR"
                 null
-            } finally {
-                connection.disconnect()
             }
             if (result != null || attempt == retries) {
                 if (result != null) {
@@ -314,14 +307,13 @@ class LlmClient(
         var lastResponseException: LlmResponseException? = null
         for (attempt in 1..retries) {
             currentCoroutineContext().ensureActive()
-            val connection = openTextRequestConnection(endpoint, settings, timeoutMs)
             val result = try {
-                connection.outputStream.use { output ->
-                    output.write(payload.toString().toByteArray(Charsets.UTF_8))
-                }
-                val code = connection.responseCode
-                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                val body = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                val response = executeRequest(
+                    request = buildJsonPostRequest(endpoint, payload, settings),
+                    timeoutMs = timeoutMs
+                )
+                val code = response.code
+                val body = response.body?.string().orEmpty()
                 if (code !in 200..299) {
                     AppLogger.log("LlmClient", "HTTP $code on $endpoint: ${summarizeBody(body)}")
                     lastErrorCode = "HTTP $code"
@@ -355,8 +347,6 @@ class LlmClient(
                 AppLogger.log("LlmClient", "Request failed on $endpoint (attempt $attempt)", e)
                 lastErrorCode = "NETWORK_ERROR"
                 null
-            } finally {
-                connection.disconnect()
             }
             if (result != null || attempt == retries) {
                 if (result != null) {
@@ -1030,23 +1020,17 @@ class LlmClient(
         var lastErrorBody: String? = null
         for (attempt in 1..RETRY_COUNT) {
             currentCoroutineContext().ensureActive()
-            val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                setRequestProperty("Content-Type", "application/json")
-                if (apiFormat == ApiFormat.OPENAI_COMPATIBLE && apiKey.isNotBlank()) {
-                    setRequestProperty("Authorization", "Bearer $apiKey")
-                }
-                connectTimeout = timeoutMs
-                readTimeout = timeoutMs
-            }
             val result = try {
-                val code = connection.responseCode
-                val stream = if (code in 200..299) {
-                    connection.inputStream
-                } else {
-                    connection.errorStream
+                val requestBuilder = Request.Builder()
+                    .url(endpoint)
+                    .get()
+                    .header("Content-Type", "application/json")
+                if (apiFormat == ApiFormat.OPENAI_COMPATIBLE && apiKey.isNotBlank()) {
+                    requestBuilder.header("Authorization", "Bearer $apiKey")
                 }
-                val body = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                val response = executeRequest(requestBuilder.build(), timeoutMs)
+                val code = response.code
+                val body = response.body?.string().orEmpty()
                 if (code !in 200..299) {
                     AppLogger.log(
                         "LlmClient",
@@ -1073,8 +1057,6 @@ class LlmClient(
                 )
                 lastErrorCode = "NETWORK_ERROR"
                 null
-            } finally {
-                connection.disconnect()
             }
             if (!result.isNullOrEmpty() || attempt == RETRY_COUNT) {
                 if (!result.isNullOrEmpty()) {
@@ -1227,21 +1209,29 @@ class LlmClient(
         return config.takeIf { it.length() > 0 }
     }
 
-    private fun openTextRequestConnection(
+    private fun buildJsonPostRequest(
         endpoint: String,
-        settings: ApiSettings,
-        timeoutMs: Int
-    ): HttpURLConnection {
-        return (URL(endpoint).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            setRequestProperty("Content-Type", "application/json")
-            if (settings.apiFormat == ApiFormat.OPENAI_COMPATIBLE) {
-                setRequestProperty("Authorization", "Bearer ${settings.apiKey}")
-            }
-            connectTimeout = timeoutMs
-            readTimeout = timeoutMs
-            doOutput = true
+        payload: JSONObject,
+        settings: ApiSettings
+    ): Request {
+        val requestBuilder = Request.Builder()
+            .url(endpoint)
+            .post(payload.toString().toRequestBody(jsonMediaType))
+            .header("Content-Type", "application/json")
+        if (settings.apiFormat == ApiFormat.OPENAI_COMPATIBLE) {
+            requestBuilder.header("Authorization", "Bearer ${settings.apiKey}")
         }
+        return requestBuilder.build()
+    }
+
+    private fun executeRequest(request: Request, timeoutMs: Int): Response {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+            .readTimeout(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+            .writeTimeout(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+            .callTimeout(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+            .build()
+        return client.newCall(request).execute()
     }
 
     private fun getPromptConfig(name: String): LlmPromptConfig {

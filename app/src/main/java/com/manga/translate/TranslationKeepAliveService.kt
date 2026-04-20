@@ -11,9 +11,22 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import com.manga.translate.di.appContainer
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import java.io.File
 
 class TranslationKeepAliveService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val taskPersistence by lazy(LazyThreadSafetyMode.NONE) {
+        TranslationTaskPersistence(applicationContext)
+    }
+    private var translationJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -22,7 +35,6 @@ class TranslationKeepAliveService : Service() {
             handleCancelTranslation()
             return START_NOT_STICKY
         }
-        acquireWakeLock()
         val title = intent?.getStringExtra(EXTRA_TITLE)
             ?: getString(R.string.translation_keepalive_title)
         val message = intent?.getStringExtra(EXTRA_MESSAGE)
@@ -40,11 +52,23 @@ class TranslationKeepAliveService : Service() {
                 null
             )
         )
+        when (intent?.action) {
+            ACTION_START_TRANSLATION_TASK -> {
+                loadDescriptor(intent)?.let(::startTranslationTask)
+            }
+            ACTION_RESUME_TRANSLATION_TASK -> {
+                if (translationJob?.isActive != true) {
+                    taskPersistence.load()?.let(::startTranslationTask)
+                }
+            }
+        }
         return START_STICKY
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        translationJob?.cancel()
+        serviceScope.cancel()
         releaseWakeLock()
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
@@ -64,7 +88,7 @@ class TranslationKeepAliveService : Service() {
             "MangaTranslator:TranslationKeepAlive"
         ).apply {
             setReferenceCounted(false)
-            acquire(WAKELOCK_TIMEOUT_MS)
+            acquire()
         }
     }
 
@@ -77,6 +101,81 @@ class TranslationKeepAliveService : Service() {
         wakeLock = null
     }
 
+    private fun loadDescriptor(intent: Intent): TranslationTaskDescriptor? {
+        val raw = intent.getStringExtra(EXTRA_TASK_DESCRIPTOR) ?: return null
+        return runCatching {
+            parseTranslationTaskDescriptor(org.json.JSONObject(raw))
+        }.getOrNull()
+    }
+
+    private fun startTranslationTask(descriptor: TranslationTaskDescriptor) {
+        if (translationJob?.isActive == true) return
+        taskPersistence.save(descriptor)
+        acquireWakeLock()
+        val coordinator = applicationContext.appContainer.createFolderTranslationCoordinator(
+            translationPipeline = applicationContext.appContainer.createTranslationPipeline(),
+            ui = ServiceLibraryUiCallbacks
+        )
+        val tasks = descriptor.toFolderTasks()
+        if (tasks.isEmpty()) {
+            GlobalTaskProgressStore.fail(
+                getString(R.string.translation_keepalive_title),
+                getString(R.string.translation_failed)
+            )
+            taskPersistence.clear()
+            releaseWakeLock()
+            stopSelf()
+            return
+        }
+        translationJob = when (descriptor.mode) {
+            TranslationTaskPersistence.MODE_COLLECTION -> {
+                val collectionFolder = descriptor.collectionFolderPath?.let(::File)
+                if (collectionFolder == null || !collectionFolder.exists()) {
+                    GlobalTaskProgressStore.fail(
+                        getString(R.string.translation_keepalive_title),
+                        getString(R.string.translation_failed)
+                    )
+                    taskPersistence.clear()
+                    releaseWakeLock()
+                    stopSelf()
+                    return
+                }
+                coordinator.translateCollection(
+                    scope = serviceScope,
+                    collectionFolder = collectionFolder,
+                    tasks = tasks,
+                    onTranslateEnabled = { }
+                )
+            }
+            TranslationTaskPersistence.MODE_BATCH -> {
+                coordinator.translateBatch(
+                    scope = serviceScope,
+                    tasks = tasks,
+                    onTranslateEnabled = { }
+                )
+            }
+            else -> {
+                val first = tasks.first()
+                coordinator.translateFolder(
+                    scope = serviceScope,
+                    folder = first.folder,
+                    images = first.images,
+                    force = first.force,
+                    fullTranslate = first.fullTranslate,
+                    useVlDirectTranslate = first.useVlDirectTranslate,
+                    language = first.language,
+                    onTranslateEnabled = { }
+                )
+            }
+        }
+        translationJob?.invokeOnCompletion {
+            translationJob = null
+            taskPersistence.clear()
+            releaseWakeLock()
+            stopSelf()
+        }
+    }
+
     companion object {
         private const val CHANNEL_ID = "translation_keepalive"
         private const val ALERT_CHANNEL_ID = "translation_alerts"
@@ -85,11 +184,13 @@ class TranslationKeepAliveService : Service() {
         private const val NOTIFICATION_REQUEST_CODE = 0
         private const val ALERT_NOTIFICATION_REQUEST_CODE = 2
         private const val CANCEL_REQUEST_CODE = 1
-        private const val WAKELOCK_TIMEOUT_MS = 60 * 60 * 1000L
         private const val EXTRA_TITLE = "extra_title"
         private const val EXTRA_MESSAGE = "extra_message"
         private const val EXTRA_CONTENT = "extra_content"
+        private const val EXTRA_TASK_DESCRIPTOR = "extra_task_descriptor"
         private const val ACTION_CANCEL_TRANSLATION = "com.manga.translate.action.CANCEL_TRANSLATION"
+        private const val ACTION_START_TRANSLATION_TASK = "com.manga.translate.action.START_TRANSLATION_TASK"
+        private const val ACTION_RESUME_TRANSLATION_TASK = "com.manga.translate.action.RESUME_TRANSLATION_TASK"
         const val EXTRA_OPEN_LIBRARY_TAB = "extra_open_library_tab"
         @Volatile
         private var cancelActionEnabled: Boolean = false
@@ -182,6 +283,40 @@ class TranslationKeepAliveService : Service() {
         fun clearModelErrorAttention(context: Context) {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.cancel(ALERT_NOTIFICATION_ID)
+        }
+
+        internal fun startTranslationTask(
+            context: Context,
+            descriptor: TranslationTaskDescriptor,
+            title: String = context.getString(R.string.translation_keepalive_title),
+            message: String = context.getString(R.string.translation_keepalive_message),
+            content: String = context.getString(R.string.translation_preparing)
+        ) {
+            cancelActionEnabled = true
+            GlobalTaskProgressStore.show(title = title, detail = content)
+            val intent = Intent(context, TranslationKeepAliveService::class.java).apply {
+                action = ACTION_START_TRANSLATION_TASK
+                putExtra(EXTRA_TITLE, title)
+                putExtra(EXTRA_MESSAGE, message)
+                putExtra(EXTRA_CONTENT, content)
+                putExtra(EXTRA_TASK_DESCRIPTOR, descriptor.toJsonString())
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        internal fun resumePendingTask(context: Context) {
+            val intent = Intent(context, TranslationKeepAliveService::class.java).apply {
+                action = ACTION_RESUME_TRANSLATION_TASK
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
         }
 
         fun updateStatus(context: Context, status: String, title: String, message: String) {

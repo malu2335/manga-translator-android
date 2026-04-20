@@ -61,7 +61,6 @@ class LibraryFragment : Fragment() {
     private val prefs by lazy(LazyThreadSafetyMode.NONE) { appContainer.libraryPrefs }
 
     private lateinit var preferencesGateway: LibraryPreferencesGateway
-    private lateinit var translationCoordinator: FolderTranslationCoordinator
     private lateinit var importExportCoordinator: LibraryImportExportCoordinator
     private lateinit var selectionController: LibrarySelectionController
 
@@ -305,11 +304,8 @@ class LibraryFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        LibraryUiBridge.register(uiCallbacks)
         preferencesGateway = LibraryPreferencesGateway(requireContext(), prefs, repository)
-        translationCoordinator = appContainer.createFolderTranslationCoordinator(
-            translationPipeline = translationPipeline,
-            ui = uiCallbacks
-        )
         importExportCoordinator = LibraryImportExportCoordinator(
             context = requireContext(),
             repository = repository,
@@ -511,6 +507,7 @@ class LibraryFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        LibraryUiBridge.unregister(uiCallbacks)
         activeModelErrorRequest?.onSkip?.invoke()
         activeModelErrorRequest = null
         activeModelErrorDialog?.dismiss()
@@ -1076,28 +1073,27 @@ class LibraryFragment : Fragment() {
         } else {
             TranslationLanguage.JA_TO_ZH
         }
-        translationCoordinator.translateFolder(
-            scope = viewLifecycleOwner.lifecycleScope,
-            folder = folder,
-            images = images,
-            force = force,
-            fullTranslate = fullTranslate,
-            useVlDirectTranslate = useVlDirectTranslate,
-            language = language,
-            onTranslateEnabled = { enabled -> _binding?.folderTranslate?.isEnabled = enabled }
+        _binding?.folderTranslate?.isEnabled = false
+        TranslationKeepAliveService.startTranslationTask(
+            requireContext(),
+            TranslationTaskPersistence.fromFolder(
+                folder = folder,
+                images = images,
+                force = force,
+                fullTranslate = fullTranslate,
+                useVlDirectTranslate = useVlDirectTranslate,
+                language = language
+            )
         )
     }
 
     private fun runCollectionTranslation(collectionFolder: File, force: Boolean) {
         val tasks = buildTranslationTasksForFolder(collectionFolder, force)
-        translationCoordinator.translateCollection(
-            scope = viewLifecycleOwner.lifecycleScope,
-            collectionFolder = collectionFolder,
-            tasks = tasks,
-            onTranslateEnabled = { enabled ->
-                _binding?.folderImportChapters?.isEnabled = enabled
-                _binding?.folderTranslateCollection?.isEnabled = enabled
-            }
+        _binding?.folderImportChapters?.isEnabled = false
+        _binding?.folderTranslateCollection?.isEnabled = false
+        TranslationKeepAliveService.startTranslationTask(
+            requireContext(),
+            TranslationTaskPersistence.fromCollection(collectionFolder, tasks)
         )
     }
 
@@ -1368,15 +1364,13 @@ class LibraryFragment : Fragment() {
             return
         }
         val tasks = selected.flatMap { buildTranslationTasksForFolder(it, force = false) }
-        translationCoordinator.translateBatch(
-            scope = viewLifecycleOwner.lifecycleScope,
-            tasks = tasks,
-            onTranslateEnabled = { enabled ->
-                _binding?.librarySelectAll?.isEnabled = enabled
-                _binding?.libraryTranslateSelected?.isEnabled = enabled
-                _binding?.libraryDeleteSelected?.isEnabled = enabled
-                _binding?.libraryCancelSelection?.isEnabled = enabled
-            }
+        _binding?.librarySelectAll?.isEnabled = false
+        _binding?.libraryTranslateSelected?.isEnabled = false
+        _binding?.libraryDeleteSelected?.isEnabled = false
+        _binding?.libraryCancelSelection?.isEnabled = false
+        TranslationKeepAliveService.startTranslationTask(
+            requireContext(),
+            TranslationTaskPersistence.fromBatch(tasks)
         )
     }
 

@@ -86,7 +86,7 @@ internal class FolderTranslationCoordinator(
         useVlDirectTranslate: Boolean,
         language: TranslationLanguage,
         onTranslateEnabled: (Boolean) -> Unit
-    ) {
+    ): Job? {
         resumableTask = ResumeTranslationTask(
             folder = folder,
             images = images.toList(),
@@ -97,9 +97,9 @@ internal class FolderTranslationCoordinator(
             onTranslateEnabled = onTranslateEnabled
         )
         if (fullTranslate) {
-            translateFolderFull(scope, folder, images, force, language, onTranslateEnabled)
+            return translateFolderFull(scope, folder, images, force, language, onTranslateEnabled)
         } else {
-            translateFolderStandard(
+            return translateFolderStandard(
                 scope,
                 folder,
                 images,
@@ -116,8 +116,8 @@ internal class FolderTranslationCoordinator(
         collectionFolder: File,
         tasks: List<FolderTranslationTask>,
         onTranslateEnabled: (Boolean) -> Unit
-    ) {
-        translateTaskBatch(
+    ): Job? {
+        return translateTaskBatch(
             scope = scope,
             tasks = tasks,
             onTranslateEnabled = onTranslateEnabled,
@@ -129,8 +129,8 @@ internal class FolderTranslationCoordinator(
         scope: CoroutineScope,
         tasks: List<FolderTranslationTask>,
         onTranslateEnabled: (Boolean) -> Unit
-    ) {
-        translateTaskBatch(
+    ): Job? {
+        return translateTaskBatch(
             scope = scope,
             tasks = tasks,
             onTranslateEnabled = onTranslateEnabled,
@@ -143,10 +143,10 @@ internal class FolderTranslationCoordinator(
         tasks: List<FolderTranslationTask>,
         onTranslateEnabled: (Boolean) -> Unit,
         onFinished: () -> Unit
-    ) {
+    ): Job? {
         if (tasks.isEmpty()) {
             ui.setFolderStatus(appContext.getString(R.string.folder_chapters_empty))
-            return
+            return null
         }
         val preparedTasks = tasks.mapNotNull { task ->
             val pendingImages = resolvePendingImages(
@@ -172,15 +172,15 @@ internal class FolderTranslationCoordinator(
         if (preparedTasks.isEmpty()) {
             ui.setFolderStatus(appContext.getString(R.string.translation_done))
             onFinished()
-            return
+            return null
         }
         if (!llmClient.isConfigured()) {
             ui.setFolderStatus(appContext.getString(R.string.missing_api_settings))
-            return
+            return null
         }
         if (!translationRunning.compareAndSet(false, true)) {
             ui.setFolderStatus(appContext.getString(R.string.translation_preparing))
-            return
+            return activeJob
         }
 
         resumableTask = null
@@ -188,11 +188,6 @@ internal class FolderTranslationCoordinator(
         TranslationCancellationRegistry.register { cancelActiveTranslation() }
         onTranslateEnabled(false)
         try {
-            TranslationKeepAliveService.start(appContext)
-            TranslationKeepAliveService.updateStatus(
-                appContext,
-                appContext.getString(R.string.translation_preparing)
-            )
             AppLogger.log(
                 "Library",
                 "Start translating task batch, ${preparedTasks.size} folders"
@@ -273,7 +268,6 @@ internal class FolderTranslationCoordinator(
                     TranslationCancellationRegistry.clear()
                     cancellationRequested.set(false)
                     onTranslateEnabled(true)
-                    TranslationKeepAliveService.stop(appContext)
                     translationRunning.set(false)
                 }
             }
@@ -281,12 +275,12 @@ internal class FolderTranslationCoordinator(
             if (cancellationRequested.get()) {
                 job.cancel(CancellationException(USER_CANCELED_REASON))
             }
+            return job
         } catch (e: Exception) {
             activeJob = null
             TranslationCancellationRegistry.clear()
             cancellationRequested.set(false)
             onTranslateEnabled(true)
-            TranslationKeepAliveService.stop(appContext)
             translationRunning.set(false)
             AppLogger.log("Library", "Failed to start batch translation", e)
             ui.setFolderStatus(appContext.getString(R.string.translation_failed))
@@ -294,6 +288,7 @@ internal class FolderTranslationCoordinator(
                 appContext.getString(R.string.translation_keepalive_title),
                 appContext.getString(R.string.translation_failed)
             )
+            return null
         }
     }
 
@@ -305,10 +300,10 @@ internal class FolderTranslationCoordinator(
         useVlDirectTranslate: Boolean,
         language: TranslationLanguage,
         onTranslateEnabled: (Boolean) -> Unit
-    ) {
+    ): Job? {
         if (images.isEmpty()) {
             ui.setFolderStatus(appContext.getString(R.string.folder_images_empty))
-            return
+            return null
         }
         val pendingImages = resolvePendingImages(
             images = images,
@@ -319,26 +314,21 @@ internal class FolderTranslationCoordinator(
         )
         if (pendingImages.isEmpty()) {
             ui.setFolderStatus(appContext.getString(R.string.translation_done))
-            return
+            return null
         }
         if (!llmClient.isConfigured()) {
             ui.setFolderStatus(appContext.getString(R.string.missing_api_settings))
-            return
+            return null
         }
         if (!translationRunning.compareAndSet(false, true)) {
             ui.setFolderStatus(appContext.getString(R.string.translation_preparing))
-            return
+            return activeJob
         }
 
         cancellationRequested.set(false)
         TranslationCancellationRegistry.register { cancelActiveTranslation() }
         onTranslateEnabled(false)
         try {
-            TranslationKeepAliveService.start(appContext)
-            TranslationKeepAliveService.updateStatus(
-                appContext,
-                appContext.getString(R.string.translation_preparing)
-            )
             AppLogger.log(
                 "Library",
                 "Start translating folder ${folder.name}, ${pendingImages.size} images"
@@ -466,7 +456,6 @@ internal class FolderTranslationCoordinator(
                     TranslationCancellationRegistry.clear()
                     cancellationRequested.set(false)
                     onTranslateEnabled(true)
-                    TranslationKeepAliveService.stop(appContext)
                     translationRunning.set(false)
                 }
             }
@@ -474,12 +463,12 @@ internal class FolderTranslationCoordinator(
             if (cancellationRequested.get()) {
                 job.cancel(CancellationException(USER_CANCELED_REASON))
             }
+            return job
         } catch (e: Exception) {
             activeJob = null
             TranslationCancellationRegistry.clear()
             cancellationRequested.set(false)
             onTranslateEnabled(true)
-            TranslationKeepAliveService.stop(appContext)
             translationRunning.set(false)
             AppLogger.log("Library", "Failed to start folder translation ${folder.name}", e)
             ui.setFolderStatus(appContext.getString(R.string.translation_failed))
@@ -487,6 +476,7 @@ internal class FolderTranslationCoordinator(
                 appContext.getString(R.string.translation_keepalive_title),
                 appContext.getString(R.string.translation_failed)
             )
+            return null
         }
     }
 
@@ -497,10 +487,10 @@ internal class FolderTranslationCoordinator(
         force: Boolean,
         language: TranslationLanguage,
         onTranslateEnabled: (Boolean) -> Unit
-    ) {
+    ): Job? {
         if (images.isEmpty()) {
             ui.setFolderStatus(appContext.getString(R.string.folder_images_empty))
-            return
+            return null
         }
         val pendingImages = resolvePendingImages(
             images = images,
@@ -511,26 +501,21 @@ internal class FolderTranslationCoordinator(
         )
         if (pendingImages.isEmpty()) {
             ui.setFolderStatus(appContext.getString(R.string.translation_done))
-            return
+            return null
         }
         if (!llmClient.isConfigured()) {
             ui.setFolderStatus(appContext.getString(R.string.missing_api_settings))
-            return
+            return null
         }
         if (!translationRunning.compareAndSet(false, true)) {
             ui.setFolderStatus(appContext.getString(R.string.translation_preparing))
-            return
+            return activeJob
         }
 
         cancellationRequested.set(false)
         TranslationCancellationRegistry.register { cancelActiveTranslation() }
         onTranslateEnabled(false)
         try {
-            TranslationKeepAliveService.start(appContext)
-            TranslationKeepAliveService.updateStatus(
-                appContext,
-                appContext.getString(R.string.translation_preparing)
-            )
             AppLogger.log(
                 "Library",
                 "Start full-page translating folder ${folder.name}, ${pendingImages.size} images"
@@ -789,7 +774,6 @@ internal class FolderTranslationCoordinator(
                     TranslationCancellationRegistry.clear()
                     cancellationRequested.set(false)
                     onTranslateEnabled(true)
-                    TranslationKeepAliveService.stop(appContext)
                     translationRunning.set(false)
                 }
             }
@@ -797,12 +781,12 @@ internal class FolderTranslationCoordinator(
             if (cancellationRequested.get()) {
                 job.cancel(CancellationException(USER_CANCELED_REASON))
             }
+            return job
         } catch (e: Exception) {
             activeJob = null
             TranslationCancellationRegistry.clear()
             cancellationRequested.set(false)
             onTranslateEnabled(true)
-            TranslationKeepAliveService.stop(appContext)
             translationRunning.set(false)
             AppLogger.log("Library", "Failed to start full-page translation ${folder.name}", e)
             ui.setFolderStatus(appContext.getString(R.string.translation_failed))
@@ -810,6 +794,7 @@ internal class FolderTranslationCoordinator(
                 appContext.getString(R.string.translation_keepalive_title),
                 appContext.getString(R.string.translation_failed)
             )
+            return null
         }
     }
 
