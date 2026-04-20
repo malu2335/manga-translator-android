@@ -322,6 +322,8 @@ class SettingsFragment : Fragment() {
         val model = binding.modelNameInput.text?.toString()?.trim().orEmpty()
         val timeoutInput = binding.apiTimeoutInput.text?.toString()?.trim()
         val timeoutSeconds = parseIntInput(timeoutInput) ?: settingsStore.loadApiTimeoutSeconds()
+        val retryCountInput = binding.apiRetryCountInput.text?.toString()?.trim()
+        val apiRetryCount = parseIntInput(retryCountInput) ?: settingsStore.loadApiRetryCount()
         val concurrencyInput = binding.maxConcurrencyInput.text?.toString()?.trim()
         val maxConcurrency = parseIntInput(concurrencyInput) ?: settingsStore.loadMaxConcurrency()
         val persisted = settingsPersistenceController.persistMainForm(
@@ -331,12 +333,17 @@ class SettingsFragment : Fragment() {
                 modelName = model,
                 apiFormat = currentApiFormat(),
                 apiTimeoutSeconds = timeoutSeconds,
+                apiRetryCount = apiRetryCount,
                 maxConcurrency = maxConcurrency
             )
         )
         val normalizedTimeoutText = formatNumber(persisted.apiTimeoutSeconds)
         if (normalizedTimeoutText != timeoutInput) {
             binding.apiTimeoutInput.setText(normalizedTimeoutText)
+        }
+        val normalizedRetryCountText = formatNumber(persisted.apiRetryCount)
+        if (normalizedRetryCountText != retryCountInput) {
+            binding.apiRetryCountInput.setText(normalizedRetryCountText)
         }
         val normalizedConcurrencyText = formatNumber(persisted.maxConcurrency)
         if (normalizedConcurrencyText != concurrencyInput) {
@@ -590,6 +597,7 @@ class SettingsFragment : Fragment() {
         updateApiFormatButton(settings.apiFormat)
         updateApiSettingsNote(settings.apiFormat)
         binding.apiTimeoutInput.setText(formatNumber(settingsStore.loadApiTimeoutSeconds()))
+        binding.apiRetryCountInput.setText(formatNumber(settingsStore.loadApiRetryCount()))
         binding.maxConcurrencyInput.setText(formatNumber(settingsStore.loadMaxConcurrency()))
         binding.modelIoLoggingSwitch.isChecked = settingsStore.loadModelIoLogging()
         updateLanguageButton(settingsStore.loadAppLanguage())

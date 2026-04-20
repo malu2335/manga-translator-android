@@ -149,7 +149,12 @@ class LlmClient(
                 }
                 return@withContext null
             }
-            maybeBackoffBeforeRetry(attempt, RETRY_COUNT, lastErrorCode)
+            maybeBackoffBeforeRetry(
+                attempt,
+                RetryPolicy(maxAttempts = RETRY_COUNT, mode = RetryMode.DEFAULT),
+                lastErrorCode,
+                lastErrorBody
+            )
         }
         null
     }
@@ -202,7 +207,8 @@ class LlmClient(
             AppLogger.log("LlmClient", "Selected model: $selectedModel")
         }
         val timeoutMs = requestTimeoutMs?.coerceAtLeast(1_000) ?: settingsStore.loadApiTimeoutMs()
-        val retries = retryCount.coerceAtLeast(1)
+        val retryPolicy = buildRetryPolicy(retryCount)
+        val retries = retryPolicy.maxAttempts
         var lastErrorCode: String? = null
         var lastErrorBody: String? = null
         var lastResponseException: LlmResponseException? = null
@@ -272,7 +278,7 @@ class LlmClient(
                 }
                 return null
             }
-            maybeBackoffBeforeRetry(attempt, retries, lastErrorCode)
+            maybeBackoffBeforeRetry(attempt, retryPolicy, lastErrorCode, lastErrorBody)
         }
         return null
     }
@@ -301,7 +307,8 @@ class LlmClient(
             AppLogger.log("LlmClient", "Selected model: $selectedModel")
         }
         val timeoutMs = requestTimeoutMs?.coerceAtLeast(1_000) ?: settingsStore.loadApiTimeoutMs()
-        val retries = retryCount.coerceAtLeast(1)
+        val retryPolicy = buildRetryPolicy(retryCount)
+        val retries = retryPolicy.maxAttempts
         var lastErrorCode: String? = null
         var lastErrorBody: String? = null
         var lastResponseException: LlmResponseException? = null
@@ -368,7 +375,7 @@ class LlmClient(
                 }
                 return null
             }
-            maybeBackoffBeforeRetry(attempt, retries, lastErrorCode)
+            maybeBackoffBeforeRetry(attempt, retryPolicy, lastErrorCode, lastErrorBody)
         }
         return null
     }
@@ -1071,25 +1078,53 @@ class LlmClient(
                 }
                 return emptyList()
             }
-            maybeBackoffBeforeRetry(attempt, RETRY_COUNT, lastErrorCode)
+            maybeBackoffBeforeRetry(
+                attempt,
+                RetryPolicy(maxAttempts = RETRY_COUNT, mode = RetryMode.DEFAULT),
+                lastErrorCode,
+                lastErrorBody
+            )
         }
         return emptyList()
     }
 
     private suspend fun maybeBackoffBeforeRetry(
         attempt: Int,
-        maxAttempts: Int,
-        errorCode: String?
+        retryPolicy: RetryPolicy,
+        errorCode: String?,
+        errorBody: String?
     ) {
-        if (attempt >= maxAttempts || !shouldRetryWithBackoff(errorCode)) {
+        if (attempt >= retryPolicy.maxAttempts || !shouldRetry(errorCode, errorBody, retryPolicy.mode)) {
             return
         }
-        val delayMs = (RETRY_BASE_DELAY_MS shl (attempt - 1)).coerceAtMost(RETRY_MAX_DELAY_MS)
+        val delayMs = when (retryPolicy.mode) {
+            RetryMode.DEFAULT -> (RETRY_BASE_DELAY_MS shl (attempt - 1)).coerceAtMost(RETRY_MAX_DELAY_MS)
+            RetryMode.CONFIGURABLE -> CONFIGURED_RETRY_DELAY_MS
+        }
         AppLogger.log(
             "LlmClient",
-            "Retrying request after ${delayMs}ms backoff (attempt ${attempt + 1}/$maxAttempts, error=$errorCode)"
+            "Retrying request after ${delayMs}ms delay (attempt ${attempt + 1}/${retryPolicy.maxAttempts}, error=$errorCode)"
         )
         delay(delayMs.toLong())
+    }
+
+    private fun buildRetryPolicy(retryCount: Int): RetryPolicy {
+        val configuredRetryCount = settingsStore.loadApiRetryCount()
+        return RetryPolicy(
+            maxAttempts = if (retryCount == RETRY_COUNT) configuredRetryCount else retryCount.coerceAtLeast(1),
+            mode = RetryMode.CONFIGURABLE
+        )
+    }
+
+    private fun shouldRetry(
+        errorCode: String?,
+        errorBody: String?,
+        mode: RetryMode
+    ): Boolean {
+        return when (mode) {
+            RetryMode.DEFAULT -> shouldRetryWithBackoff(errorCode)
+            RetryMode.CONFIGURABLE -> shouldRetryWithConfiguredMode(errorCode, errorBody)
+        }
     }
 
     private fun shouldRetryWithBackoff(errorCode: String?): Boolean {
@@ -1102,6 +1137,31 @@ class LlmClient(
         }
         val status = errorCode.removePrefix("HTTP ").toIntOrNull() ?: return false
         return status >= 500
+    }
+
+    private fun shouldRetryWithConfiguredMode(errorCode: String?, errorBody: String?): Boolean {
+        if (errorCode == null) return false
+        if (errorCode == "TIMEOUT" || errorCode == "NETWORK_ERROR" || errorCode == "HTTP 408" || errorCode == "HTTP 429") {
+            return true
+        }
+        val status = errorCode.removePrefix("HTTP ").toIntOrNull()
+        if (status != null && status >= 500) {
+            return true
+        }
+        if (errorBody != null) {
+            val normalizedBody = errorBody.lowercase()
+            if (
+                normalizedBody.contains("temporarily unavailable") ||
+                normalizedBody.contains("temporary unavailable") ||
+                normalizedBody.contains("service unavailable") ||
+                normalizedBody.contains("try again later") ||
+                normalizedBody.contains("server busy") ||
+                normalizedBody.contains("overloaded")
+            ) {
+                return true
+            }
+        }
+        return false
     }
 
     private fun parseModelList(body: String, apiFormat: ApiFormat): List<String> {
@@ -1342,6 +1402,7 @@ class LlmClient(
         private const val RETRY_COUNT = 3
         private const val RETRY_BASE_DELAY_MS = 750
         private const val RETRY_MAX_DELAY_MS = 4_000
+        private const val CONFIGURED_RETRY_DELAY_MS = 3_000
         private val requestCounter = AtomicLong(0)
 
         fun reservedRequestKeys(apiFormat: ApiFormat): Set<String> {
@@ -1365,6 +1426,16 @@ class LlmClient(
             }
         }
     }
+}
+
+private data class RetryPolicy(
+    val maxAttempts: Int,
+    val mode: RetryMode
+)
+
+private enum class RetryMode {
+    DEFAULT,
+    CONFIGURABLE
 }
 
 class LlmRequestException(

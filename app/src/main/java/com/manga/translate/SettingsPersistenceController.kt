@@ -6,11 +6,13 @@ internal data class SettingsMainForm(
     val modelName: String,
     val apiFormat: ApiFormat,
     val apiTimeoutSeconds: Int,
+    val apiRetryCount: Int,
     val maxConcurrency: Int
 )
 
 internal data class SettingsPersistenceResult(
     val apiTimeoutSeconds: Int,
+    val apiRetryCount: Int,
     val maxConcurrency: Int
 )
 
@@ -27,9 +29,11 @@ internal class SettingsPersistenceController(
             )
         )
         settingsStore.saveApiTimeoutSeconds(form.apiTimeoutSeconds)
+        settingsStore.saveApiRetryCount(form.apiRetryCount)
         settingsStore.saveMaxConcurrency(form.maxConcurrency)
         return SettingsPersistenceResult(
             apiTimeoutSeconds = settingsStore.loadApiTimeoutSeconds(),
+            apiRetryCount = settingsStore.loadApiRetryCount(),
             maxConcurrency = settingsStore.loadMaxConcurrency()
         )
     }

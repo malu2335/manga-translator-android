@@ -372,6 +372,18 @@ class SettingsStore(context: Context) {
             }
     }
 
+    fun loadApiRetryCount(): Int {
+        val saved = prefs.getInt(KEY_API_RETRY_COUNT, DEFAULT_API_RETRY_COUNT)
+        return saved.coerceIn(MIN_API_RETRY_COUNT, MAX_API_RETRY_COUNT)
+    }
+
+    fun saveApiRetryCount(value: Int) {
+        val normalized = value.coerceIn(MIN_API_RETRY_COUNT, MAX_API_RETRY_COUNT)
+        prefs.edit() {
+                putInt(KEY_API_RETRY_COUNT, normalized)
+            }
+    }
+
     fun loadMaxConcurrency(): Int {
         val saved = prefs.getInt(KEY_MAX_CONCURRENCY, DEFAULT_MAX_CONCURRENCY)
         return saved.coerceIn(MIN_MAX_CONCURRENCY, MAX_MAX_CONCURRENCY)
@@ -935,6 +947,7 @@ class SettingsStore(context: Context) {
         private const val KEY_NORMAL_FREE_BUBBLE_OPACITY_PERCENT =
             "normal_free_bubble_opacity_percent"
         private const val KEY_MODEL_IO_LOGGING = "model_io_logging"
+        private const val KEY_API_RETRY_COUNT = "api_retry_count"
         private const val KEY_MAX_CONCURRENCY = "max_concurrency"
         private const val KEY_API_TIMEOUT_SECONDS = "api_timeout_seconds"
         private const val KEY_APP_LANGUAGE = "app_language"
@@ -987,6 +1000,9 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_MAX_CONCURRENCY = 3
         private const val MIN_MAX_CONCURRENCY = 1
         private const val MAX_MAX_CONCURRENCY = 50
+        private const val DEFAULT_API_RETRY_COUNT = 3
+        private const val MIN_API_RETRY_COUNT = 1
+        private const val MAX_API_RETRY_COUNT = 50
         private const val DEFAULT_API_TIMEOUT_SECONDS = 300
         private const val MIN_API_TIMEOUT_SECONDS = 30
         private const val MAX_API_TIMEOUT_SECONDS = 1200

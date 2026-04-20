@@ -28,6 +28,7 @@
     <string name="api_format_gemini">Gemini</string>
     <string name="model_name_hint">模型名称</string>
     <string name="api_timeout_hint">API 超时 (秒, 30–1200)</string>
+    <string name="api_retry_count_hint">API 最大重试次数 (1–50)</string>
     <string name="floating_api_timeout_hint">悬浮翻译 API 超时 (秒, 30–1200)</string>
     <string name="max_concurrency_hint">最大并发数 (1–50)</string>
     <string name="api_settings_note_openai">示例 URL：https://api.siliconflow.cn/v1</string>
