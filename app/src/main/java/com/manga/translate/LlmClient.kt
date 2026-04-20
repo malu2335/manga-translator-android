@@ -8,8 +8,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -21,6 +23,8 @@ import java.io.ByteArrayOutputStream
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class LlmClient(
     context: Context,
@@ -1284,15 +1288,34 @@ class LlmClient(
         return requestBuilder.build()
     }
 
-    private fun executeRequest(request: Request, timeoutMs: Int): Response {
+    private suspend fun executeRequest(request: Request, timeoutMs: Int): Response {
         val client = OkHttpClient.Builder()
             .connectTimeout(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
             .readTimeout(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
             .writeTimeout(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
             .callTimeout(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
             .build()
-        return client.newCall(request).execute()
+        return executeCallCancellable(client.newCall(request))
     }
+
+    private suspend fun executeCallCancellable(call: Call): Response =
+        suspendCancellableCoroutine { continuation ->
+            continuation.invokeOnCancellation {
+                call.cancel()
+            }
+            try {
+                val response = call.execute()
+                if (continuation.isActive) {
+                    continuation.resume(response)
+                } else {
+                    response.close()
+                }
+            } catch (t: Throwable) {
+                if (continuation.isActive) {
+                    continuation.resumeWithException(t)
+                }
+            }
+        }
 
     private fun getPromptConfig(name: String): LlmPromptConfig {
         val resolvedName = PromptAssetResolver.resolve(appContext, name)
