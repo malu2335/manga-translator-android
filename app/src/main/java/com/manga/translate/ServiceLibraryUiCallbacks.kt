@@ -11,6 +11,10 @@ internal object ServiceLibraryUiCallbacks : LibraryUiCallbacks {
         LibraryUiBridge.clearFolderStatus()
     }
 
+    override fun setTranslationActionsEnabled(enabled: Boolean) {
+        LibraryUiBridge.setTranslationActionsEnabled(enabled)
+    }
+
     override fun showToast(resId: Int) {
         LibraryUiBridge.showToast(resId)
     }

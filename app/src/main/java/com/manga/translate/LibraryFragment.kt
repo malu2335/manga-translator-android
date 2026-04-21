@@ -119,6 +119,10 @@ class LibraryFragment : Fragment() {
             setFolderStatus("")
         }
 
+        override fun setTranslationActionsEnabled(enabled: Boolean) {
+            applyTranslationActionsEnabled(enabled)
+        }
+
         override fun showToast(resId: Int) {
             if (!isAdded) return
             Toast.makeText(requireContext(), resId, Toast.LENGTH_SHORT).show()
@@ -1346,6 +1350,19 @@ class LibraryFragment : Fragment() {
             if (folderAdapter.areAllSelected()) R.string.clear_all else R.string.select_all
         )
         binding.libraryRenameSelected.visibility = if (count == 1) View.VISIBLE else View.GONE
+    }
+
+    private fun applyTranslationActionsEnabled(enabled: Boolean) {
+        val binding = _binding ?: return
+        binding.folderTranslate.isEnabled = enabled
+        binding.folderImportChapters.isEnabled = enabled
+        binding.folderTranslateCollection.isEnabled = enabled
+        if (isLibrarySelectionMode) {
+            binding.librarySelectAll.isEnabled = enabled
+            binding.libraryTranslateSelected.isEnabled = enabled
+            binding.libraryDeleteSelected.isEnabled = enabled
+            binding.libraryCancelSelection.isEnabled = enabled
+        }
     }
 
     private fun toggleSelectAllLibraryFolders() {

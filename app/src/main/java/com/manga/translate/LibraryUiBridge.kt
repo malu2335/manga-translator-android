@@ -24,6 +24,10 @@ internal object LibraryUiBridge {
         callbacks.forEach { it.clearFolderStatus() }
     }
 
+    fun setTranslationActionsEnabled(enabled: Boolean) {
+        callbacks.forEach { it.setTranslationActionsEnabled(enabled) }
+    }
+
     fun showToast(resId: Int) {
         callbacks.forEach { it.showToast(resId) }
     }
