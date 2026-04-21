@@ -1,7 +1,7 @@
 {
   "versionCode": 45,
   "versionName": "3.0.4",
-  "releaseChannel": "stable",
+  "releaseChannel": "preview",
   "releasedAt": "2026-04-20",
   "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v3.0.4/app-release.apk",
   "changelog": "进一步优化稳定性与阅读体验：新增自动重试次数设置，支持条漫双击放大，修复图片不居中、后台翻译卡进度以及无法取消翻译等问题。",
