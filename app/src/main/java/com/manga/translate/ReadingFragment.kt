@@ -139,6 +139,9 @@ class ReadingFragment : Fragment() {
             override fun onInterceptTouchEvent(rv: RecyclerView, event: MotionEvent): Boolean {
                 if (folderReadingMode != FolderReadingMode.WEBTOON_SCROLL || isEditMode) return false
                 val target = webtoonTouchHolder ?: findWebtoonTouchHolder(rv, event)
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    webtoonTouchHolder = target
+                }
                 val handled = target?.let { dispatchWebtoonTouch(it, event) } == true
                 if (handled) {
                     webtoonTouchHolder = target
