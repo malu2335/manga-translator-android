@@ -14,7 +14,8 @@ class ReadingImageTransformController(
     context: Context,
     private val imageView: ImageView,
     private val hasBubbleAt: (x: Float, y: Float) -> Boolean,
-    private val onMatrixUpdated: () -> Unit
+    private val onMatrixUpdated: () -> Unit,
+    private val allowPanWhenOverflowing: Boolean = true
 ) {
     private val baseMatrix = Matrix()
     private val imageMatrix = Matrix()
@@ -105,7 +106,7 @@ class ReadingImageTransformController(
             return true
         }
         val zoomed = imageUserScale > minScale + 0.01f
-        val overflow = isImageOverflowing(bitmap)
+        val overflow = allowPanWhenOverflowing && isImageOverflowing(bitmap)
         val allowPan = (zoomed || overflow) && !hasBubbleAt(event.x, event.y)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {

@@ -200,7 +200,8 @@ class WebtoonReadingAdapter(
             context = binding.root.context,
             imageView = binding.readingPageImage,
             hasBubbleAt = { x, y -> binding.readingPageOverlay.hasBubbleAt(x, y) },
-            onMatrixUpdated = { updateOverlayDisplayRect() }
+            onMatrixUpdated = { updateOverlayDisplayRect() },
+            allowPanWhenOverflowing = false
         )
         private val touchSlop = ViewConfiguration.get(binding.root.context).scaledTouchSlop.toFloat()
         private val doubleTapTimeout = ViewConfiguration.getDoubleTapTimeout().toLong()
