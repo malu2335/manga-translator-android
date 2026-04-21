@@ -86,6 +86,8 @@ class FloatingTranslationView @JvmOverloads constructor(
     private var lastTapTime = 0L
     private var lastTapX = 0f
     private var lastTapY = 0f
+    private var pendingSwipeDirection: Int? = null
+    private var hadMultiplePointers = false
 
     var onOffsetChanged: ((Int, Float, Float) -> Unit)? = null
     var onTap: ((Float) -> Unit)? = null
@@ -189,6 +191,10 @@ class FloatingTranslationView @JvmOverloads constructor(
                 activeId = null
                 longPressTriggered = false
                 removeCallbacks(longPressRunnable)
+                if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
+                    pendingSwipeDirection = null
+                    hadMultiplePointers = true
+                }
             }
             parent?.requestDisallowInterceptTouchEvent(true)
             swipeTriggered = true
@@ -204,6 +210,8 @@ class FloatingTranslationView @JvmOverloads constructor(
                 dragging = false
                 swipeTriggered = false
                 longPressTriggered = false
+                pendingSwipeDirection = null
+                hadMultiplePointers = false
                 removeCallbacks(longPressRunnable)
                 if (allowParentScrollInEditMode && activeId == null) {
                     parent?.requestDisallowInterceptTouchEvent(false)
@@ -233,7 +241,7 @@ class FloatingTranslationView @JvmOverloads constructor(
                     val dy = event.y - startY
                     if (abs(dx) > swipeThreshold && abs(dx) > abs(dy) * 1.3f) {
                         swipeTriggered = true
-                        onSwipe?.invoke(if (dx > 0f) 1 else -1)
+                        pendingSwipeDirection = if (dx > 0f) 1 else -1
                     }
                 }
                 return true
@@ -284,6 +292,11 @@ class FloatingTranslationView @JvmOverloads constructor(
                         performClick()
                     }
                 }
+                val direction = pendingSwipeDirection
+                if (direction != null && !hadMultiplePointers) {
+                    onSwipe?.invoke(direction)
+                }
+                pendingSwipeDirection = null
                 dragging = false
                 activeId = null
                 return true
@@ -291,6 +304,7 @@ class FloatingTranslationView @JvmOverloads constructor(
             MotionEvent.ACTION_CANCEL -> {
                 removeCallbacks(longPressRunnable)
                 parent?.requestDisallowInterceptTouchEvent(false)
+                pendingSwipeDirection = null
                 dragging = false
                 activeId = null
                 return true
