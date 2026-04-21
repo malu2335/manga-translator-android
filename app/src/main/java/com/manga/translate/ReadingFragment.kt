@@ -1256,6 +1256,13 @@ class ReadingFragment : Fragment() {
                     bubble.rect.top + offset.second,
                     bubble.rect.right + offset.first,
                     bubble.rect.bottom + offset.second
+                ),
+                maskContour = BubbleShapePaths.translateMaskContour(
+                    contour = bubble.maskContour,
+                    deltaX = offset.first,
+                    deltaY = offset.second,
+                    sourceWidth = translation.width,
+                    sourceHeight = translation.height
                 )
             )
         }

@@ -61,6 +61,23 @@ internal object BubbleShapePaths {
         applyShrink(outPath, shrinkPercent)
     }
 
+    fun translateMaskContour(
+        contour: FloatArray?,
+        deltaX: Float,
+        deltaY: Float,
+        sourceWidth: Int,
+        sourceHeight: Int
+    ): FloatArray? {
+        if (contour == null || contour.size < 2 || sourceWidth <= 0 || sourceHeight <= 0) {
+            return contour?.copyOf()
+        }
+        val normalizedDeltaX = deltaX / sourceWidth.toFloat()
+        val normalizedDeltaY = deltaY / sourceHeight.toFloat()
+        return FloatArray(contour.size) { index ->
+            contour[index] + if (index % 2 == 0) normalizedDeltaX else normalizedDeltaY
+        }
+    }
+
     fun insetTextBounds(path: Path, outRect: RectF) {
         val pathBounds = RectF()
         path.computeBounds(pathBounds, true)

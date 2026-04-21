@@ -335,8 +335,19 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         val maxTop = max(0f, sourceHeight.toFloat() - height)
         val newLeft = min(max(sourceX - dragOffsetX, 0f), maxLeft)
         val newTop = min(max(sourceY - dragOffsetY, 0f), maxTop)
+        val deltaX = newLeft - bubble.rect.left
+        val deltaY = newTop - bubble.rect.top
         val newRect = RectF(newLeft, newTop, newLeft + width, newTop + height)
-        mutable[index] = bubble.copy(rect = newRect)
+        mutable[index] = bubble.copy(
+            rect = newRect,
+            maskContour = BubbleShapePaths.translateMaskContour(
+                contour = bubble.maskContour,
+                deltaX = deltaX,
+                deltaY = deltaY,
+                sourceWidth = sourceWidth,
+                sourceHeight = sourceHeight
+            )
+        )
         bubbles = mutable
         onBubblesChanged?.invoke(mutable)
         setDirty(true)
