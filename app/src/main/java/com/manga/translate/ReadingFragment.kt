@@ -906,7 +906,7 @@ class ReadingFragment : Fragment() {
         val isWebtoon = folderReadingMode == FolderReadingMode.WEBTOON_SCROLL
         binding.readingWebtoonList.visibility = if (isWebtoon) View.VISIBLE else View.GONE
         binding.readingScrollContainer.visibility = if (isWebtoon) View.GONE else View.VISIBLE
-        binding.readingScrollContainer.scrollEnabled = isWebtoon && !isEditMode
+        binding.readingScrollContainer.scrollEnabled = !isWebtoon && !isEditMode
         binding.readingScrollContainer.isFillViewport = !isWebtoon
         if (isWebtoon) {
             binding.readingWebtoonList.post {
@@ -934,9 +934,10 @@ class ReadingFragment : Fragment() {
     }
 
     private fun updateReadingInteractionState() {
-        val allowScroll = folderReadingMode == FolderReadingMode.WEBTOON_SCROLL && !isEditMode
-        binding.readingScrollContainer.scrollEnabled = allowScroll
-        binding.translationOverlay.setTouchPassthroughEnabled(allowScroll)
+        val isWebtoonScroll = folderReadingMode == FolderReadingMode.WEBTOON_SCROLL && !isEditMode
+        binding.readingScrollContainer.scrollEnabled =
+            folderReadingMode != FolderReadingMode.WEBTOON_SCROLL && !isEditMode
+        binding.translationOverlay.setTouchPassthroughEnabled(isWebtoonScroll)
     }
 
     private fun updateReadingContentLayout(bitmap: Bitmap?) {
