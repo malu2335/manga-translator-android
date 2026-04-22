@@ -31,7 +31,80 @@ object RectGeometryDeduplicator {
                 }
             }
         }
-        return mergedRects
+        return mergeDenseClusters(mergedRects, imageArea)
+    }
+
+    private fun mergeDenseClusters(rects: List<RectF>, imageArea: Float): List<RectF> {
+        if (rects.size <= DENSE_CLUSTER_MIN_COUNT) return rects
+
+        val visited = BooleanArray(rects.size)
+        val result = ArrayList<RectF>(rects.size)
+
+        for (start in rects.indices) {
+            if (visited[start]) continue
+            val component = ArrayList<Int>()
+            val queue = ArrayDeque<Int>()
+            queue.add(start)
+            visited[start] = true
+
+            while (queue.isNotEmpty()) {
+                val current = queue.removeFirst()
+                component.add(current)
+                for (next in rects.indices) {
+                    if (visited[next]) continue
+                    if (!isDenseNeighbor(rects[current], rects[next])) continue
+                    visited[next] = true
+                    queue.add(next)
+                }
+            }
+
+            if (component.size >= DENSE_CLUSTER_MIN_COUNT) {
+                val union = unionOfComponent(rects, component)
+                val unionArea = max(0f, union.width()) * max(0f, union.height())
+                if (unionArea / imageArea <= DENSE_CLUSTER_MAX_UNION_FRACTION) {
+                    result.add(union)
+                    continue
+                }
+            }
+
+            for (index in component) {
+                result.add(RectF(rects[index]))
+            }
+        }
+        return result
+    }
+
+    private fun isDenseNeighbor(a: RectF, b: RectF): Boolean {
+        if (RectF.intersects(a, b)) return true
+        val expandedA = RectF(
+            a.left - DENSE_CLUSTER_PAD,
+            a.top - DENSE_CLUSTER_PAD,
+            a.right + DENSE_CLUSTER_PAD,
+            a.bottom + DENSE_CLUSTER_PAD
+        )
+        val expandedB = RectF(
+            b.left - DENSE_CLUSTER_PAD,
+            b.top - DENSE_CLUSTER_PAD,
+            b.right + DENSE_CLUSTER_PAD,
+            b.bottom + DENSE_CLUSTER_PAD
+        )
+        return RectF.intersects(expandedA, b) || RectF.intersects(expandedB, a)
+    }
+
+    private fun unionOfComponent(rects: List<RectF>, indices: List<Int>): RectF {
+        val first = rects[indices.first()]
+        var left = first.left
+        var top = first.top
+        var right = first.right
+        var bottom = first.bottom
+        for (i in 1 until indices.size) {
+            val rect = rects[indices[i]]
+            left = min(left, rect.left)
+            top = min(top, rect.top)
+            right = max(right, rect.right)
+            bottom = max(bottom, rect.bottom)
+        }
+        return RectF(left, top, right, bottom)
     }
 
     private fun shouldMergeRects(a: RectF, b: RectF, imageArea: Float): Boolean {
@@ -106,4 +179,7 @@ object RectGeometryDeduplicator {
     private const val MERGE_MAX_UNION_FRACTION = 0.2f
     private const val MERGE_Y_GAP_MAX = 140f
     private const val MERGE_Y_GAP_MIN = 36f
+    private const val DENSE_CLUSTER_MIN_COUNT = 3
+    private const val DENSE_CLUSTER_PAD = 36f
+    private const val DENSE_CLUSTER_MAX_UNION_FRACTION = 0.24f
 }
