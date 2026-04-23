@@ -38,8 +38,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = false
+            isShrinkResources = false
             if (releaseSigning != null) {
                 signingConfig = releaseSigning
             } else {
