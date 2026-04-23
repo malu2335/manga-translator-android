@@ -48,6 +48,11 @@ class MainActivity : AppCompatActivity() {
             }
             .start()
     }
+    private val delayedUpdateCheckRunnable = Runnable {
+        if (!isFinishing && !isDestroyed) {
+            checkForUpdate()
+        }
+    }
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (!granted) {
@@ -83,7 +88,7 @@ class MainActivity : AppCompatActivity() {
         observeGlobalProgress()
         requestNotificationPermissionIfNeeded()
         maybeShowCrashDialog()
-        checkForUpdate()
+        scheduleUpdateCheck()
         handleLaunchIntent(intent)
     }
 
@@ -126,6 +131,10 @@ class MainActivity : AppCompatActivity() {
             if (isFinishing || isDestroyed) return@launch
             showUpdateDialog(updateInfo)
         }
+    }
+
+    private fun scheduleUpdateCheck() {
+        mainHandler.postDelayed(delayedUpdateCheckRunnable, UPDATE_CHECK_DELAY_MS)
     }
 
     fun showUpdateDialog(
@@ -290,6 +299,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         mainHandler.removeCallbacks(hideGlobalProgressRunnable)
+        mainHandler.removeCallbacks(delayedUpdateCheckRunnable)
         progressHideJob?.cancel()
     }
 
@@ -321,6 +331,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private var hasCheckedUpdate = false
+        private const val UPDATE_CHECK_DELAY_MS = 2_000L
         private const val PROJECT_URL = "https://github.com/jedzqer/manga-translator"
     }
 
