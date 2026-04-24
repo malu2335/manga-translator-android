@@ -420,10 +420,7 @@ class FloatingTranslationView @JvmOverloads constructor(
         if (bubbleBounds.width() <= 0f || bubbleBounds.height() <= 0f) return
         BubbleShapePaths.insetTextBounds(bubblePath, textRect)
         canvas.drawPath(bubblePath, fillPaint)
-        val checkpoint = canvas.save()
-        canvas.clipPath(bubblePath)
         drawTextInRect(canvas, bubble.text, textRect)
-        canvas.restoreToCount(checkpoint)
     }
 
     private fun resolveBubbleShrinkPercent(bubble: BubbleTranslation): Int {

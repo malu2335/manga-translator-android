@@ -418,8 +418,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             BubbleShapePaths.insetTextBounds(bubblePath, shapeRect)
             val availableWidth = shapeRect.width().toInt().coerceAtLeast(1)
             val availableHeight = shapeRect.height().toInt().coerceAtLeast(1)
-            val checkpoint = canvas.save()
-            canvas.clipPath(bubblePath)
             if (bubbleRenderSettings.useHorizontalText) {
                 val textLayout = buildFittedTextLayout(text, availableWidth, availableHeight)
                 val drawY = shapeRect.top +
@@ -430,7 +428,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             } else {
                 drawVerticalTextInRect(canvas, VerticalTextSymbolConverter.convert(text), shapeRect)
             }
-            canvas.restoreToCount(checkpoint)
         }
     }
 
