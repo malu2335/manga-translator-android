@@ -136,6 +136,7 @@
     <string name="floating_bubble_render_settings_note">用于悬浮窗翻译结果覆盖层。大小支持外扩或内缩，形状支持矩形或内接椭圆。</string>
     <string name="floating_bubble_size_adjust_percent_hint">气泡框大小 (-30–30，正数外扩)</string>
     <string name="floating_bubble_opacity_percent_hint">气泡框不透明度 (0–100)</string>
+    <string name="floating_bubble_font_scale_percent_hint">字体大小 (50–200，100 为默认)</string>
     <string name="floating_bubble_shape_hint">气泡框形状</string>
     <string name="floating_bubble_shape_rectangle">默认矩形</string>
     <string name="floating_bubble_shape_inscribed_ellipse">内接椭圆</string>

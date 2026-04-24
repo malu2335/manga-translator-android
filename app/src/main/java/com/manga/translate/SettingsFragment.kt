@@ -680,6 +680,9 @@ class SettingsFragment : Fragment() {
         dialogBinding.floatingBubbleOpacityPercentInput.setText(
             formatNumber(currentSettings.opacityPercent)
         )
+        dialogBinding.floatingBubbleFontScalePercentInput.setText(
+            formatNumber(currentSettings.fontScalePercent)
+        )
         setupFloatingBubbleShapeDropdown(
             dialogBinding.floatingBubbleShapeInput,
             currentSettings.shape
@@ -696,6 +699,9 @@ class SettingsFragment : Fragment() {
                     opacityPercent = parseIntInput(
                         dialogBinding.floatingBubbleOpacityPercentInput.text?.toString()
                     ) ?: currentSettings.opacityPercent,
+                    fontScalePercent = parseIntInput(
+                        dialogBinding.floatingBubbleFontScalePercentInput.text?.toString()
+                    ) ?: currentSettings.fontScalePercent,
                     shape = parseFloatingBubbleShape(
                         dialogBinding.floatingBubbleShapeInput,
                         currentSettings.shape

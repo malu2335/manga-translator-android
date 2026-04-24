@@ -489,12 +489,9 @@ class FloatingTranslationView @JvmOverloads constructor(
             val maxWidth = rect.width().toInt().coerceAtLeast(1)
             val maxHeight = rect.height().toInt().coerceAtLeast(1)
             val textScale = bubbleRenderSettings.fontScalePercent / 100f
-            var textSize = ((rect.height() / 3f) * textScale).coerceIn(12f, 42f)
-            var layout = buildLayout(text, maxWidth, textSize)
-            while (layout.height > maxHeight && textSize > 10f) {
-                textSize *= 0.9f
-                layout = buildLayout(text, maxWidth, textSize)
-            }
+            val defaultTextSize = findDefaultHorizontalTextSize(text, maxWidth, maxHeight, rect.height() / 3f)
+            val textSize = (defaultTextSize * textScale).coerceAtLeast(10f)
+            val layout = buildLayout(text, maxWidth, textSize)
             val dx = rect.left
             val dy = rect.top + ((rect.height() - layout.height) / 2f).coerceAtLeast(0f)
             canvas.withTranslation(dx, dy) {
@@ -516,12 +513,9 @@ class FloatingTranslationView @JvmOverloads constructor(
         val maxWidth = rect.width().toInt().coerceAtLeast(1)
         val maxHeight = rect.height().toInt().coerceAtLeast(1)
         val textScale = bubbleRenderSettings.fontScalePercent / 100f
-        var textSize = ((rect.width() / 2.2f) * textScale).coerceIn(12f, 42f)
-        var layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
-        while ((layout.columnWidth <= 0f || layout.lineHeight <= 0f || !layout.fits) && textSize > 10f) {
-            textSize *= 0.9f
-            layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
-        }
+        val defaultTextSize = findDefaultVerticalTextSize(text, maxWidth, maxHeight, rect.width() / 2.2f)
+        val textSize = (defaultTextSize * textScale).coerceAtLeast(10f)
+        val layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
         val dx = rect.right - ((rect.width() - layout.totalWidth) / 2f) - layout.columnWidth
         val dy = rect.top + ((rect.height() - layout.totalHeight) / 2f) - layout.fontMetrics.ascent
         var col = 0
@@ -544,6 +538,36 @@ class FloatingTranslationView @JvmOverloads constructor(
             canvas.drawText(glyph, x, y, textPaint)
             row += 1
         }
+    }
+
+    private fun findDefaultHorizontalTextSize(
+        text: String,
+        maxWidth: Int,
+        maxHeight: Int,
+        initialSize: Float
+    ): Float {
+        var textSize = initialSize.coerceIn(12f, 42f)
+        var layout = buildLayout(text, maxWidth, textSize)
+        while (layout.height > maxHeight && textSize > 10f) {
+            textSize *= 0.9f
+            layout = buildLayout(text, maxWidth, textSize)
+        }
+        return textSize
+    }
+
+    private fun findDefaultVerticalTextSize(
+        text: String,
+        maxWidth: Int,
+        maxHeight: Int,
+        initialSize: Float
+    ): Float {
+        var textSize = initialSize.coerceIn(12f, 42f)
+        var layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
+        while ((layout.columnWidth <= 0f || layout.lineHeight <= 0f || !layout.fits) && textSize > 10f) {
+            textSize *= 0.9f
+            layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
+        }
+        return textSize
     }
 
     private fun buildVerticalLayout(

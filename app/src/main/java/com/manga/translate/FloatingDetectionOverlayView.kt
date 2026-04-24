@@ -456,29 +456,20 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     ): StaticLayout {
         val safeWidth = availableWidth.coerceAtLeast(1)
         val safeHeight = availableHeight.coerceAtLeast(1)
-        val cacheKey = TextLayoutCacheKey(text, safeWidth, safeHeight)
+        val cacheKey = TextLayoutCacheKey(
+            text = text,
+            availableWidth = safeWidth,
+            availableHeight = safeHeight,
+            fontScalePercent = bubbleRenderSettings.fontScalePercent
+        )
         textLayoutCache[cacheKey]?.let { return it }
         val probePaint = TextPaint(textPaint)
-        val minLayout = buildLayout(text, probePaint.apply { textSize = minTextSizePx }, safeWidth)
-        if (!layoutFits(minLayout, safeWidth, safeHeight)) {
-            textLayoutCache[cacheKey] = minLayout
-            return minLayout
-        }
-        var bestLayout = minLayout
-        var low = minTextSizePx
-        var high = maxOf(low, max(safeWidth, safeHeight).toFloat())
-        while (high - low > textSizeStepPx) {
-            val mid = (low + high) / 2f
-            val candidate = buildLayout(text, probePaint.apply { textSize = mid }, safeWidth)
-            if (layoutFits(candidate, safeWidth, safeHeight)) {
-                bestLayout = candidate
-                low = mid
-            } else {
-                high = mid
-            }
-        }
-        textLayoutCache[cacheKey] = bestLayout
-        return bestLayout
+        val textScale = bubbleRenderSettings.fontScalePercent / 100f
+        val defaultTextSize = findDefaultHorizontalTextSize(text, safeWidth, safeHeight)
+        val scaledTextSize = (defaultTextSize * textScale).coerceAtLeast(minTextSizePx)
+        val layout = buildLayout(text, probePaint.apply { textSize = scaledTextSize }, safeWidth)
+        textLayoutCache[cacheKey] = layout
+        return layout
     }
 
     private fun buildLayout(text: String, paint: TextPaint, availableWidth: Int): StaticLayout {
@@ -520,13 +511,10 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     private fun drawVerticalTextInRect(canvas: Canvas, text: String, rect: RectF) {
         val maxWidth = rect.width().toInt().coerceAtLeast(1)
         val maxHeight = rect.height().toInt().coerceAtLeast(1)
-        var textSize = (rect.width() / 2.2f).coerceIn(minTextSizePx, 42f * resources.displayMetrics.density / resources.configuration.fontScale)
-        var layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
-        while ((layout.columnWidth <= 0f || layout.lineHeight <= 0f || !layout.fits) && textSize > minTextSizePx) {
-            textSize = (textSize - textSizeStepPx).coerceAtLeast(minTextSizePx)
-            layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
-            if (textSize <= minTextSizePx) break
-        }
+        val textScale = bubbleRenderSettings.fontScalePercent / 100f
+        val defaultTextSize = findDefaultVerticalTextSize(text, maxWidth, maxHeight, rect.width() / 2.2f)
+        val textSize = (defaultTextSize * textScale).coerceAtLeast(minTextSizePx)
+        val layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
         textPaint.textSize = textSize
         val dx = rect.right - ((rect.width() - layout.totalWidth) / 2f) - layout.columnWidth
         val dy = rect.top + ((rect.height() - layout.totalHeight) / 2f) - layout.fontMetrics.ascent
@@ -550,6 +538,49 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             canvas.drawText(glyph, x, y, textPaint)
             row += 1
         }
+    }
+
+    private fun findDefaultHorizontalTextSize(
+        text: String,
+        availableWidth: Int,
+        availableHeight: Int
+    ): Float {
+        val probePaint = TextPaint(textPaint)
+        val minLayout = buildLayout(text, probePaint.apply { textSize = minTextSizePx }, availableWidth)
+        if (!layoutFits(minLayout, availableWidth, availableHeight)) {
+            return minTextSizePx
+        }
+        var bestSize = minTextSizePx
+        var low = minTextSizePx
+        var high = maxOf(low, max(availableWidth, availableHeight).toFloat())
+        while (high - low > textSizeStepPx) {
+            val mid = (low + high) / 2f
+            val candidate = buildLayout(text, probePaint.apply { textSize = mid }, availableWidth)
+            if (layoutFits(candidate, availableWidth, availableHeight)) {
+                bestSize = mid
+                low = mid
+            } else {
+                high = mid
+            }
+        }
+        return bestSize
+    }
+
+    private fun findDefaultVerticalTextSize(
+        text: String,
+        maxWidth: Int,
+        maxHeight: Int,
+        initialSize: Float
+    ): Float {
+        val maxTextSize = 42f * resources.displayMetrics.density / resources.configuration.fontScale
+        var textSize = initialSize.coerceIn(minTextSizePx, maxTextSize)
+        var layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
+        while ((layout.columnWidth <= 0f || layout.lineHeight <= 0f || !layout.fits) && textSize > minTextSizePx) {
+            textSize = (textSize - textSizeStepPx).coerceAtLeast(minTextSizePx)
+            layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
+            if (textSize <= minTextSizePx) break
+        }
+        return textSize
     }
 
     private fun buildVerticalLayout(
@@ -606,7 +637,8 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     private data class TextLayoutCacheKey(
         val text: String,
         val availableWidth: Int,
-        val availableHeight: Int
+        val availableHeight: Int,
+        val fontScalePercent: Int
     )
 
     private data class VerticalLayout(
