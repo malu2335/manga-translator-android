@@ -1008,6 +1008,7 @@ class LibraryFragment : Fragment() {
                 AppLogger.log("Library", "Rename folder failed: ${folder.name} -> $inputName")
                 Toast.makeText(requireContext(), R.string.folder_rename_failed, Toast.LENGTH_SHORT).show()
             } else {
+                preferencesGateway.migrateFolderSettings(folder, renamed)
                 AppLogger.log("Library", "Renamed folder ${folder.name} -> ${renamed.name}")
                 refreshFolderViewsAfterMutation(folder, renamed)
             }

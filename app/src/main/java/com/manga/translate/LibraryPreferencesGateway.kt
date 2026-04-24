@@ -64,6 +64,32 @@ internal class LibraryPreferencesGateway(
         }
     }
 
+    fun migrateFolderSettings(from: File, to: File) {
+        val oldPath = settingsFolder(from).absolutePath
+        val newPath = settingsFolder(to).absolutePath
+        if (oldPath == newPath) return
+
+        prefs.edit {
+            settingsKeyPrefixes.forEach { prefix ->
+                val oldKey = prefix + oldPath
+                if (!prefs.contains(oldKey)) return@forEach
+                val newKey = prefix + newPath
+                when (val value = prefs.all[oldKey]) {
+                    is Boolean -> putBoolean(newKey, value)
+                    is String -> putString(newKey, value)
+                    is Int -> putInt(newKey, value)
+                    is Long -> putLong(newKey, value)
+                    is Float -> putFloat(newKey, value)
+                    is Set<*> -> {
+                        @Suppress("UNCHECKED_CAST")
+                        putStringSet(newKey, value as Set<String>)
+                    }
+                }
+                remove(oldKey)
+            }
+        }
+    }
+
     fun getImportTreeUri(): Uri? {
         return prefs.getString(importTreeKey, null)?.let(Uri::parse)
     }
@@ -129,5 +155,11 @@ internal class LibraryPreferencesGateway(
         private const val languageKeyPrefix = "translation_language_"
         private const val vlDirectTranslateKeyPrefix = "vl_direct_translate_enabled_"
         private const val readingModeKeyPrefix = "reading_mode_"
+        private val settingsKeyPrefixes = listOf(
+            fullTranslateKeyPrefix,
+            languageKeyPrefix,
+            vlDirectTranslateKeyPrefix,
+            readingModeKeyPrefix
+        )
     }
 }
