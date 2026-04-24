@@ -14,9 +14,11 @@ import com.manga.translate.databinding.ItemReadingWebtoonPageBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.roundToInt
 
 class WebtoonReadingAdapter(
     private val scope: CoroutineScope,
@@ -52,6 +54,7 @@ class WebtoonReadingAdapter(
     )
     private val rememberedPageHeights = mutableMapOf<String, Int>()
     private val boundHolders = mutableMapOf<String, WebtoonPageViewHolder>()
+    private val translationCache = mutableMapOf<String, TranslationResult?>()
     private var editModeEnabled = false
     private var lockedPagePath: String? = null
     private var lockedPageTranslation: TranslationResult? = null
@@ -105,6 +108,7 @@ class WebtoonReadingAdapter(
             }
         )
         items = images
+        pruneTranslationCache(images)
         this.verticalLayoutEnabled = verticalLayoutEnabled
         this.bubbleRenderSettings = bubbleRenderSettings
         diffResult.dispatchUpdatesTo(this)
@@ -175,10 +179,17 @@ class WebtoonReadingAdapter(
     }
 
     fun notifyTranslationChanged(imagePath: String) {
+        translationCache.remove(imagePath)
         val index = items.indexOfFirst { it.absolutePath == imagePath }
         if (index >= 0) {
             notifyItemChanged(index, PAYLOAD_TRANSLATION_ONLY)
         }
+    }
+
+    private fun pruneTranslationCache(images: List<File>) {
+        if (translationCache.isEmpty()) return
+        val activePaths = images.mapTo(hashSetOf()) { it.absolutePath }
+        translationCache.keys.retainAll(activePaths)
     }
 
     private fun refreshPath(path: String) {
@@ -350,30 +361,44 @@ class WebtoonReadingAdapter(
         private fun loadPage(imageFile: File) {
             bindJob?.cancel()
             bindJob = scope.launch {
+                val imagePath = imageFile.absolutePath
                 val targetWidth = resolveTargetWidth()
                 val targetHeight = resolveTargetHeight()
-                val decoded = withContext(Dispatchers.IO) {
+                val decodedDeferred = async(Dispatchers.IO) {
                     ReadingBitmapDecoder.decode(imageFile, targetWidth, targetHeight)
                 }
+                val hasCachedTranslation = translationCache.containsKey(imagePath)
+                val cachedTranslation = if (hasCachedTranslation) translationCache[imagePath] else null
+                val translationDeferred = if (hasCachedTranslation) {
+                    null
+                } else {
+                    async(Dispatchers.IO) { translationStore.load(imageFile) }
+                }
+                val decoded = decodedDeferred.await()
                 val bitmap = decoded?.bitmap
-                val translation = withContext(Dispatchers.IO) { translationStore.load(imageFile) }
-                if (boundPath != imageFile.absolutePath) return@launch
+                val translation = if (hasCachedTranslation) {
+                    cachedTranslation
+                } else {
+                    translationDeferred?.await().also { translationCache[imagePath] = it }
+                }
+                if (boundPath != imagePath) return@launch
                 if (bitmap == null) {
                     currentTranslation = translation
                     binding.readingPageImage.setImageDrawable(null)
                     binding.readingPageOverlay.visibility = View.GONE
-                    showPlaceholder(imageFile.absolutePath)
+                    showPlaceholder(imagePath)
                     return@launch
                 }
                 currentBitmap = bitmap
                 currentImageWidth = decoded.sourceWidth
                 currentImageHeight = decoded.sourceHeight
                 currentTranslation = normalizeTranslation(translation)
+                updatePageHeightForImage(decoded.sourceWidth, decoded.sourceHeight)
                 binding.readingPageImage.setImageBitmap(bitmap)
                 binding.readingPageImage.doOnLayout {
-                    if (boundPath != imageFile.absolutePath) return@doOnLayout
+                    if (boundPath != imagePath) return@doOnLayout
                     imageTransformController.reset(bitmap, ReadingDisplayMode.FIT_WIDTH)
-                    rememberedPageHeights[imageFile.absolutePath] = binding.readingPageImage.height
+                    rememberedPageHeights[imagePath] = binding.readingPageImage.height
                     binding.readingPagePlaceholder.visibility = View.GONE
                     bindOverlay(bitmap, currentTranslation)
                 }
@@ -424,6 +449,25 @@ class WebtoonReadingAdapter(
             if (params.height == height) return
             params.height = height
             binding.readingPagePlaceholder.layoutParams = params
+        }
+
+        private fun updatePageHeightForImage(sourceWidth: Int, sourceHeight: Int) {
+            if (sourceWidth <= 0 || sourceHeight <= 0) return
+            val targetWidth = resolveTargetWidth()
+            val targetHeight = (targetWidth.toFloat() * sourceHeight / sourceWidth)
+                .roundToInt()
+                .coerceAtLeast(1)
+            updateViewHeight(binding.root, targetHeight)
+            updateViewHeight(binding.readingPageImage, targetHeight)
+            updateViewHeight(binding.readingPageOverlay, targetHeight)
+            updatePlaceholderHeight(targetHeight)
+        }
+
+        private fun updateViewHeight(view: View, height: Int) {
+            val params = view.layoutParams ?: return
+            if (params.height == height) return
+            params.height = height
+            view.layoutParams = params
         }
 
         private fun bindOverlay(bitmap: Bitmap, translation: TranslationResult?) {
@@ -487,10 +531,12 @@ class WebtoonReadingAdapter(
             val bitmap = currentBitmap ?: return
             overlayReloadJob?.cancel()
             overlayReloadJob = scope.launch {
+                val imagePath = imageFile.absolutePath
                 val translation = withContext(Dispatchers.IO) {
                     translationStore.load(imageFile)
                 }
-                if (boundPath != imageFile.absolutePath) return@launch
+                translationCache[imagePath] = translation
+                if (boundPath != imagePath) return@launch
                 currentTranslation = normalizeTranslation(translation)
                 bindOverlay(bitmap, currentTranslation)
             }
