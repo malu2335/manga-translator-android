@@ -119,7 +119,8 @@ internal object PdfImageCodec {
         val n = images.size
         val m = chapterOutlines.size
 
-        val offsets = mutableListOf<Long>()
+        val maxObjectNumber = 3 + 3 * n + m
+        val offsets = LongArray(maxObjectNumber + 1) { -1L }
         var byteCount = 0L
 
         val counter = object : OutputStream() {
@@ -137,7 +138,7 @@ internal object PdfImageCodec {
         }
 
         fun beginObj(objNum: Int) {
-            offsets.add(byteCount)
+            offsets[objNum] = byteCount
             counter.write("$objNum 0 obj\n".toByteArray())
         }
 
@@ -264,16 +265,19 @@ internal object PdfImageCodec {
 
         // Cross-reference table
         writeln("xref")
-        writeln("0 ${offsets.size + 1}")
+        writeln("0 ${maxObjectNumber + 1}")
         writeln("0000000000 65535 f ")
-        for (offset in offsets) {
+        for (objNum in 1..maxObjectNumber) {
+            val offset = offsets[objNum]
+            if (offset < 0) {
+                throw IllegalStateException("Missing PDF object offset: $objNum")
+            }
             writeln(String.format("%010d 00000 n ", offset))
         }
 
         // Trailer
-        val totalObjects = offsets.size + 1
         writeln("trailer")
-        writeln("<< /Size $totalObjects /Root ${indirectRef(1)} >>")
+        writeln("<< /Size ${maxObjectNumber + 1} /Root ${indirectRef(1)} >>")
         writeln("startxref")
         writeln("$startxref")
         counter.write("%%EOF".toByteArray())
