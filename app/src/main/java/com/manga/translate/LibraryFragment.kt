@@ -199,14 +199,26 @@ class LibraryFragment : Fragment() {
     ) { granted ->
         importExportCoordinator.handleStoragePermissionResult(granted) {
             val folder = currentFolder ?: return@handleStoragePermissionResult
-            importExportCoordinator.exportFolderAfterPermission(
-                uiContext = requireContext(),
-                folder = folder,
-                images = repository.listImages(folder),
-                scope = viewLifecycleOwner.lifecycleScope,
-                onExitSelectionMode = { selectionController.exitSelectionMode() },
-                onSetExportEnabled = { enabled -> _binding?.folderExport?.isEnabled = enabled }
-            )
+            if (importExportCoordinator.isPendingExportCollection()) {
+                val chapterImages = buildChapterImagesForCollection(folder)
+                importExportCoordinator.exportCollectionAfterPermission(
+                    uiContext = requireContext(),
+                    collectionFolder = folder,
+                    chapterImages = chapterImages,
+                    scope = viewLifecycleOwner.lifecycleScope,
+                    onExitSelectionMode = { selectionController.exitSelectionMode() },
+                    onSetExportEnabled = { enabled -> _binding?.folderExportCollection?.isEnabled = enabled }
+                )
+            } else {
+                importExportCoordinator.exportFolderAfterPermission(
+                    uiContext = requireContext(),
+                    folder = folder,
+                    images = repository.listImages(folder),
+                    scope = viewLifecycleOwner.lifecycleScope,
+                    onExitSelectionMode = { selectionController.exitSelectionMode() },
+                    onSetExportEnabled = { enabled -> _binding?.folderExport?.isEnabled = enabled }
+                )
+            }
         }
     }
 
@@ -260,14 +272,26 @@ class LibraryFragment : Fragment() {
         if (uri != null) {
             importExportCoordinator.handleExportTreeSelection(uri) {
                 val folder = currentFolder ?: return@handleExportTreeSelection
-                importExportCoordinator.exportFolderAfterPermission(
-                    uiContext = requireContext(),
-                    folder = folder,
-                    images = repository.listImages(folder),
-                    scope = viewLifecycleOwner.lifecycleScope,
-                    onExitSelectionMode = { selectionController.exitSelectionMode() },
-                    onSetExportEnabled = { enabled -> _binding?.folderExport?.isEnabled = enabled }
-                )
+                if (importExportCoordinator.isPendingExportCollection()) {
+                    val chapterImages = buildChapterImagesForCollection(folder)
+                    importExportCoordinator.exportCollectionAfterPermission(
+                        uiContext = requireContext(),
+                        collectionFolder = folder,
+                        chapterImages = chapterImages,
+                        scope = viewLifecycleOwner.lifecycleScope,
+                        onExitSelectionMode = { selectionController.exitSelectionMode() },
+                        onSetExportEnabled = { enabled -> _binding?.folderExportCollection?.isEnabled = enabled }
+                    )
+                } else {
+                    importExportCoordinator.exportFolderAfterPermission(
+                        uiContext = requireContext(),
+                        folder = folder,
+                        images = repository.listImages(folder),
+                        scope = viewLifecycleOwner.lifecycleScope,
+                        onExitSelectionMode = { selectionController.exitSelectionMode() },
+                        onSetExportEnabled = { enabled -> _binding?.folderExport?.isEnabled = enabled }
+                    )
+                }
             }
         } else {
             importExportCoordinator.handleExportTreeCanceled()
@@ -375,11 +399,14 @@ class LibraryFragment : Fragment() {
         binding.libraryCancelSelection.setOnClickListener { exitLibrarySelectionMode() }
         binding.folderBackButton.setOnClickListener { navigateBackFromDetail() }
         binding.folderAddImages.setOnClickListener { handleAddContentClick() }
+        binding.folderCollectionAddChapter.setOnClickListener { handleAddContentClick() }
         binding.folderImportChapters.setOnClickListener { importChildChapters() }
+        binding.folderExportCollection.setOnClickListener { exportCollection() }
         binding.folderTranslateCollection.setOnClickListener { translateFolder() }
         binding.folderExport.setOnClickListener { exportFolder() }
         binding.folderTranslate.setOnClickListener { translateFolder() }
         binding.folderRead.setOnClickListener { startReading() }
+        binding.folderCollectionRead.setOnClickListener { startReading() }
         binding.folderSelectAll.setOnClickListener { handleSelectAllClick() }
         binding.folderDeleteSelected.setOnClickListener { handleDeleteSelectedClick() }
         binding.folderRenameSelected.setOnClickListener { renameSelectedChapter() }
@@ -1094,7 +1121,9 @@ class LibraryFragment : Fragment() {
     private fun runCollectionTranslation(collectionFolder: File, force: Boolean) {
         val tasks = buildTranslationTasksForFolder(collectionFolder, force)
         _binding?.folderImportChapters?.isEnabled = false
+        _binding?.folderExportCollection?.isEnabled = false
         _binding?.folderTranslateCollection?.isEnabled = false
+        _binding?.folderCollectionAddChapter?.isEnabled = false
         TranslationKeepAliveService.startTranslationTask(
             requireContext(),
             TranslationTaskPersistence.fromCollection(collectionFolder, tasks)
@@ -1162,6 +1191,42 @@ class LibraryFragment : Fragment() {
                 onSetExportEnabled = { enabled -> _binding?.folderExport?.isEnabled = enabled }
             )
         }
+    }
+
+    private fun exportCollection() {
+        val folder = currentFolder ?: return
+        val chapterImages = buildChapterImagesForCollection(folder)
+        if (chapterImages.isEmpty()) {
+            uiCallbacks.setFolderStatus(getString(R.string.folder_chapters_empty))
+            return
+        }
+        dialogs.showExportOptionsDialog(
+            context = requireContext(),
+            defaultThreads = importExportCoordinator.getExportThreadCount(),
+            defaultExportFormat = importExportCoordinator.getExportFormatDefault(),
+            exportRootPathHint = importExportCoordinator.buildExportRootPathPreview()
+        ) { exportThreads, exportFormat ->
+            importExportCoordinator.exportCollection(
+                uiContext = requireContext(),
+                collectionFolder = folder,
+                chapterImages = chapterImages,
+                scope = viewLifecycleOwner.lifecycleScope,
+                exportThreads = exportThreads,
+                exportFormat = exportFormat,
+                requestExportDirectoryPermission = { initialUri -> pickExportTree.launch(initialUri) },
+                requestLegacyPermission = {
+                    requestStoragePermission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                },
+                onExitSelectionMode = { selectionController.exitSelectionMode() },
+                onSetExportEnabled = { enabled -> _binding?.folderExportCollection?.isEnabled = enabled }
+            )
+        }
+    }
+
+    private fun buildChapterImagesForCollection(collectionFolder: File): List<Pair<File, List<File>>> {
+        return repository.listChildFolders(collectionFolder).map { chapter ->
+            chapter to repository.listImages(chapter)
+        }.filter { it.second.isNotEmpty() }
     }
 
     private fun startReading() {
@@ -1294,9 +1359,8 @@ class LibraryFragment : Fragment() {
         val isCollection = repository.isCollectionFolder(folder)
         val useParentCollectionSettings =
             repository.resolveSettingsFolder(folder).absolutePath != folder.absolutePath
-        binding.folderAddImages.text = getString(
-            if (isCollection) R.string.folder_add_chapter else R.string.folder_add_images
-        )
+        binding.folderAddImages.visibility = if (isCollection) View.GONE else View.VISIBLE
+        binding.folderRead.visibility = if (isCollection) View.GONE else View.VISIBLE
         binding.folderCollectionActions.visibility = if (isCollection) View.VISIBLE else View.GONE
         binding.folderExport.visibility = if (isCollection) View.GONE else View.VISIBLE
         binding.folderTranslate.visibility = if (isCollection) View.GONE else View.VISIBLE
@@ -1356,7 +1420,9 @@ class LibraryFragment : Fragment() {
         val binding = _binding ?: return
         binding.folderTranslate.isEnabled = enabled
         binding.folderImportChapters.isEnabled = enabled
+        binding.folderExportCollection.isEnabled = enabled
         binding.folderTranslateCollection.isEnabled = enabled
+        binding.folderCollectionAddChapter.isEnabled = enabled
         if (isLibrarySelectionMode) {
             binding.librarySelectAll.isEnabled = enabled
             binding.libraryTranslateSelected.isEnabled = enabled

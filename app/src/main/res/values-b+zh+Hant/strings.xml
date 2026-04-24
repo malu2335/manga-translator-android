@@ -273,6 +273,7 @@
     <string name="folder_add_images">上傳圖片</string>
     <string name="folder_add_chapter">新建子章節</string>
     <string name="folder_import_chapters">匯入子章節</string>
+    <string name="folder_export_collection">匯出集合</string>
     <string name="folder_export">匯出漫畫</string>
     <string name="folder_translate">一鍵翻譯</string>
     <string name="folder_read">開始閱讀</string>

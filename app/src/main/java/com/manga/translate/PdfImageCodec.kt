@@ -2,6 +2,7 @@ package com.manga.translate
 
 import android.content.ContentResolver
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
@@ -10,6 +11,7 @@ import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
@@ -92,6 +94,189 @@ internal object PdfImageCodec {
         } finally {
             document.close()
         }
+    }
+
+    fun writeImagesToPdfWithOutlines(
+        chapterOutlines: List<Pair<String, Int>>,
+        images: List<File>,
+        outputStream: OutputStream
+    ): Boolean {
+        if (images.isEmpty()) return false
+        return try {
+            streamPdfWithOutlines(chapterOutlines, images, outputStream)
+            true
+        } catch (e: Exception) {
+            AppLogger.log("PdfImageCodec", "Write PDF with outlines failed", e)
+            false
+        }
+    }
+
+    private fun streamPdfWithOutlines(
+        chapterOutlines: List<Pair<String, Int>>,
+        images: List<File>,
+        out: OutputStream
+    ) {
+        val n = images.size
+        val m = chapterOutlines.size
+
+        val offsets = mutableListOf<Long>()
+        var byteCount = 0L
+
+        val counter = object : OutputStream() {
+            override fun write(b: Int) { out.write(b); byteCount++ }
+            override fun write(b: ByteArray) { out.write(b); byteCount += b.size }
+            override fun write(b: ByteArray, off: Int, len: Int) {
+                out.write(b, off, len)
+                byteCount += len
+            }
+        }
+
+        fun writeln(s: String) {
+            val bytes = "$s\n".toByteArray()
+            counter.write(bytes)
+        }
+
+        fun beginObj(objNum: Int) {
+            offsets.add(byteCount)
+            counter.write("$objNum 0 obj\n".toByteArray())
+        }
+
+        fun endObj() {
+            counter.write("\nendobj\n".toByteArray())
+        }
+
+        fun indirectRef(objNum: Int): String = "$objNum 0 R"
+
+        fun pdfString(s: String): String {
+            val sb = StringBuilder("<FEFF")
+            for (c in s) {
+                val code = c.code
+                if (code <= 0xFFFF) {
+                    sb.append(String.format("%04X", code))
+                } else {
+                    val high = 0xD800 + ((code - 0x10000) shr 10)
+                    val low = 0xDC00 + ((code - 0x10000) and 0x3FF)
+                    sb.append(String.format("%04X%04X", high, low))
+                }
+            }
+            sb.append(">")
+            return sb.toString()
+        }
+
+        // Object layout (object numbers are deterministic):
+        // 1: Catalog
+        // 2: Pages root
+        // 3: Outlines root
+        // 4..3+n: Page objects
+        // 4+n..3+2n: Content streams
+        // 4+2n..3+3n: Image XObjects
+        // 4+3n..3+3n+m: Outline items
+
+        val pageObjBase = 4
+        val contentObjBase = 4 + n
+        val imageObjBase = 4 + 2 * n
+        val outlineObjBase = 4 + 3 * n
+
+        writeln("%PDF-1.4")
+        writeln("%âãÏÓ")
+
+        // 1: Catalog
+        beginObj(1)
+        writeln("<< /Type /Catalog /Pages ${indirectRef(2)} /Outlines ${indirectRef(3)} >>")
+        endObj()
+
+        // 2: Pages root
+        beginObj(2)
+        val kids = (0 until n).joinToString(" ") { indirectRef(pageObjBase + it) }
+        writeln("<< /Type /Pages /Kids [$kids] /Count $n >>")
+        endObj()
+
+        // 3: Outlines root
+        beginObj(3)
+        val firstOutlineRef = if (m > 0) "/First ${indirectRef(outlineObjBase)}" else ""
+        val lastOutlineRef = if (m > 0) "/Last ${indirectRef(outlineObjBase + m - 1)}" else ""
+        writeln("<< /Type /Outlines $firstOutlineRef $lastOutlineRef >>")
+        endObj()
+
+        // Pages — process one image at a time to keep memory low
+        for (i in 0 until n) {
+            val bitmap = BitmapFactory.decodeFile(images[i].absolutePath)
+                ?: throw IllegalStateException("Cannot decode image: ${images[i].name}")
+            try {
+                val w = bitmap.width
+                val h = bitmap.height
+
+                val jpegStream = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, jpegStream)
+                val jpegBytes = jpegStream.toByteArray()
+
+                // Image XObject
+                beginObj(imageObjBase + i)
+                writeln("<< /Type /XObject /Subtype /Image /Width $w /Height $h " +
+                    "/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode " +
+                    "/Length ${jpegBytes.size} >>")
+                writeln("stream")
+                counter.write(jpegBytes)
+                writeln("")
+                writeln("endstream")
+                endObj()
+
+                // Content stream
+                beginObj(contentObjBase + i)
+                val content = "q $w 0 0 $h 0 0 cm /Im0 Do Q"
+                val contentBytes = content.toByteArray()
+                writeln("<< /Length ${contentBytes.size} >>")
+                writeln("stream")
+                counter.write(contentBytes)
+                writeln("")
+                writeln("endstream")
+                endObj()
+
+                // Page object
+                beginObj(pageObjBase + i)
+                writeln("<< /Type /Page /Parent ${indirectRef(2)} " +
+                    "/MediaBox [0 0 $w $h] " +
+                    "/Contents ${indirectRef(contentObjBase + i)} " +
+                    "/Resources << /XObject << /Im0 ${indirectRef(imageObjBase + i)} >> >> >>")
+                endObj()
+            } finally {
+                bitmap.recycle()
+            }
+        }
+
+        // Outline items
+        for (i in 0 until m) {
+            val (chapterName, firstPage) = chapterOutlines[i]
+            val objNum = outlineObjBase + i
+            val nextRef = if (i < m - 1) "/Next ${indirectRef(objNum + 1)}" else ""
+            val prevRef = if (i > 0) "/Prev ${indirectRef(objNum - 1)}" else ""
+            val destPage = firstPage.coerceAtMost(n - 1)
+
+            beginObj(objNum)
+            writeln("<< /Title ${pdfString(chapterName)} " +
+                "/Parent ${indirectRef(3)} " +
+                "/Dest [${indirectRef(pageObjBase + destPage)} /Fit] " +
+                "$nextRef $prevRef >>")
+            endObj()
+        }
+
+        val startxref = byteCount
+
+        // Cross-reference table
+        writeln("xref")
+        writeln("0 ${offsets.size + 1}")
+        writeln("0000000000 65535 f ")
+        for (offset in offsets) {
+            writeln(String.format("%010d 00000 n ", offset))
+        }
+
+        // Trailer
+        val totalObjects = offsets.size + 1
+        writeln("trailer")
+        writeln("<< /Size $totalObjects /Root ${indirectRef(1)} >>")
+        writeln("startxref")
+        writeln("$startxref")
+        counter.write("%%EOF".toByteArray())
     }
 
     private fun drawBitmapFit(canvas: Canvas, bitmap: Bitmap) {
