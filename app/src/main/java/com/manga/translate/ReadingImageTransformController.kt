@@ -28,6 +28,8 @@ class ReadingImageTransformController(
     private var isScaling = false
     private var scaleHandled = false
     private var isPanning = false
+    private var panHorizontal = false
+    private var panVertical = false
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var startTouchX = 0f
@@ -106,8 +108,8 @@ class ReadingImageTransformController(
             return true
         }
         val zoomed = imageUserScale > minScale + 0.01f
-        val overflow = allowPanWhenOverflowing && isImageOverflowing(bitmap)
-        val allowPan = (zoomed || overflow) && !hasBubbleAt(event.x, event.y)
+        val overflowAxes = if (allowPanWhenOverflowing) computeOverflowAxes(bitmap) else OverflowAxes()
+        val allowPan = (zoomed || overflowAxes.any) && !hasBubbleAt(event.x, event.y)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 startTouchX = event.x
@@ -115,6 +117,8 @@ class ReadingImageTransformController(
                 lastTouchX = event.x
                 lastTouchY = event.y
                 isPanning = false
+                panHorizontal = false
+                panVertical = false
                 return false
             }
 
@@ -123,12 +127,29 @@ class ReadingImageTransformController(
                 if (allowPan) {
                     val movedX = event.x - startTouchX
                     val movedY = event.y - startTouchY
-                    if (!isPanning && (abs(movedX) > panTouchSlop || abs(movedY) > panTouchSlop)) {
-                        isPanning = true
+                    if (!isPanning) {
+                        val canPanHorizontally = zoomed && overflowAxes.horizontal
+                        val canPanVertically = zoomed && overflowAxes.vertical
+                        val horizontalIntent =
+                            abs(movedX) > panTouchSlop && abs(movedX) >= abs(movedY)
+                        val verticalIntent =
+                            abs(movedY) > panTouchSlop && abs(movedY) > abs(movedX)
+                        when {
+                            horizontalIntent && canPanHorizontally -> {
+                                isPanning = true
+                                panHorizontal = true
+                                panVertical = false
+                            }
+                            verticalIntent && canPanVertically -> {
+                                isPanning = true
+                                panHorizontal = false
+                                panVertical = true
+                            }
+                        }
                     }
                     if (isPanning) {
-                        val dx = event.x - lastTouchX
-                        val dy = event.y - lastTouchY
+                        val dx = if (panHorizontal) event.x - lastTouchX else 0f
+                        val dy = if (panVertical) event.y - lastTouchY else 0f
                         imageMatrix.postTranslate(dx, dy)
                         fixTranslation(bitmap)
                         applyImageMatrix()
@@ -142,6 +163,8 @@ class ReadingImageTransformController(
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 val handled = isPanning || isScaling || scaleHandled
                 isPanning = false
+                panHorizontal = false
+                panVertical = false
                 if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
                     isScaling = false
                 }
@@ -225,12 +248,23 @@ class ReadingImageTransformController(
         imageMatrix.postTranslate(dx, dy)
     }
 
-    private fun isImageOverflowing(bitmap: Bitmap): Boolean {
+    private fun computeOverflowAxes(bitmap: Bitmap): OverflowAxes {
         val viewWidth = imageView.width.toFloat()
         val viewHeight = imageView.height.toFloat()
-        if (viewWidth <= 0f || viewHeight <= 0f) return false
+        if (viewWidth <= 0f || viewHeight <= 0f) return OverflowAxes()
         imageRect.set(0f, 0f, bitmap.width.toFloat(), bitmap.height.toFloat())
         imageMatrix.mapRect(imageRect)
-        return imageRect.width() > viewWidth + 0.5f || imageRect.height() > viewHeight + 0.5f
+        return OverflowAxes(
+            horizontal = imageRect.width() > viewWidth + 0.5f,
+            vertical = imageRect.height() > viewHeight + 0.5f
+        )
+    }
+
+    private data class OverflowAxes(
+        val horizontal: Boolean = false,
+        val vertical: Boolean = false
+    ) {
+        val any: Boolean
+            get() = horizontal || vertical
     }
 }
