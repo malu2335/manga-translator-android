@@ -70,6 +70,21 @@
             android:text="@string/floating_bubble_horizontal_text"
             android:textColor="?attr/dialogTextColor" />
 
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.MangaTranslator.Input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="@string/normal_bubble_min_font_size_hint">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/floating_bubble_min_font_size_input"
+                style="@style/Widget.MangaTranslator.EditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number" />
+        </com.google.android.material.textfield.TextInputLayout>
+
         <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/floating_bubble_expand_bubble_when_min_font_size_switch"
             android:layout_width="match_parent"

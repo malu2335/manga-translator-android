@@ -59,7 +59,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     private val sharedMinTextSizePx: Float
         get() = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_SP,
-            SettingsStore(context).loadNormalBubbleRenderSettings().minFontSizeSp.toFloat(),
+            bubbleRenderSettings.minFontSizeSp.toFloat(),
             resources.displayMetrics
         )
     private val textSizeStepPx = TypedValue.applyDimension(

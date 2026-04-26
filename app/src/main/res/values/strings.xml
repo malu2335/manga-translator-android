@@ -134,7 +134,7 @@
     <string name="normal_bubble_layout_vertical">竖向排版</string>
     <string name="floating_bubble_render_settings_button">悬浮窗气泡设置</string>
     <string name="floating_bubble_render_settings_title">悬浮窗气泡设置</string>
-    <string name="floating_bubble_render_settings_note">用于悬浮窗翻译结果覆盖层。大小支持外扩或内缩，形状支持矩形或内接椭圆。文字最小字号与普通气泡框共用同一设置；最小字号触发后的气泡放大策略可独立设置。</string>
+    <string name="floating_bubble_render_settings_note">用于悬浮窗翻译结果覆盖层。大小支持外扩或内缩，形状支持矩形或内接椭圆。可独立设置最小字号及字号触发后的气泡放大策略。</string>
     <string name="floating_bubble_size_adjust_percent_hint">气泡框大小 (-30–30，正数外扩)</string>
     <string name="floating_bubble_opacity_percent_hint">气泡框不透明度 (0–100)</string>
     <string name="floating_bubble_shape_hint">气泡框形状</string>

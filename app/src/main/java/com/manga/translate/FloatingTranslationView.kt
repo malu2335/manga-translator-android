@@ -33,10 +33,11 @@ class FloatingTranslationView @JvmOverloads constructor(
         color = Color.WHITE
         style = Paint.Style.FILL
     }
+    private var floatingMinFontSizeSp = SettingsStore(context).loadFloatingBubbleRenderSettings().minFontSizeSp
     private val minTextSizePx: Float
         get() = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_SP,
-            bubbleRenderSettings.minFontSizeSp.toFloat(),
+            floatingMinFontSizeSp.toFloat(),
             resources.displayMetrics
         ) * contentZoomScale
     private val textSizeStepPx = TypedValue.applyDimension(

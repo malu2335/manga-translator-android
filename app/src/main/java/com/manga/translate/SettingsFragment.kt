@@ -691,6 +691,9 @@ class SettingsFragment : Fragment() {
         dialogBinding.floatingBubbleHorizontalTextSwitch.isChecked = currentSettings.useHorizontalText
         dialogBinding.floatingBubbleExpandBubbleWhenMinFontSizeSwitch.isChecked =
             currentSettings.expandBubbleWhenMinFontSize
+        dialogBinding.floatingBubbleMinFontSizeInput.setText(
+            formatNumber(currentSettings.minFontSizeSp)
+        )
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.floating_bubble_render_settings_title)
             .setView(dialogBinding.root)
@@ -707,6 +710,9 @@ class SettingsFragment : Fragment() {
                         currentSettings.shape
                     ),
                     useHorizontalText = dialogBinding.floatingBubbleHorizontalTextSwitch.isChecked,
+                    minFontSizeSp = parseIntInput(
+                        dialogBinding.floatingBubbleMinFontSizeInput.text?.toString()
+                    ) ?: currentSettings.minFontSizeSp,
                     expandBubbleWhenMinFontSize =
                         dialogBinding.floatingBubbleExpandBubbleWhenMinFontSizeSwitch.isChecked
                 )
