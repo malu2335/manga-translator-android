@@ -76,6 +76,8 @@ class FloatingTranslationView @JvmOverloads constructor(
     private var downY = 0f
     private var startX = 0f
     private var startY = 0f
+    private var lastX = 0f
+    private var lastY = 0f
     private var dragging = false
     private var activeId: Int? = null
     private var verticalLayoutEnabled = true
@@ -226,6 +228,8 @@ class FloatingTranslationView @JvmOverloads constructor(
                 startY = event.y
                 downX = startX
                 downY = startY
+                lastX = startX
+                lastY = startY
                 activeId = if (editMode) findBubbleAt(event.x, event.y) else null
                 dragging = false
                 swipeTriggered = false
@@ -259,7 +263,14 @@ class FloatingTranslationView @JvmOverloads constructor(
                 } else if (!swipeTriggered) {
                     val dx = event.x - startX
                     val dy = event.y - startY
-                    if (abs(dx) > swipeThreshold && abs(dx) > abs(dy) * 1.3f) {
+                    val incDx = event.x - lastX
+                    val incDy = event.y - lastY
+                    lastX = event.x
+                    lastY = event.y
+                    if (abs(dx) > touchSlop && abs(dx) > abs(dy)) {
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                    if (abs(dx) > swipeThreshold && abs(incDx) >= abs(incDy)) {
                         swipeTriggered = true
                         pendingSwipeDirection = if (dx > 0f) 1 else -1
                     }
