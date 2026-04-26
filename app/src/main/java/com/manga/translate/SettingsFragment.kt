@@ -642,6 +642,8 @@ class SettingsFragment : Fragment() {
             formatNumber(currentSettings.minFontSizeSp)
         )
         dialogBinding.normalBubbleHorizontalTextSwitch.isChecked = currentSettings.useHorizontalText
+        dialogBinding.normalBubbleExpandBubbleWhenMinFontSizeSwitch.isChecked =
+            currentSettings.expandBubbleWhenMinFontSize
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.normal_bubble_render_settings_title)
             .setView(dialogBinding.root)
@@ -662,7 +664,9 @@ class SettingsFragment : Fragment() {
                     minFontSizeSp = parseIntInput(
                         dialogBinding.normalBubbleMinFontSizeInput.text?.toString()
                     ) ?: currentSettings.minFontSizeSp,
-                    useHorizontalText = dialogBinding.normalBubbleHorizontalTextSwitch.isChecked
+                    useHorizontalText = dialogBinding.normalBubbleHorizontalTextSwitch.isChecked,
+                    expandBubbleWhenMinFontSize =
+                        dialogBinding.normalBubbleExpandBubbleWhenMinFontSizeSwitch.isChecked
                 )
                 settingsStore.saveNormalBubbleRenderSettings(updated)
                 updateNormalBubbleRenderSettingsButton()
@@ -685,6 +689,8 @@ class SettingsFragment : Fragment() {
             currentSettings.shape
         )
         dialogBinding.floatingBubbleHorizontalTextSwitch.isChecked = currentSettings.useHorizontalText
+        dialogBinding.floatingBubbleExpandBubbleWhenMinFontSizeSwitch.isChecked =
+            currentSettings.expandBubbleWhenMinFontSize
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.floating_bubble_render_settings_title)
             .setView(dialogBinding.root)
@@ -700,7 +706,9 @@ class SettingsFragment : Fragment() {
                         dialogBinding.floatingBubbleShapeInput,
                         currentSettings.shape
                     ),
-                    useHorizontalText = dialogBinding.floatingBubbleHorizontalTextSwitch.isChecked
+                    useHorizontalText = dialogBinding.floatingBubbleHorizontalTextSwitch.isChecked,
+                    expandBubbleWhenMinFontSize =
+                        dialogBinding.floatingBubbleExpandBubbleWhenMinFontSizeSwitch.isChecked
                 )
                 settingsStore.saveFloatingBubbleRenderSettings(updated)
                 updateFloatingBubbleRenderSettingsButton()

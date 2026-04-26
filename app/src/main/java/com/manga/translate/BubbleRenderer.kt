@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Matrix
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
@@ -96,6 +97,25 @@ class BubbleRenderer(context: Context) {
         path.computeBounds(bubbleBounds, true)
         if (bubbleBounds.width() <= 0f || bubbleBounds.height() <= 0f) return
         BubbleShapePaths.insetTextBounds(path, textRect)
+        if (!verticalLayoutEnabled) {
+            val plan = BubbleTextScaling.buildHorizontalScalePlan(
+                text = text,
+                rect = textRect,
+                minTextSizePx = minTextSizePx,
+                expandBubbleWhenMinFontSize = bubbleRenderSettings.expandBubbleWhenMinFontSize,
+                buildLayout = ::buildLayout,
+                layoutFits = ::layoutFits
+            )
+            if (bubbleRenderSettings.expandBubbleWhenMinFontSize && !rectApproximatelyEquals(textRect, plan.drawRect)) {
+                scalePathAroundCenter(
+                    path = path,
+                    scaleX = (plan.drawRect.width() / textRect.width()).coerceAtLeast(1f),
+                    scaleY = (plan.drawRect.height() / textRect.height()).coerceAtLeast(1f)
+                )
+                path.computeBounds(bubbleBounds, true)
+                BubbleShapePaths.insetTextBounds(path, textRect)
+            }
+        }
         canvas.drawPath(path, fillPaint)
         drawTextInRect(canvas, text, textRect, verticalLayoutEnabled)
     }
@@ -109,16 +129,40 @@ class BubbleRenderer(context: Context) {
         if (verticalLayoutEnabled) {
             drawVerticalTextInRect(canvas, VerticalTextSymbolConverter.convert(text), rect)
         } else {
-            val maxWidth = rect.width().toInt().coerceAtLeast(1)
-            val maxHeight = rect.height().toInt().coerceAtLeast(1)
-            val textSize = findDefaultHorizontalTextSize(text, maxWidth, maxHeight)
-            val layout = buildLayout(text, maxWidth, textSize)
-            val dx = rect.left
-            val dy = rect.top + ((rect.height() - layout.height) / 2f).coerceAtLeast(0f)
-            canvas.withTranslation(dx, dy) {
-                layout.draw(this)
-            }
+            val plan = BubbleTextScaling.buildHorizontalScalePlan(
+                text = text,
+                rect = rect,
+                minTextSizePx = minTextSizePx,
+                expandBubbleWhenMinFontSize = bubbleRenderSettings.expandBubbleWhenMinFontSize,
+                buildLayout = ::buildLayout,
+                layoutFits = ::layoutFits
+            )
+            val drawRect = plan.drawRect
+            val layout = plan.defaultLayout
+            canvas.save()
+            canvas.translate(drawRect.centerX(), drawRect.centerY())
+            canvas.scale(plan.scaleX, plan.scaleY)
+            canvas.translate(-layout.width / 2f, -layout.height / 2f)
+            layout.draw(canvas)
+            canvas.restore()
         }
+    }
+
+    private fun scalePathAroundCenter(path: Path, scaleX: Float, scaleY: Float) {
+        if (scaleX == 1f && scaleY == 1f) return
+        val bounds = RectF()
+        path.computeBounds(bounds, true)
+        if (bounds.width() <= 0f || bounds.height() <= 0f) return
+        val matrix = Matrix()
+        matrix.setScale(scaleX, scaleY, bounds.centerX(), bounds.centerY())
+        path.transform(matrix)
+    }
+
+    private fun rectApproximatelyEquals(first: RectF, second: RectF): Boolean {
+        return kotlin.math.abs(first.left - second.left) < 0.5f &&
+            kotlin.math.abs(first.top - second.top) < 0.5f &&
+            kotlin.math.abs(first.right - second.right) < 0.5f &&
+            kotlin.math.abs(first.bottom - second.bottom) < 0.5f
     }
 
     private fun buildLayout(text: String, width: Int, textSize: Float): StaticLayout {
@@ -128,6 +172,21 @@ class BubbleRenderer(context: Context) {
             .setIncludePad(false)
             .setLineSpacing(0f, 1f)
             .build()
+    }
+
+    private fun findDefaultHorizontalTextSize(
+        text: String,
+        maxWidth: Int,
+        maxHeight: Int
+    ): Float {
+        return BubbleTextScaling.findDefaultHorizontalTextSize(
+            text = text,
+            maxWidth = maxWidth,
+            maxHeight = maxHeight,
+            minTextSizePx = minTextSizePx,
+            buildLayout = ::buildLayout,
+            layoutFits = ::layoutFits
+        )
     }
 
     private fun drawVerticalTextInRect(canvas: Canvas, text: String, rect: RectF) {
@@ -157,31 +216,6 @@ class BubbleRenderer(context: Context) {
             canvas.drawText(glyph, x, y, textPaint)
             row += 1
         }
-    }
-
-    private fun findDefaultHorizontalTextSize(
-        text: String,
-        maxWidth: Int,
-        maxHeight: Int
-    ): Float {
-        val minLayout = buildLayout(text, maxWidth, minTextSizePx)
-        if (!layoutFits(minLayout, maxWidth, maxHeight)) {
-            return minTextSizePx
-        }
-        var bestSize = minTextSizePx
-        var low = minTextSizePx
-        var high = maxOf(low, maxWidth.toFloat(), maxHeight.toFloat())
-        while (high - low > textSizeStepPx) {
-            val mid = (low + high) / 2f
-            val candidate = buildLayout(text, maxWidth, mid)
-            if (layoutFits(candidate, maxWidth, maxHeight)) {
-                bestSize = mid
-                low = mid
-            } else {
-                high = mid
-            }
-        }
-        return bestSize
     }
 
     private fun findDefaultVerticalTextSize(

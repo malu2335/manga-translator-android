@@ -420,12 +420,29 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             val availableWidth = shapeRect.width().toInt().coerceAtLeast(1)
             val availableHeight = shapeRect.height().toInt().coerceAtLeast(1)
             if (bubbleRenderSettings.useHorizontalText) {
-                val textLayout = buildFittedTextLayout(text, availableWidth, availableHeight)
-                val drawY = shapeRect.top +
-                    ((availableHeight - textLayout.height) / 2f).coerceAtLeast(0f)
-                canvas.withTranslation(shapeRect.left, drawY) {
-                    textLayout.draw(this)
-                }
+                val plan = BubbleTextScaling.buildHorizontalScalePlan(
+                    text = text,
+                    rect = shapeRect,
+                    minTextSizePx = sharedMinTextSizePx,
+                    expandBubbleWhenMinFontSize =
+                        bubbleRenderSettings.expandBubbleWhenMinFontSize,
+                    buildLayout = { content, width, textSize ->
+                        buildLayout(
+                            text = content,
+                            paint = TextPaint(textPaint).apply { this.textSize = textSize },
+                            availableWidth = width
+                        )
+                    },
+                    layoutFits = ::layoutFits
+                )
+                val drawRect = plan.drawRect
+                val textLayout = plan.defaultLayout
+                canvas.save()
+                canvas.translate(drawRect.centerX(), drawRect.centerY())
+                canvas.scale(plan.scaleX, plan.scaleY)
+                canvas.translate(-textLayout.width / 2f, -textLayout.height / 2f)
+                textLayout.draw(canvas)
+                canvas.restore()
             } else {
                 drawVerticalTextInRect(canvas, VerticalTextSymbolConverter.convert(text), shapeRect)
             }
