@@ -1,11 +1,19 @@
 {
-  "versionCode": 46,
-  "versionName": "3.0.5",
+  "versionCode": 48,
+  "versionName": "3.0.7",
   "releaseChannel": "preview",
-  "releasedAt": "2026-04-21",
-  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v3.0.5/app-release.apk",
-  "changelog": "继续优化阅读与编辑体验：普通阅读更名为横向阅读，修复横向阅读无法双指缩放、条漫模式缩放手势和滚动异常、气泡无法移动以及翻译完成后按钮未解锁等问题。",
+  "releasedAt": "2026-04-26",
+  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v3.0.7/app-release.apk",
+  "changelog": "继续优化阅读、导出与气泡编辑体验：支持集合导出和 PDF 章节书签，修复 PDF 导出错误、条漫模式图片裁切和气泡显示慢的问题；优化横向阅读翻页与划屏手势，修复气泡不跟随缩放的问题；新增最小文字密度限制；修复迁移文件夹后语言设置未迁移的问题。",
   "history": [
+    {
+      "versionCode": 46,
+      "versionName": "3.0.5",
+      "releaseChannel": "preview",
+      "releasedAt": "2026-04-21",
+      "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v3.0.5/app-release.apk",
+      "changelog": "继续优化阅读与编辑体验：普通阅读更名为横向阅读，修复横向阅读无法双指缩放、条漫模式缩放手势和滚动异常、气泡无法移动以及翻译完成后按钮未解锁等问题。"
+    },
     {
       "versionCode": 45,
       "versionName": "3.0.4",
