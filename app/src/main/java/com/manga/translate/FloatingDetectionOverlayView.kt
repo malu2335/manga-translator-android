@@ -56,10 +56,10 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         color = 0xFF111111.toInt()
         textSize = resources.displayMetrics.density * resources.configuration.fontScale * 12f
     }
-    private val sharedMinTextSizePx: Float
+    private val hardMinTextSizePx: Float
         get() = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_SP,
-            bubbleRenderSettings.minFontSizeSp.toFloat(),
+            3f,
             resources.displayMetrics
         )
     private val textSizeStepPx = TypedValue.applyDimension(
@@ -412,49 +412,33 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                 bubblePath.reset()
                 bubblePath.addRoundRect(sourceRect, radius, radius, Path.Direction.CW)
             }
-            BubbleShapePaths.insetTextBounds(bubblePath, shapeRect)
-            if (bubbleRenderSettings.expandBubbleWhenMinFontSize) {
-                ensureExpandedTextBounds(bubblePath, text, bubbleRenderSettings.useHorizontalText)
-            }
-            val availableWidth = shapeRect.width().toInt().coerceAtLeast(1)
-            val availableHeight = shapeRect.height().toInt().coerceAtLeast(1)
+            val textRect = BubbleTextScaling.resolveAreaAdjustedTextRect(
+                text, bubblePath, bubbleRenderSettings.minAreaPerCharSp, resources.displayMetrics.density
+            )
+            if (textRect.width() <= 0f || textRect.height() <= 0f) continue
             if (bubbleRenderSettings.useHorizontalText) {
-                if (bubbleRenderSettings.expandBubbleWhenMinFontSize) {
-                    val textSize = resolveHorizontalTextSize(shapeRect, text)
-                    val textLayout = buildLayout(
-                        text = text,
-                        paint = TextPaint(textPaint).apply { this.textSize = textSize },
-                        availableWidth = shapeRect.width().toInt().coerceAtLeast(1)
-                    )
-                    canvas.save()
-                    canvas.translate(shapeRect.centerX(), shapeRect.centerY())
-                    canvas.translate(-textLayout.width / 2f, -textLayout.height / 2f)
-                    textLayout.draw(canvas)
-                    canvas.restore()
-                } else {
-                    val plan = BubbleTextScaling.buildHorizontalScalePlan(
-                        text = text,
-                        rect = shapeRect,
-                        minTextSizePx = sharedMinTextSizePx,
-                        expandBubbleWhenMinFontSize = false,
-                        buildLayout = { content, width, textSize ->
-                            buildLayout(
-                                text = content,
-                                paint = TextPaint(textPaint).apply { this.textSize = textSize },
-                                availableWidth = width
-                            )
-                        },
-                        layoutFits = BubbleTextScaling::layoutFits
-                    )
-                    canvas.save()
-                    canvas.translate(plan.drawRect.centerX(), plan.drawRect.centerY())
-                    canvas.scale(plan.scaleX, plan.scaleY)
-                    canvas.translate(-plan.defaultLayout.width / 2f, -plan.defaultLayout.height / 2f)
-                    plan.defaultLayout.draw(canvas)
-                    canvas.restore()
-                }
+                val textSize = BubbleTextScaling.findDefaultHorizontalTextSize(
+                    text = text,
+                    maxWidth = textRect.width().toInt().coerceAtLeast(1),
+                    maxHeight = textRect.height().toInt().coerceAtLeast(1),
+                    minTextSizePx = hardMinTextSizePx,
+                    buildLayout = { content, width, ts ->
+                        buildLayout(text = content, paint = TextPaint(textPaint).apply { this.textSize = ts }, availableWidth = width)
+                    },
+                    layoutFits = BubbleTextScaling::layoutFits
+                )
+                val textLayout = buildLayout(
+                    text = text,
+                    paint = TextPaint(textPaint).apply { this.textSize = textSize },
+                    availableWidth = textRect.width().toInt().coerceAtLeast(1)
+                )
+                canvas.save()
+                canvas.translate(textRect.centerX(), textRect.centerY())
+                canvas.translate(-textLayout.width / 2f, -textLayout.height / 2f)
+                textLayout.draw(canvas)
+                canvas.restore()
             } else {
-                drawVerticalTextInRect(canvas, VerticalTextSymbolConverter.convert(text), shapeRect)
+                drawVerticalTextInRect(canvas, VerticalTextSymbolConverter.convert(text), textRect)
             }
         }
     }
@@ -482,42 +466,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             .build()
     }
 
-    private fun ensureExpandedTextBounds(path: Path, text: String, horizontalText: Boolean) {
-        repeat(8) {
-            BubbleShapePaths.insetTextBounds(path, shapeRect)
-            if (shapeRect.width() <= 0f || shapeRect.height() <= 0f) return
-            val required = if (horizontalText) {
-                BubbleTextScaling.buildHorizontalScalePlan(
-                    text = text,
-                    rect = shapeRect,
-                    minTextSizePx = sharedMinTextSizePx,
-                    expandBubbleWhenMinFontSize = true,
-                    buildLayout = { content, width, textSize ->
-                        buildLayout(
-                            text = content,
-                            paint = TextPaint(textPaint).apply { this.textSize = textSize },
-                            availableWidth = width
-                        )
-                    },
-                    layoutFits = BubbleTextScaling::layoutFits
-                ).drawRect
-            } else {
-                resolveRequiredVerticalRect(text, shapeRect)
-            }
-            if (shapeRect.width() + 0.5f >= required.width() &&
-                shapeRect.height() + 0.5f >= required.height()
-            ) {
-                return
-            }
-            BubbleTextScaling.scalePathAroundCenter(
-                path = path,
-                scaleX = (required.width() / shapeRect.width()).coerceAtLeast(1f),
-                scaleY = (required.height() / shapeRect.height()).coerceAtLeast(1f)
-            )
-        }
-        BubbleShapePaths.insetTextBounds(path, shapeRect)
-    }
-
     private fun applyBubbleOpacity() {
         boxPaint.color = Color.argb((bubbleOpacity * 255f).toInt().coerceIn(0, 255), 255, 255, 255)
     }
@@ -539,7 +487,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     private fun drawVerticalTextInRect(canvas: Canvas, text: String, rect: RectF) {
         val maxWidth = rect.width().toInt().coerceAtLeast(1)
         val maxHeight = rect.height().toInt().coerceAtLeast(1)
-        val minTextSizePx = sharedMinTextSizePx
+        val minTextSizePx = hardMinTextSizePx
         val defaultTextSize = findDefaultVerticalTextSize(text, maxWidth, maxHeight, rect.width() / 2.2f)
         val textSize = defaultTextSize.coerceAtLeast(minTextSizePx)
         val layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
@@ -574,7 +522,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         maxHeight: Int,
         initialSize: Float
     ): Float {
-        val minTextSizePx = sharedMinTextSizePx
+        val minTextSizePx = hardMinTextSizePx
         val maxTextSize = 42f * resources.displayMetrics.density / resources.configuration.fontScale
         var textSize = initialSize.coerceIn(minTextSizePx, maxTextSize)
         var layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
@@ -584,35 +532,6 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
             if (textSize <= minTextSizePx) break
         }
         return textSize
-    }
-
-    private fun resolveRequiredVerticalRect(text: String, rect: RectF): RectF {
-        val maxWidth = rect.width().toInt().coerceAtLeast(1)
-        val maxHeight = rect.height().toInt().coerceAtLeast(1)
-        val defaultTextSize = findDefaultVerticalTextSize(text, maxWidth, maxHeight, rect.width() / 2.2f)
-        if (defaultTextSize >= sharedMinTextSizePx) return RectF(rect)
-        val layout = buildVerticalLayout(text, maxWidth, maxHeight, sharedMinTextSizePx)
-        val targetWidth = maxOf(rect.width(), layout.totalWidth)
-        val targetHeight = maxOf(rect.height(), layout.totalHeight)
-        return RectF(
-            rect.centerX() - targetWidth / 2f,
-            rect.centerY() - targetHeight / 2f,
-            rect.centerX() + targetWidth / 2f,
-            rect.centerY() + targetHeight / 2f
-        )
-    }
-
-    private fun resolveHorizontalTextSize(rect: RectF, text: String): Float {
-        return BubbleTextScaling.findDefaultHorizontalTextSize(
-            text = text,
-            maxWidth = rect.width().toInt().coerceAtLeast(1),
-            maxHeight = rect.height().toInt().coerceAtLeast(1),
-            minTextSizePx = sharedMinTextSizePx,
-            buildLayout = { content, width, textSize ->
-                buildLayout(text = content, paint = TextPaint(textPaint).apply { this.textSize = textSize }, availableWidth = width)
-            },
-            layoutFits = BubbleTextScaling::layoutFits
-        )
     }
 
     private fun buildVerticalLayout(

@@ -70,27 +70,26 @@
             android:text="@string/floating_bubble_horizontal_text"
             android:textColor="?attr/dialogTextColor" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.MangaTranslator.Input"
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:hint="@string/normal_bubble_min_font_size_hint">
+            android:layout_marginTop="14dp"
+            android:text="@string/floating_bubble_min_area_per_char_label"
+            android:textColor="?attr/dialogTextColor"
+            android:textSize="14sp" />
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/floating_bubble_min_font_size_input"
-                style="@style/Widget.MangaTranslator.EditText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="number" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/floating_bubble_expand_bubble_when_min_font_size_switch"
+        <TextView
+            android:id="@+id/floating_bubble_min_area_value_label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="@string/floating_bubble_expand_bubble_when_min_font_size"
-            android:textColor="?attr/dialogTextColor" />
+            android:textColor="?attr/dialogHintTextColor"
+            android:textSize="12sp" />
+
+        <SeekBar
+            android:id="@+id/floating_bubble_min_area_seekbar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:max="100" />
     </LinearLayout>
 </ScrollView>

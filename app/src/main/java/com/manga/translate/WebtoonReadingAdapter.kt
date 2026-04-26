@@ -49,9 +49,8 @@ class WebtoonReadingAdapter(
         opacityPercent = 100,
         freeBubbleShrinkPercent = 0,
         freeBubbleOpacityPercent = 100,
-        minFontSizeSp = 8,
-        useHorizontalText = true,
-        expandBubbleWhenMinFontSize = true
+        minAreaPerCharSp = 48f,
+        useHorizontalText = true
     )
     private val rememberedPageHeights = mutableMapOf<String, Int>()
     private val boundHolders = mutableMapOf<String, WebtoonPageViewHolder>()

@@ -11,6 +11,7 @@ import android.widget.EditText
 import android.widget.ArrayAdapter
 import android.widget.ScrollView
 import android.widget.ProgressBar
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.StringRes
@@ -18,6 +19,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.view.isGone
 import androidx.core.content.FileProvider
+import kotlin.math.roundToInt
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
@@ -638,12 +640,22 @@ class SettingsFragment : Fragment() {
         dialogBinding.normalBubbleFreeOpacityPercentInput.setText(
             formatNumber(currentSettings.freeBubbleOpacityPercent)
         )
-        dialogBinding.normalBubbleMinFontSizeInput.setText(
-            formatNumber(currentSettings.minFontSizeSp)
+        val seekBarProgress = ((currentSettings.minAreaPerCharSp - 16f) / 2.4f).roundToInt().coerceIn(0, 100)
+        dialogBinding.normalBubbleMinAreaSeekbar.progress = seekBarProgress
+        dialogBinding.normalBubbleMinAreaValueLabel.text =
+            getString(R.string.normal_bubble_min_area_value, currentSettings.minAreaPerCharSp.roundToInt())
+        dialogBinding.normalBubbleMinAreaSeekbar.setOnSeekBarChangeListener(
+            object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val sp2 = (16f + progress * 2.4f).roundToInt()
+                    dialogBinding.normalBubbleMinAreaValueLabel.text =
+                        getString(R.string.normal_bubble_min_area_value, sp2)
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            }
         )
         dialogBinding.normalBubbleHorizontalTextSwitch.isChecked = currentSettings.useHorizontalText
-        dialogBinding.normalBubbleExpandBubbleWhenMinFontSizeSwitch.isChecked =
-            currentSettings.expandBubbleWhenMinFontSize
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.normal_bubble_render_settings_title)
             .setView(dialogBinding.root)
@@ -661,12 +673,8 @@ class SettingsFragment : Fragment() {
                     freeBubbleOpacityPercent = parseIntInput(
                         dialogBinding.normalBubbleFreeOpacityPercentInput.text?.toString()
                     ) ?: currentSettings.freeBubbleOpacityPercent,
-                    minFontSizeSp = parseIntInput(
-                        dialogBinding.normalBubbleMinFontSizeInput.text?.toString()
-                    ) ?: currentSettings.minFontSizeSp,
-                    useHorizontalText = dialogBinding.normalBubbleHorizontalTextSwitch.isChecked,
-                    expandBubbleWhenMinFontSize =
-                        dialogBinding.normalBubbleExpandBubbleWhenMinFontSizeSwitch.isChecked
+                    minAreaPerCharSp = 16f + dialogBinding.normalBubbleMinAreaSeekbar.progress * 2.4f,
+                    useHorizontalText = dialogBinding.normalBubbleHorizontalTextSwitch.isChecked
                 )
                 settingsStore.saveNormalBubbleRenderSettings(updated)
                 updateNormalBubbleRenderSettingsButton()
@@ -689,10 +697,20 @@ class SettingsFragment : Fragment() {
             currentSettings.shape
         )
         dialogBinding.floatingBubbleHorizontalTextSwitch.isChecked = currentSettings.useHorizontalText
-        dialogBinding.floatingBubbleExpandBubbleWhenMinFontSizeSwitch.isChecked =
-            currentSettings.expandBubbleWhenMinFontSize
-        dialogBinding.floatingBubbleMinFontSizeInput.setText(
-            formatNumber(currentSettings.minFontSizeSp)
+        val seekBarProgress = ((currentSettings.minAreaPerCharSp - 16f) / 2.4f).roundToInt().coerceIn(0, 100)
+        dialogBinding.floatingBubbleMinAreaSeekbar.progress = seekBarProgress
+        dialogBinding.floatingBubbleMinAreaValueLabel.text =
+            getString(R.string.floating_bubble_min_area_value, currentSettings.minAreaPerCharSp.roundToInt())
+        dialogBinding.floatingBubbleMinAreaSeekbar.setOnSeekBarChangeListener(
+            object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val sp2 = (16f + progress * 2.4f).roundToInt()
+                    dialogBinding.floatingBubbleMinAreaValueLabel.text =
+                        getString(R.string.floating_bubble_min_area_value, sp2)
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            }
         )
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.floating_bubble_render_settings_title)
@@ -710,11 +728,7 @@ class SettingsFragment : Fragment() {
                         currentSettings.shape
                     ),
                     useHorizontalText = dialogBinding.floatingBubbleHorizontalTextSwitch.isChecked,
-                    minFontSizeSp = parseIntInput(
-                        dialogBinding.floatingBubbleMinFontSizeInput.text?.toString()
-                    ) ?: currentSettings.minFontSizeSp,
-                    expandBubbleWhenMinFontSize =
-                        dialogBinding.floatingBubbleExpandBubbleWhenMinFontSizeSwitch.isChecked
+                    minAreaPerCharSp = 16f + dialogBinding.floatingBubbleMinAreaSeekbar.progress * 2.4f
                 )
                 settingsStore.saveFloatingBubbleRenderSettings(updated)
                 updateFloatingBubbleRenderSettingsButton()

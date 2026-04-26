@@ -3,19 +3,11 @@ package com.manga.translate
 import android.graphics.Matrix
 import android.graphics.Path
 import android.graphics.RectF
-import android.text.Layout
 import android.text.StaticLayout
-import android.text.TextPaint
 import kotlin.math.max
+import kotlin.math.sqrt
 
 internal object BubbleTextScaling {
-    data class HorizontalScalePlan(
-        val defaultLayout: StaticLayout,
-        val drawRect: RectF,
-        val scaleX: Float,
-        val scaleY: Float
-    )
-
     fun layoutFits(layout: StaticLayout, maxWidth: Int, maxHeight: Int): Boolean {
         if (layout.height > maxHeight) return false
         for (line in 0 until layout.lineCount) {
@@ -36,62 +28,36 @@ internal object BubbleTextScaling {
         path.transform(matrix)
     }
 
-    fun buildHorizontalScalePlan(
+    /**
+     * Ensures the bubble path provides at least [minAreaPerCharSp] area per character
+     * in the text-safe region. If the current area is insufficient, the path is scaled
+     * around its center in one shot.
+     *
+     * @return the text-safe RectF inside the (possibly expanded) path
+     */
+    fun resolveAreaAdjustedTextRect(
         text: String,
-        rect: RectF,
-        minTextSizePx: Float,
-        expandBubbleWhenMinFontSize: Boolean,
-        buildLayout: (String, Int, Float) -> StaticLayout,
-        layoutFits: (StaticLayout, Int, Int) -> Boolean
-    ): HorizontalScalePlan {
-        val baseWidth = rect.width().toInt().coerceAtLeast(1)
-        val baseHeight = rect.height().toInt().coerceAtLeast(1)
-        val defaultTextSize = findDefaultHorizontalTextSize(
-            text = text,
-            maxWidth = baseWidth,
-            maxHeight = baseHeight,
-            minTextSizePx = minTextSizePx,
-            buildLayout = buildLayout,
-            layoutFits = layoutFits
-        )
-        val defaultLayout = buildLayout(text, baseWidth, defaultTextSize)
-        if (minTextSizePx <= defaultTextSize) {
-            return HorizontalScalePlan(
-                defaultLayout = defaultLayout,
-                drawRect = RectF(rect),
-                scaleX = 1f,
-                scaleY = 1f
-            )
-        }
+        path: Path,
+        minAreaPerCharSp: Float,
+        density: Float
+    ): RectF {
+        val textRect = RectF()
+        BubbleShapePaths.insetTextBounds(path, textRect)
+        if (textRect.width() <= 0f || textRect.height() <= 0f) return textRect
 
-        if (!expandBubbleWhenMinFontSize) {
-            val scale = (minTextSizePx / defaultTextSize).coerceAtLeast(1f)
-            return HorizontalScalePlan(
-                defaultLayout = defaultLayout,
-                drawRect = RectF(rect),
-                scaleX = scale,
-                scaleY = scale
-            )
-        }
+        val charCount = text.trim().length.coerceAtLeast(1)
+        val areaPx = textRect.width() * textRect.height()
+        val areaSp2 = areaPx / (density * density)
+        val areaPerCharSp = areaSp2 / charCount.toFloat()
 
-        val expandedWidth = max(baseWidth, ((defaultLayout.width * minTextSizePx) / defaultTextSize).toInt())
-            .coerceAtLeast(baseWidth)
-        val expandedLayout = buildLayout(text, expandedWidth, minTextSizePx)
-        val expandedRect = RectF(rect)
-        val targetWidth = max(rect.width(), expandedLayout.width.toFloat())
-        val targetHeight = max(rect.height(), expandedLayout.height.toFloat())
-        expandedRect.set(
-            rect.centerX() - targetWidth / 2f,
-            rect.centerY() - targetHeight / 2f,
-            rect.centerX() + targetWidth / 2f,
-            rect.centerY() + targetHeight / 2f
-        )
-        return HorizontalScalePlan(
-            defaultLayout = expandedLayout,
-            drawRect = expandedRect,
-            scaleX = 1f,
-            scaleY = 1f
-        )
+        if (areaPerCharSp < minAreaPerCharSp) {
+            val targetAreaPx = charCount * minAreaPerCharSp * density * density
+            val areaScale = (targetAreaPx / areaPx).coerceAtMost(9f)
+            val linearScale = sqrt(areaScale).coerceIn(1f, 3f)
+            scalePathAroundCenter(path, linearScale, linearScale)
+            BubbleShapePaths.insetTextBounds(path, textRect)
+        }
+        return textRect
     }
 
     fun findDefaultHorizontalTextSize(
@@ -121,19 +87,5 @@ internal object BubbleTextScaling {
             }
         }
         return bestSize
-    }
-
-    fun buildCenteredHorizontalLayout(
-        text: String,
-        width: Int,
-        textSize: Float,
-        paint: TextPaint
-    ): StaticLayout {
-        paint.textSize = textSize
-        return StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
-            .setAlignment(Layout.Alignment.ALIGN_CENTER)
-            .setIncludePad(false)
-            .setLineSpacing(0f, 1f)
-            .build()
     }
 }
