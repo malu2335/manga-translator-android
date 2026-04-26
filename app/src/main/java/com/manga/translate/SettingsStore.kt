@@ -50,7 +50,7 @@ data class NormalBubbleRenderSettings(
     val opacityPercent: Int,
     val freeBubbleShrinkPercent: Int,
     val freeBubbleOpacityPercent: Int,
-    val fontScalePercent: Int,
+    val minFontSizeSp: Int,
     val useHorizontalText: Boolean
 )
 
@@ -68,7 +68,6 @@ enum class FloatingBubbleShape(val prefValue: String, val labelRes: Int) {
 data class FloatingBubbleRenderSettings(
     val sizeAdjustPercent: Int,
     val opacityPercent: Int,
-    val fontScalePercent: Int,
     val shape: FloatingBubbleShape,
     val useHorizontalText: Boolean
 )
@@ -267,13 +266,7 @@ class SettingsStore(context: Context) {
                 MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT,
                 MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT
             ),
-            fontScalePercent = prefs.getInt(
-                KEY_NORMAL_BUBBLE_FONT_SCALE_PERCENT,
-                DEFAULT_NORMAL_BUBBLE_FONT_SCALE_PERCENT
-            ).coerceIn(
-                MIN_NORMAL_BUBBLE_FONT_SCALE_PERCENT,
-                MAX_NORMAL_BUBBLE_FONT_SCALE_PERCENT
-            ),
+            minFontSizeSp = loadNormalBubbleMinFontSizeSp(),
             useHorizontalText = loadUseHorizontalText()
         )
     }
@@ -295,10 +288,10 @@ class SettingsStore(context: Context) {
                     )
                 )
                 .putInt(
-                    KEY_NORMAL_BUBBLE_FONT_SCALE_PERCENT,
-                    settings.fontScalePercent.coerceIn(
-                        MIN_NORMAL_BUBBLE_FONT_SCALE_PERCENT,
-                        MAX_NORMAL_BUBBLE_FONT_SCALE_PERCENT
+                    KEY_NORMAL_BUBBLE_MIN_FONT_SIZE_SP,
+                    settings.minFontSizeSp.coerceIn(
+                        MIN_NORMAL_BUBBLE_MIN_FONT_SIZE_SP,
+                        MAX_NORMAL_BUBBLE_MIN_FONT_SIZE_SP
                     )
                 )
                 .putInt(
@@ -319,6 +312,27 @@ class SettingsStore(context: Context) {
             }
     }
 
+    private fun loadNormalBubbleMinFontSizeSp(): Int {
+        val savedValue = prefs.getInt(
+            KEY_NORMAL_BUBBLE_MIN_FONT_SIZE_SP,
+            DEFAULT_NORMAL_BUBBLE_MIN_FONT_SIZE_SP
+        )
+        if (prefs.contains(KEY_NORMAL_BUBBLE_MIN_FONT_SIZE_SP)) {
+            return savedValue.coerceIn(
+                MIN_NORMAL_BUBBLE_MIN_FONT_SIZE_SP,
+                MAX_NORMAL_BUBBLE_MIN_FONT_SIZE_SP
+            )
+        }
+        val legacyPercent = prefs.getInt(
+            KEY_NORMAL_BUBBLE_FONT_SCALE_PERCENT,
+            DEFAULT_NORMAL_BUBBLE_FONT_SCALE_PERCENT
+        )
+        return (legacyPercent / 10).coerceIn(
+            MIN_NORMAL_BUBBLE_MIN_FONT_SIZE_SP,
+            MAX_NORMAL_BUBBLE_MIN_FONT_SIZE_SP
+        )
+    }
+
     fun loadFloatingBubbleRenderSettings(): FloatingBubbleRenderSettings {
         return FloatingBubbleRenderSettings(
             sizeAdjustPercent = prefs.getInt(
@@ -334,13 +348,6 @@ class SettingsStore(context: Context) {
             ).coerceIn(
                 MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT,
                 MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT
-            ),
-            fontScalePercent = prefs.getInt(
-                KEY_FLOATING_BUBBLE_FONT_SCALE_PERCENT,
-                DEFAULT_FLOATING_BUBBLE_FONT_SCALE_PERCENT
-            ).coerceIn(
-                MIN_FLOATING_BUBBLE_FONT_SCALE_PERCENT,
-                MAX_FLOATING_BUBBLE_FONT_SCALE_PERCENT
             ),
             shape = FloatingBubbleShape.fromPref(
                 prefs.getString(KEY_FLOATING_BUBBLE_SHAPE, FloatingBubbleShape.RECTANGLE.prefValue)
@@ -363,13 +370,6 @@ class SettingsStore(context: Context) {
                     settings.opacityPercent.coerceIn(
                         MIN_TRANSLATION_BUBBLE_OPACITY_PERCENT,
                         MAX_TRANSLATION_BUBBLE_OPACITY_PERCENT
-                    )
-                )
-                .putInt(
-                    KEY_FLOATING_BUBBLE_FONT_SCALE_PERCENT,
-                    settings.fontScalePercent.coerceIn(
-                        MIN_FLOATING_BUBBLE_FONT_SCALE_PERCENT,
-                        MAX_FLOATING_BUBBLE_FONT_SCALE_PERCENT
                     )
                 )
                 .putString(KEY_FLOATING_BUBBLE_SHAPE, settings.shape.prefValue)
@@ -951,12 +951,12 @@ class SettingsStore(context: Context) {
         private const val KEY_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT =
             "floating_bubble_size_adjust_percent"
         private const val KEY_FLOATING_BUBBLE_OPACITY_PERCENT = "floating_bubble_opacity_percent"
-        private const val KEY_FLOATING_BUBBLE_FONT_SCALE_PERCENT = "floating_bubble_font_scale_percent"
         private const val KEY_FLOATING_BUBBLE_SHAPE = "floating_bubble_shape"
         private const val KEY_FLOATING_BUBBLE_HORIZONTAL_TEXT = "floating_bubble_horizontal_text"
         private const val KEY_OCR_API_TIMEOUT_SECONDS = "ocr_api_timeout_seconds"
         private const val KEY_HORIZONTAL_TEXT = "horizontal_text_layout"
         private const val KEY_NORMAL_BUBBLE_SHRINK_PERCENT = "normal_bubble_shrink_percent"
+        private const val KEY_NORMAL_BUBBLE_MIN_FONT_SIZE_SP = "normal_bubble_min_font_size_sp"
         private const val KEY_NORMAL_BUBBLE_FONT_SCALE_PERCENT = "normal_bubble_font_scale_percent"
         private const val KEY_NORMAL_FREE_BUBBLE_SHRINK_PERCENT =
             "normal_free_bubble_shrink_percent"
@@ -1005,17 +1005,15 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT = 0
         private const val MIN_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT = -30
         private const val MAX_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT = 30
-        private const val DEFAULT_FLOATING_BUBBLE_FONT_SCALE_PERCENT = 100
-        private const val MIN_FLOATING_BUBBLE_FONT_SCALE_PERCENT = 50
-        private const val MAX_FLOATING_BUBBLE_FONT_SCALE_PERCENT = 200
         private const val DEFAULT_NORMAL_BUBBLE_SHRINK_PERCENT = 10
         private const val MIN_NORMAL_BUBBLE_SHRINK_PERCENT = 0
         private const val MAX_NORMAL_BUBBLE_SHRINK_PERCENT = 30
         private const val DEFAULT_NORMAL_FREE_BUBBLE_SHRINK_PERCENT = 10
         private const val DEFAULT_NORMAL_FREE_BUBBLE_OPACITY_PERCENT = 90
         private const val DEFAULT_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 100
-        private const val MIN_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 50
-        private const val MAX_NORMAL_BUBBLE_FONT_SCALE_PERCENT = 200
+        private const val DEFAULT_NORMAL_BUBBLE_MIN_FONT_SIZE_SP = 10
+        private const val MIN_NORMAL_BUBBLE_MIN_FONT_SIZE_SP = 8
+        private const val MAX_NORMAL_BUBBLE_MIN_FONT_SIZE_SP = 24
         private const val DEFAULT_MAX_CONCURRENCY = 3
         private const val MIN_MAX_CONCURRENCY = 1
         private const val MAX_MAX_CONCURRENCY = 50

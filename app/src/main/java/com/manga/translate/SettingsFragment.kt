@@ -638,8 +638,8 @@ class SettingsFragment : Fragment() {
         dialogBinding.normalBubbleFreeOpacityPercentInput.setText(
             formatNumber(currentSettings.freeBubbleOpacityPercent)
         )
-        dialogBinding.normalBubbleFontScalePercentInput.setText(
-            formatNumber(currentSettings.fontScalePercent)
+        dialogBinding.normalBubbleMinFontSizeInput.setText(
+            formatNumber(currentSettings.minFontSizeSp)
         )
         dialogBinding.normalBubbleHorizontalTextSwitch.isChecked = currentSettings.useHorizontalText
         AlertDialog.Builder(requireContext())
@@ -659,9 +659,9 @@ class SettingsFragment : Fragment() {
                     freeBubbleOpacityPercent = parseIntInput(
                         dialogBinding.normalBubbleFreeOpacityPercentInput.text?.toString()
                     ) ?: currentSettings.freeBubbleOpacityPercent,
-                    fontScalePercent = parseIntInput(
-                        dialogBinding.normalBubbleFontScalePercentInput.text?.toString()
-                    ) ?: currentSettings.fontScalePercent,
+                    minFontSizeSp = parseIntInput(
+                        dialogBinding.normalBubbleMinFontSizeInput.text?.toString()
+                    ) ?: currentSettings.minFontSizeSp,
                     useHorizontalText = dialogBinding.normalBubbleHorizontalTextSwitch.isChecked
                 )
                 settingsStore.saveNormalBubbleRenderSettings(updated)
@@ -680,9 +680,6 @@ class SettingsFragment : Fragment() {
         dialogBinding.floatingBubbleOpacityPercentInput.setText(
             formatNumber(currentSettings.opacityPercent)
         )
-        dialogBinding.floatingBubbleFontScalePercentInput.setText(
-            formatNumber(currentSettings.fontScalePercent)
-        )
         setupFloatingBubbleShapeDropdown(
             dialogBinding.floatingBubbleShapeInput,
             currentSettings.shape
@@ -699,9 +696,6 @@ class SettingsFragment : Fragment() {
                     opacityPercent = parseIntInput(
                         dialogBinding.floatingBubbleOpacityPercentInput.text?.toString()
                     ) ?: currentSettings.opacityPercent,
-                    fontScalePercent = parseIntInput(
-                        dialogBinding.floatingBubbleFontScalePercentInput.text?.toString()
-                    ) ?: currentSettings.fontScalePercent,
                     shape = parseFloatingBubbleShape(
                         dialogBinding.floatingBubbleShapeInput,
                         currentSettings.shape

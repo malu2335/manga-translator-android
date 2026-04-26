@@ -82,10 +82,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:hint="@string/normal_bubble_font_scale_percent_hint">
+            android:hint="@string/normal_bubble_min_font_size_hint">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/normal_bubble_font_scale_percent_input"
+                android:id="@+id/normal_bubble_min_font_size_input"
                 style="@style/Widget.MangaTranslator.EditText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

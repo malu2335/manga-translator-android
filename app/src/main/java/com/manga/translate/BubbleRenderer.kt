@@ -10,14 +10,26 @@ import android.graphics.RectF
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.util.TypedValue
 import androidx.core.graphics.withTranslation
 import kotlin.math.min
 
 class BubbleRenderer(context: Context) {
+    private val resources = context.resources
     private val bubbleRenderSettings = SettingsStore(context.applicationContext).loadNormalBubbleRenderSettings()
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFF1B1B1B.toInt()
     }
+    private val minTextSizePx = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_SP,
+        bubbleRenderSettings.minFontSizeSp.toFloat(),
+        resources.displayMetrics
+    )
+    private val textSizeStepPx = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_SP,
+        0.5f,
+        resources.displayMetrics
+    ).coerceAtLeast(0.5f)
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         style = Paint.Style.FILL
@@ -99,9 +111,7 @@ class BubbleRenderer(context: Context) {
         } else {
             val maxWidth = rect.width().toInt().coerceAtLeast(1)
             val maxHeight = rect.height().toInt().coerceAtLeast(1)
-            val textScale = bubbleRenderSettings.fontScalePercent / 100f
-            val defaultTextSize = findDefaultHorizontalTextSize(text, maxWidth, maxHeight, rect.height() / 3f)
-            val textSize = (defaultTextSize * textScale).coerceAtLeast(10f)
+            val textSize = findDefaultHorizontalTextSize(text, maxWidth, maxHeight)
             val layout = buildLayout(text, maxWidth, textSize)
             val dx = rect.left
             val dy = rect.top + ((rect.height() - layout.height) / 2f).coerceAtLeast(0f)
@@ -123,9 +133,7 @@ class BubbleRenderer(context: Context) {
     private fun drawVerticalTextInRect(canvas: Canvas, text: String, rect: RectF) {
         val maxWidth = rect.width().toInt().coerceAtLeast(1)
         val maxHeight = rect.height().toInt().coerceAtLeast(1)
-        val textScale = bubbleRenderSettings.fontScalePercent / 100f
-        val defaultTextSize = findDefaultVerticalTextSize(text, maxWidth, maxHeight, rect.width() / 2.2f)
-        val textSize = (defaultTextSize * textScale).coerceAtLeast(10f)
+        val textSize = findDefaultVerticalTextSize(text, maxWidth, maxHeight, rect.width() / 2.2f)
         val layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
         val dx = rect.right - ((rect.width() - layout.totalWidth) / 2f) - layout.columnWidth
         val dy = rect.top + ((rect.height() - layout.totalHeight) / 2f) - layout.fontMetrics.ascent
@@ -154,16 +162,26 @@ class BubbleRenderer(context: Context) {
     private fun findDefaultHorizontalTextSize(
         text: String,
         maxWidth: Int,
-        maxHeight: Int,
-        initialSize: Float
+        maxHeight: Int
     ): Float {
-        var textSize = initialSize.coerceIn(12f, 42f)
-        var layout = buildLayout(text, maxWidth, textSize)
-        while (layout.height > maxHeight && textSize > 10f) {
-            textSize *= 0.9f
-            layout = buildLayout(text, maxWidth, textSize)
+        val minLayout = buildLayout(text, maxWidth, minTextSizePx)
+        if (!layoutFits(minLayout, maxWidth, maxHeight)) {
+            return minTextSizePx
         }
-        return textSize
+        var bestSize = minTextSizePx
+        var low = minTextSizePx
+        var high = maxOf(low, maxWidth.toFloat(), maxHeight.toFloat())
+        while (high - low > textSizeStepPx) {
+            val mid = (low + high) / 2f
+            val candidate = buildLayout(text, maxWidth, mid)
+            if (layoutFits(candidate, maxWidth, maxHeight)) {
+                bestSize = mid
+                low = mid
+            } else {
+                high = mid
+            }
+        }
+        return bestSize
     }
 
     private fun findDefaultVerticalTextSize(
@@ -172,13 +190,28 @@ class BubbleRenderer(context: Context) {
         maxHeight: Int,
         initialSize: Float
     ): Float {
-        var textSize = initialSize.coerceIn(12f, 42f)
+        val maxTextSize = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_SP,
+            42f,
+            resources.displayMetrics
+        )
+        var textSize = initialSize.coerceIn(minTextSizePx, maxTextSize)
         var layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
-        while ((layout.columnWidth <= 0f || layout.lineHeight <= 0f || !layout.fits) && textSize > 10f) {
-            textSize *= 0.9f
+        while ((layout.columnWidth <= 0f || layout.lineHeight <= 0f || !layout.fits) && textSize > minTextSizePx) {
+            textSize = (textSize - textSizeStepPx).coerceAtLeast(minTextSizePx)
             layout = buildVerticalLayout(text, maxWidth, maxHeight, textSize)
         }
         return textSize
+    }
+
+    private fun layoutFits(layout: StaticLayout, maxWidth: Int, maxHeight: Int): Boolean {
+        if (layout.height > maxHeight) return false
+        for (line in 0 until layout.lineCount) {
+            if (layout.getLineWidth(line) > maxWidth + 0.5f) {
+                return false
+            }
+        }
+        return true
     }
 
     private fun buildVerticalLayout(
