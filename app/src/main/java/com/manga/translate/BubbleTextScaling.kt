@@ -1,5 +1,7 @@
 package com.manga.translate
 
+import android.graphics.Matrix
+import android.graphics.Path
 import android.graphics.RectF
 import android.text.Layout
 import android.text.StaticLayout
@@ -13,6 +15,26 @@ internal object BubbleTextScaling {
         val scaleX: Float,
         val scaleY: Float
     )
+
+    fun layoutFits(layout: StaticLayout, maxWidth: Int, maxHeight: Int): Boolean {
+        if (layout.height > maxHeight) return false
+        for (line in 0 until layout.lineCount) {
+            if (layout.getLineWidth(line) > maxWidth + 0.5f) {
+                return false
+            }
+        }
+        return true
+    }
+
+    fun scalePathAroundCenter(path: Path, scaleX: Float, scaleY: Float) {
+        if (scaleX == 1f && scaleY == 1f) return
+        val bounds = RectF()
+        path.computeBounds(bounds, true)
+        if (bounds.width() <= 0f || bounds.height() <= 0f) return
+        val matrix = Matrix()
+        matrix.setScale(scaleX, scaleY, bounds.centerX(), bounds.centerY())
+        path.transform(matrix)
+    }
 
     fun buildHorizontalScalePlan(
         text: String,
