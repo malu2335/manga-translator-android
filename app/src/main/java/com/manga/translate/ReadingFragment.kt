@@ -621,6 +621,7 @@ class ReadingFragment : Fragment() {
         }
         currentTranslation = normalized
         binding.translationOverlay.setDisplayRect(rect)
+        binding.translationOverlay.setContentZoomScale(imageTransformController.currentContentZoomScale())
         binding.translationOverlay.setTranslations(normalized)
         binding.translationOverlay.setOffsets(emptyMap())
         binding.translationOverlay.setEditMode(isEditMode)
@@ -745,6 +746,7 @@ class ReadingFragment : Fragment() {
         if (binding.translationOverlay.visibility != View.VISIBLE) return
         val rect = computeOverlayDisplayRect() ?: return
         binding.translationOverlay.setDisplayRect(rect)
+        binding.translationOverlay.setContentZoomScale(imageTransformController.currentContentZoomScale())
     }
 
     private fun applyReadingDisplayMode() {

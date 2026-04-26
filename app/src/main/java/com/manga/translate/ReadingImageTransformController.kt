@@ -196,6 +196,10 @@ class ReadingImageTransformController(
         return imageUserScale > minScale + 0.01f
     }
 
+    fun currentContentZoomScale(): Float {
+        return imageUserScale.coerceAtLeast(1f)
+    }
+
     fun resetZoom() {
         if (currentBitmap == null) return
         imageMatrix.set(baseMatrix)

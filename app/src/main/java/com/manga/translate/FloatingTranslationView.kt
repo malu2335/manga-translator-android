@@ -38,7 +38,7 @@ class FloatingTranslationView @JvmOverloads constructor(
             TypedValue.COMPLEX_UNIT_SP,
             bubbleRenderSettings.minFontSizeSp.toFloat(),
             resources.displayMetrics
-        )
+        ) * contentZoomScale
     private val textSizeStepPx = TypedValue.applyDimension(
         TypedValue.COMPLEX_UNIT_SP,
         0.5f,
@@ -80,6 +80,7 @@ class FloatingTranslationView @JvmOverloads constructor(
     private var dragging = false
     private var activeId: Int? = null
     private var verticalLayoutEnabled = true
+    private var contentZoomScale = 1f
     private var swipeTriggered = false
     private var longPressTriggered = false
     private var editMode = false
@@ -139,6 +140,13 @@ class FloatingTranslationView @JvmOverloads constructor(
 
     fun setVerticalLayoutEnabled(enabled: Boolean) {
         verticalLayoutEnabled = enabled
+        invalidate()
+    }
+
+    fun setContentZoomScale(scale: Float) {
+        val normalized = scale.coerceAtLeast(1f)
+        if (kotlin.math.abs(contentZoomScale - normalized) < 0.001f) return
+        contentZoomScale = normalized
         invalidate()
     }
 
@@ -432,24 +440,8 @@ class FloatingTranslationView @JvmOverloads constructor(
         bubblePath.computeBounds(bubbleBounds, true)
         if (bubbleBounds.width() <= 0f || bubbleBounds.height() <= 0f) return
         BubbleShapePaths.insetTextBounds(bubblePath, textRect)
-        if (!verticalLayoutEnabled) {
-            val plan = BubbleTextScaling.buildHorizontalScalePlan(
-                text = bubble.text,
-                rect = textRect,
-                minTextSizePx = minTextSizePx,
-                expandBubbleWhenMinFontSize = bubbleRenderSettings.expandBubbleWhenMinFontSize,
-                buildLayout = ::buildLayout,
-                layoutFits = ::layoutFits
-            )
-            if (bubbleRenderSettings.expandBubbleWhenMinFontSize && !rectApproximatelyEquals(textRect, plan.drawRect)) {
-                scalePathAroundCenter(
-                    path = bubblePath,
-                    scaleX = (plan.drawRect.width() / textRect.width()).coerceAtLeast(1f),
-                    scaleY = (plan.drawRect.height() / textRect.height()).coerceAtLeast(1f)
-                )
-                bubblePath.computeBounds(bubbleBounds, true)
-                BubbleShapePaths.insetTextBounds(bubblePath, textRect)
-            }
+        if (bubbleRenderSettings.expandBubbleWhenMinFontSize) {
+            ensureExpandedTextBounds(bubblePath, bubble.text, verticalLayoutEnabled)
         }
         canvas.drawPath(bubblePath, fillPaint)
         drawTextInRect(canvas, bubble.text, textRect)
@@ -523,8 +515,12 @@ class FloatingTranslationView @JvmOverloads constructor(
                 buildLayout = ::buildLayout,
                 layoutFits = ::layoutFits
             )
-            val drawRect = plan.drawRect
-            val layout = plan.defaultLayout
+            val drawRect = if (bubbleRenderSettings.expandBubbleWhenMinFontSize) rect else plan.drawRect
+            val layout = if (bubbleRenderSettings.expandBubbleWhenMinFontSize) {
+                buildLayout(text, rect.width().toInt().coerceAtLeast(1), resolveHorizontalTextSize(rect, text))
+            } else {
+                plan.defaultLayout
+            }
             canvas.save()
             canvas.translate(drawRect.centerX(), drawRect.centerY())
             canvas.scale(plan.scaleX, plan.scaleY)
@@ -549,6 +545,64 @@ class FloatingTranslationView @JvmOverloads constructor(
             kotlin.math.abs(first.top - second.top) < 0.5f &&
             kotlin.math.abs(first.right - second.right) < 0.5f &&
             kotlin.math.abs(first.bottom - second.bottom) < 0.5f
+    }
+
+    private fun ensureExpandedTextBounds(path: Path, text: String, verticalLayoutEnabled: Boolean) {
+        repeat(8) {
+            BubbleShapePaths.insetTextBounds(path, textRect)
+            if (textRect.width() <= 0f || textRect.height() <= 0f) return
+            val required = if (verticalLayoutEnabled) {
+                resolveRequiredVerticalRect(text, textRect)
+            } else {
+                BubbleTextScaling.buildHorizontalScalePlan(
+                    text = text,
+                    rect = textRect,
+                    minTextSizePx = minTextSizePx,
+                    expandBubbleWhenMinFontSize = true,
+                    buildLayout = ::buildLayout,
+                    layoutFits = ::layoutFits
+                ).drawRect
+            }
+            if (textRect.width() + 0.5f >= required.width() &&
+                textRect.height() + 0.5f >= required.height()
+            ) {
+                return
+            }
+            scalePathAroundCenter(
+                path = path,
+                scaleX = (required.width() / textRect.width()).coerceAtLeast(1f),
+                scaleY = (required.height() / textRect.height()).coerceAtLeast(1f)
+            )
+            path.computeBounds(bubbleBounds, true)
+        }
+        BubbleShapePaths.insetTextBounds(path, textRect)
+    }
+
+    private fun resolveRequiredVerticalRect(text: String, rect: RectF): RectF {
+        val maxWidth = rect.width().toInt().coerceAtLeast(1)
+        val maxHeight = rect.height().toInt().coerceAtLeast(1)
+        val defaultTextSize = findDefaultVerticalTextSize(text, maxWidth, maxHeight, rect.width() / 2.2f)
+        if (defaultTextSize >= minTextSizePx) return RectF(rect)
+        val layout = buildVerticalLayout(text, maxWidth, maxHeight, minTextSizePx)
+        val targetWidth = maxOf(rect.width(), layout.totalWidth)
+        val targetHeight = maxOf(rect.height(), layout.totalHeight)
+        return RectF(
+            rect.centerX() - targetWidth / 2f,
+            rect.centerY() - targetHeight / 2f,
+            rect.centerX() + targetWidth / 2f,
+            rect.centerY() + targetHeight / 2f
+        )
+    }
+
+    private fun resolveHorizontalTextSize(rect: RectF, text: String): Float {
+        return BubbleTextScaling.findDefaultHorizontalTextSize(
+            text = text,
+            maxWidth = rect.width().toInt().coerceAtLeast(1),
+            maxHeight = rect.height().toInt().coerceAtLeast(1),
+            minTextSizePx = minTextSizePx,
+            buildLayout = ::buildLayout,
+            layoutFits = ::layoutFits
+        ).coerceAtLeast(minTextSizePx)
     }
 
     private fun buildLayout(text: String, width: Int, textSize: Float): StaticLayout {
