@@ -274,13 +274,13 @@ object RectGeometryDeduplicator {
     private const val SHORT_TEXT_MAX_WORDS = 2
     private const val SHORT_TEXT_MAX_UNION_FRACTION = 0.08f
     private const val SHORT_TEXT_NEAR_X_RATIO = 2.2f
-    private const val SHORT_TEXT_NEAR_Y_RATIO = 2.2f
+    private const val SHORT_TEXT_NEAR_Y_RATIO = 3.2f
     private const val SHORT_TEXT_NEAR_X_PAD = 48f
-    private const val SHORT_TEXT_NEAR_Y_PAD = 36f
+    private const val SHORT_TEXT_NEAR_Y_PAD = 56f
     private const val SHORT_TEXT_EDGE_X_RATIO = 1.5f
-    private const val SHORT_TEXT_EDGE_Y_RATIO = 1.4f
+    private const val SHORT_TEXT_EDGE_Y_RATIO = 2.4f
     private const val SHORT_TEXT_EDGE_X_PAD = 36f
-    private const val SHORT_TEXT_EDGE_Y_PAD = 28f
+    private const val SHORT_TEXT_EDGE_Y_PAD = 44f
     private val SHORT_TEXT_IGNORED_CHARS = setOf(
         '.', ',', '!', '?', ':', ';', '-', '_', '~', '·', '…',
         '，', '。', '！', '？', '：', '；', '、', '·', '・',
