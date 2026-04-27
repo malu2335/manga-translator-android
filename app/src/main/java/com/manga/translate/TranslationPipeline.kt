@@ -165,11 +165,22 @@ internal class TranslationPipeline(
                         bubbles.add(OcrBubble(bubbleId, det.rect, text, BubbleSource.BUBBLE_DETECTOR, det.maskContour))
                     }
                 }
+                val mergedBubbles = RectGeometryDeduplicator.mergeShortTextDetectorOcrBubbles(
+                    bubbles = bubbles,
+                    imageWidth = bitmap.width,
+                    imageHeight = bitmap.height
+                )
+                if (mergedBubbles.size < bubbles.size) {
+                    AppLogger.log(
+                        "Pipeline",
+                        "Merged short text detector OCR bubbles: ${bubbles.size} -> ${mergedBubbles.size}"
+                    )
+                }
                 val result = PageOcrResult(
                     imageFile,
                     bitmap.width,
                     bitmap.height,
-                    bubbles,
+                    mergedBubbles,
                     cacheMode,
                     expectedMetadata
                 )
@@ -200,11 +211,22 @@ internal class TranslationPipeline(
                         bubbles.add(OcrBubble(bubbleId, det.rect, text, BubbleSource.BUBBLE_DETECTOR, det.maskContour))
                     }
                 }
+                val mergedBubbles = RectGeometryDeduplicator.mergeShortTextDetectorOcrBubbles(
+                    bubbles = bubbles,
+                    imageWidth = bitmap.width,
+                    imageHeight = bitmap.height
+                )
+                if (mergedBubbles.size < bubbles.size) {
+                    AppLogger.log(
+                        "Pipeline",
+                        "Merged short text detector OCR bubbles: ${bubbles.size} -> ${mergedBubbles.size}"
+                    )
+                }
                 val result = PageOcrResult(
                     imageFile,
                     bitmap.width,
                     bitmap.height,
-                    bubbles,
+                    mergedBubbles,
                     cacheMode,
                     expectedMetadata
                 )
@@ -245,11 +267,22 @@ internal class TranslationPipeline(
                     )
                 )
             }
+            val mergedBubbles = RectGeometryDeduplicator.mergeShortTextDetectorOcrBubbles(
+                bubbles = bubbles,
+                imageWidth = bitmap.width,
+                imageHeight = bitmap.height
+            )
+            if (mergedBubbles.size < bubbles.size) {
+                AppLogger.log(
+                    "Pipeline",
+                    "Merged short text detector OCR bubbles: ${bubbles.size} -> ${mergedBubbles.size}"
+                )
+            }
             val result = PageOcrResult(
                 imageFile,
                 bitmap.width,
                 bitmap.height,
-                bubbles,
+                mergedBubbles,
                 cacheMode,
                 expectedMetadata
             )

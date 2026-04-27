@@ -1080,11 +1080,38 @@ class FloatingBallOverlayService : Service() {
                             )
                         )
                     }
+                    val mergedBubbles = RectGeometryDeduplicator.mergeShortTextDetectorOcrBubbles(
+                        bubbles = bubbles.map { bubble ->
+                            OcrBubble(
+                                id = bubble.id,
+                                rect = bubble.rect,
+                                text = bubble.text,
+                                source = bubble.source,
+                                maskContour = bubble.maskContour
+                            )
+                        },
+                        imageWidth = bitmap.width,
+                        imageHeight = bitmap.height
+                    ).map { bubble ->
+                        BubbleTranslation(
+                            id = bubble.id,
+                            rect = bubble.rect,
+                            text = bubble.text,
+                            source = bubble.source,
+                            maskContour = bubble.maskContour
+                        )
+                    }
+                    if (mergedBubbles.size < bubbles.size) {
+                        AppLogger.log(
+                            "FloatingOCR",
+                            "Merged short text detector OCR bubbles: ${bubbles.size} -> ${mergedBubbles.size}"
+                        )
+                    }
                     withContext(Dispatchers.Main) {
                         showProgressStatus(R.string.floating_progress_translating)
                     }
                     floatingBubbleTranslationCoordinator.translateTextBubbles(
-                        bubbles = bubbles,
+                        bubbles = mergedBubbles,
                         timeoutMs = floatingTimeoutMs,
                         retryCount = FLOATING_TRANSLATE_RETRY_COUNT,
                         promptAsset = FLOAT_PROMPT_ASSET,

@@ -34,6 +34,33 @@ object RectGeometryDeduplicator {
         return mergeDenseClusters(mergedRects, imageArea)
     }
 
+    fun mergeShortTextDetectorOcrBubbles(
+        bubbles: List<OcrBubble>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): List<OcrBubble> {
+        if (bubbles.size <= 1) return bubbles
+        val imageArea = (imageWidth.toFloat() * imageHeight.toFloat()).coerceAtLeast(1f)
+        val merged = bubbles.map { MutableBubbleGroup.from(it) }.toMutableList()
+        var changed = true
+        while (changed) {
+            changed = false
+            for (i in 0 until merged.size) {
+                var j = i + 1
+                while (j < merged.size) {
+                    if (shouldMergeShortTextGroups(merged[i], merged[j], imageArea)) {
+                        merged[i] = merged[i].mergeWith(merged[j])
+                        merged.removeAt(j)
+                        changed = true
+                    } else {
+                        j++
+                    }
+                }
+            }
+        }
+        return merged.mapIndexed { index, group -> group.toOcrBubble(index) }
+    }
+
     private fun mergeDenseClusters(rects: List<RectF>, imageArea: Float): List<RectF> {
         if (rects.size <= DENSE_CLUSTER_MIN_COUNT) return rects
 
@@ -89,6 +116,67 @@ object RectGeometryDeduplicator {
             b.bottom + DENSE_CLUSTER_PAD
         )
         return RectF.intersects(expandedA, b) || RectF.intersects(expandedB, a)
+    }
+
+    private fun shouldMergeShortTextGroups(
+        a: MutableBubbleGroup,
+        b: MutableBubbleGroup,
+        imageArea: Float
+    ): Boolean {
+        if (a.source != BubbleSource.TEXT_DETECTOR || b.source != BubbleSource.TEXT_DETECTOR) return false
+        if (a.maskContour != null || b.maskContour != null) return false
+        if (!isShortText(a.text) || !isShortText(b.text)) return false
+
+        val union = unionRects(a.rect, b.rect)
+        val unionArea = max(0f, union.width()) * max(0f, union.height())
+        if (unionArea / imageArea > SHORT_TEXT_MAX_UNION_FRACTION) return false
+
+        val centerAX = (a.rect.left + a.rect.right) * 0.5f
+        val centerAY = (a.rect.top + a.rect.bottom) * 0.5f
+        val centerBX = (b.rect.left + b.rect.right) * 0.5f
+        val centerBY = (b.rect.top + b.rect.bottom) * 0.5f
+        val dx = abs(centerAX - centerBX)
+        val dy = abs(centerAY - centerBY)
+        val maxWidth = max(a.rect.width(), b.rect.width()).coerceAtLeast(1f)
+        val maxHeight = max(a.rect.height(), b.rect.height()).coerceAtLeast(1f)
+        val nearX = dx <= maxWidth * SHORT_TEXT_NEAR_X_RATIO + SHORT_TEXT_NEAR_X_PAD
+        val nearY = dy <= maxHeight * SHORT_TEXT_NEAR_Y_RATIO + SHORT_TEXT_NEAR_Y_PAD
+        if (!nearX || !nearY) return false
+
+        val edgeXGap = edgeGap(a.rect.left, a.rect.right, b.rect.left, b.rect.right)
+        val edgeYGap = edgeGap(a.rect.top, a.rect.bottom, b.rect.top, b.rect.bottom)
+        return edgeXGap <= maxWidth * SHORT_TEXT_EDGE_X_RATIO + SHORT_TEXT_EDGE_X_PAD &&
+            edgeYGap <= maxHeight * SHORT_TEXT_EDGE_Y_RATIO + SHORT_TEXT_EDGE_Y_PAD
+    }
+
+    private fun isShortText(text: String): Boolean {
+        val normalized = text.trim()
+        if (normalized.isBlank()) return false
+        val words = normalized.split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (words.size > 1) {
+            return words.size <= SHORT_TEXT_MAX_WORDS
+        }
+        val compactLength = normalized.count { !it.isWhitespace() && !isShortTextIgnoredChar(it) }
+        return compactLength in 1 until SHORT_TEXT_MAX_CHARS
+    }
+
+    private fun isShortTextIgnoredChar(char: Char): Boolean {
+        return char in SHORT_TEXT_IGNORED_CHARS
+    }
+
+    private fun edgeGap(startA: Float, endA: Float, startB: Float, endB: Float): Float {
+        return when {
+            endA < startB -> startB - endA
+            endB < startA -> startA - endB
+            else -> 0f
+        }
+    }
+
+    private fun mergeTextsByReadingOrder(a: MutableBubbleGroup, b: MutableBubbleGroup): String {
+        val items = listOf(a, b).sortedWith(
+            compareBy<MutableBubbleGroup> { it.rect.top }.thenBy { it.rect.left }
+        )
+        return items.joinToString("\n") { it.text.trim() }.trim()
     }
 
     private fun unionOfComponent(rects: List<RectF>, indices: List<Int>): RectF {
@@ -180,6 +268,71 @@ object RectGeometryDeduplicator {
     private const val MERGE_Y_GAP_MAX = 140f
     private const val MERGE_Y_GAP_MIN = 36f
     private const val DENSE_CLUSTER_MIN_COUNT = 3
-    private const val DENSE_CLUSTER_PAD = 36f
-    private const val DENSE_CLUSTER_MAX_UNION_FRACTION = 0.24f
+    private const val DENSE_CLUSTER_PAD = 44f
+    private const val DENSE_CLUSTER_MAX_UNION_FRACTION = 0.28f
+    private const val SHORT_TEXT_MAX_CHARS = 6
+    private const val SHORT_TEXT_MAX_WORDS = 2
+    private const val SHORT_TEXT_MAX_UNION_FRACTION = 0.08f
+    private const val SHORT_TEXT_NEAR_X_RATIO = 2.2f
+    private const val SHORT_TEXT_NEAR_Y_RATIO = 2.2f
+    private const val SHORT_TEXT_NEAR_X_PAD = 48f
+    private const val SHORT_TEXT_NEAR_Y_PAD = 36f
+    private const val SHORT_TEXT_EDGE_X_RATIO = 1.5f
+    private const val SHORT_TEXT_EDGE_Y_RATIO = 1.4f
+    private const val SHORT_TEXT_EDGE_X_PAD = 36f
+    private const val SHORT_TEXT_EDGE_Y_PAD = 28f
+    private val SHORT_TEXT_IGNORED_CHARS = setOf(
+        '.', ',', '!', '?', ':', ';', '-', '_', '~', '·', '…',
+        '，', '。', '！', '？', '：', '；', '、', '·', '・',
+        '「', '」', '『', '』', '（', '）', '(', ')', '[', ']', '{', '}',
+        '"', '\'', '“', '”', '‘', '’'
+    )
+
+    private data class MutableBubbleGroup(
+        val rect: RectF,
+        val text: String,
+        val source: BubbleSource,
+        val maskContour: FloatArray?
+    ) {
+        fun mergeWith(other: MutableBubbleGroup): MutableBubbleGroup {
+            return MutableBubbleGroup(
+                rect = unionRects(rect, other.rect),
+                text = mergeTextsByReadingOrder(this, other),
+                source = source,
+                maskContour = null
+            )
+        }
+
+        fun toOcrBubble(id: Int): OcrBubble {
+            return OcrBubble(
+                id = id,
+                rect = RectF(rect),
+                text = text,
+                source = source,
+                maskContour = maskContour
+            )
+        }
+
+        fun toBubbleTranslation(id: Int): BubbleTranslation {
+            return BubbleTranslation(
+                id = id,
+                rect = RectF(rect),
+                text = text,
+                source = source,
+                maskContour = maskContour
+            )
+        }
+
+        companion object {
+            fun from(bubble: OcrBubble): MutableBubbleGroup {
+                return MutableBubbleGroup(
+                    rect = RectF(bubble.rect),
+                    text = bubble.text,
+                    source = bubble.source,
+                    maskContour = bubble.maskContour
+                )
+            }
+
+        }
+    }
 }
