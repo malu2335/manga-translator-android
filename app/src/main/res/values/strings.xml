@@ -425,6 +425,8 @@
     <string name="reading_bubble_width_hint">宽%%</string>
     <string name="reading_bubble_height_hint">高%%</string>
     <string name="reading_add_bubble">添加气泡</string>
+    <string name="reading_clear_bubbles">清空所有气泡</string>
+    <string name="reading_clear_bubbles_done">已清空当前页面上的所有气泡</string>
     <string name="reading_empty_bubble_hint">留空则软件会自动在对应区域识别文字。</string>
     <string name="reading_empty_bubble_translating">正在翻译气泡…</string>
     <string name="reading_empty_bubble_translated">气泡翻译完成</string>

@@ -216,6 +216,9 @@ class ReadingFragment : Fragment() {
         binding.readingAddButton.setOnClickListener {
             addNewBubble()
         }
+        binding.readingClearButton.setOnClickListener {
+            clearAllBubbles()
+        }
         binding.readingResizeWidthSlider.max = resizeMaxPercent - resizeMinPercent
         binding.readingResizeHeightSlider.max = resizeMaxPercent - resizeMinPercent
         bindResizeControls(
@@ -888,21 +891,46 @@ class ReadingFragment : Fragment() {
         if (!hasImages) {
             binding.readingEditControls.visibility = View.GONE
             binding.readingAddButton.visibility = View.GONE
+            binding.readingClearButton.visibility = View.GONE
             updateReadingInteractionState()
             return
         }
         binding.readingEditControls.visibility = View.VISIBLE
         val button = binding.readingEditButton
+        val density = resources.displayMetrics.density
         if (isEditMode) {
+            button.layoutParams = button.layoutParams.apply {
+                width = (36f * density).toInt()
+                height = (36f * density).toInt()
+            }
+            button.setPadding(
+                (6f * density).toInt(),
+                (6f * density).toInt(),
+                (6f * density).toInt(),
+                (6f * density).toInt()
+            )
             button.setImageResource(R.drawable.ic_check)
             button.setColorFilter(0xFF22C55E.toInt())
             button.contentDescription = getString(R.string.reading_confirm_edit)
             binding.readingAddButton.visibility = View.VISIBLE
+            binding.readingClearButton.visibility = View.VISIBLE
+            binding.readingClearButton.setColorFilter(Color.WHITE)
         } else {
+            button.layoutParams = button.layoutParams.apply {
+                width = (18f * density).toInt()
+                height = (18f * density).toInt()
+            }
+            button.setPadding(
+                (3f * density).toInt(),
+                (3f * density).toInt(),
+                (3f * density).toInt(),
+                (3f * density).toInt()
+            )
             button.setImageResource(android.R.drawable.ic_menu_edit)
             button.setColorFilter(Color.WHITE)
             button.contentDescription = getString(R.string.reading_edit_bubbles)
             binding.readingAddButton.visibility = View.GONE
+            binding.readingClearButton.visibility = View.GONE
         }
         updateReadingInteractionState()
     }
@@ -1291,6 +1319,17 @@ class ReadingFragment : Fragment() {
         offsets.remove(bubbleId)
         applyOverlayOffsets(offsets)
         renderCurrentTranslation()
+    }
+
+    private fun clearAllBubbles() {
+        if (!isEditMode) return
+        val translation = currentTranslation ?: return
+        if (translation.bubbles.isEmpty()) return
+        hideResizePanel()
+        currentTranslation = translation.copy(bubbles = emptyList())
+        applyOverlayOffsets(emptyMap())
+        renderCurrentTranslation()
+        Toast.makeText(requireContext(), R.string.reading_clear_bubbles_done, Toast.LENGTH_SHORT).show()
     }
 
     private fun handleBubbleEdit(bubbleId: Int) {

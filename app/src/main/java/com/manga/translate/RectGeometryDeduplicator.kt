@@ -297,7 +297,7 @@ object RectGeometryDeduplicator {
         return start + (end - start) * t.coerceIn(0f, 1f)
     }
 
-    private const val MERGE_PAD_MAX = 40f
+    private const val MERGE_PAD_MAX = 56f
     private const val MERGE_PAD_MIN = 8f
     private const val MERGE_SIZE_REF_AREA = 0.02f
     private const val MERGE_IOU_SMALL = 0.07f
@@ -307,7 +307,7 @@ object RectGeometryDeduplicator {
     private const val MERGE_Y_GAP_MAX = 140f
     private const val MERGE_Y_GAP_MIN = 36f
     private const val DENSE_CLUSTER_MIN_COUNT = 3
-    private const val DENSE_CLUSTER_PAD = 44f
+    private const val DENSE_CLUSTER_PAD = 56f
     private const val DENSE_CLUSTER_MAX_UNION_FRACTION = 0.28f
     private const val SHORT_TEXT_MAX_CHARS = 6
     private const val SHORT_TEXT_MAX_WORDS = 2
