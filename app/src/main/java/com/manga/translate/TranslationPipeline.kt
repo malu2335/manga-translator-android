@@ -153,16 +153,24 @@ internal class TranslationPipeline(
                         bubbles.add(OcrBubble(index, line.rect, line.text, BubbleSource.TEXT_DETECTOR))
                     }
                 } else {
-                    for ((bubbleId, det) in detections.withIndex()) {
+                    for (region in regions) {
                         val text = bubbleTextRecognizer.recognizeRegion(
                             source = bitmap,
-                            rect = det.rect,
+                            rect = region.rect,
                             language = language,
                             useLocalOcr = true,
                             logTag = "Pipeline"
                         )
                         if (text.isBlank()) continue
-                        bubbles.add(OcrBubble(bubbleId, det.rect, text, BubbleSource.BUBBLE_DETECTOR, det.maskContour))
+                        bubbles.add(
+                            OcrBubble(
+                                region.id,
+                                region.rect,
+                                text,
+                                region.source,
+                                region.maskContour
+                            )
+                        )
                     }
                 }
                 val mergedBubbles = RectGeometryDeduplicator.mergeShortTextDetectorOcrBubbles(
@@ -199,16 +207,24 @@ internal class TranslationPipeline(
                         bubbles.add(OcrBubble(index, line.rect, line.text, BubbleSource.TEXT_DETECTOR))
                     }
                 } else {
-                    for ((bubbleId, det) in detections.withIndex()) {
+                    for (region in regions) {
                         val text = bubbleTextRecognizer.recognizeRegion(
                             source = bitmap,
-                            rect = det.rect,
+                            rect = region.rect,
                             language = language,
                             useLocalOcr = true,
                             logTag = "Pipeline"
                         )
                         if (text.isBlank()) continue
-                        bubbles.add(OcrBubble(bubbleId, det.rect, text, BubbleSource.BUBBLE_DETECTOR, det.maskContour))
+                        bubbles.add(
+                            OcrBubble(
+                                region.id,
+                                region.rect,
+                                text,
+                                region.source,
+                                region.maskContour
+                            )
+                        )
                     }
                 }
                 val mergedBubbles = RectGeometryDeduplicator.mergeShortTextDetectorOcrBubbles(

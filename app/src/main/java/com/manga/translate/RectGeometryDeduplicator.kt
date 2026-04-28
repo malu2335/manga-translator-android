@@ -139,29 +139,64 @@ object RectGeometryDeduplicator {
         val dy = abs(centerAY - centerBY)
         val maxWidth = max(a.rect.width(), b.rect.width()).coerceAtLeast(1f)
         val maxHeight = max(a.rect.height(), b.rect.height()).coerceAtLeast(1f)
-        val nearX = dx <= maxWidth * SHORT_TEXT_NEAR_X_RATIO + SHORT_TEXT_NEAR_X_PAD
-        val nearY = dy <= maxHeight * SHORT_TEXT_NEAR_Y_RATIO + SHORT_TEXT_NEAR_Y_PAD
-        if (!nearX || !nearY) return false
 
         val edgeXGap = edgeGap(a.rect.left, a.rect.right, b.rect.left, b.rect.right)
         val edgeYGap = edgeGap(a.rect.top, a.rect.bottom, b.rect.top, b.rect.bottom)
-        return edgeXGap <= maxWidth * SHORT_TEXT_EDGE_X_RATIO + SHORT_TEXT_EDGE_X_PAD &&
-            edgeYGap <= maxHeight * SHORT_TEXT_EDGE_Y_RATIO + SHORT_TEXT_EDGE_Y_PAD
+        val overlapX = overlapLength(a.rect.left, a.rect.right, b.rect.left, b.rect.right)
+        val overlapY = overlapLength(a.rect.top, a.rect.bottom, b.rect.top, b.rect.bottom)
+        val minWidth = min(a.rect.width(), b.rect.width()).coerceAtLeast(1f)
+        val minHeight = min(a.rect.height(), b.rect.height()).coerceAtLeast(1f)
+        val centerXAligned = dx <= minWidth * VERTICAL_STACK_CENTER_X_MIN_WIDTH_RATIO + VERTICAL_STACK_CENTER_X_MIN_WIDTH_PAD
+
+        val verticalStacked =
+            (dx <= maxWidth * VERTICAL_STACK_CENTER_X_RATIO + VERTICAL_STACK_CENTER_X_PAD || centerXAligned) &&
+                edgeYGap <= maxHeight * VERTICAL_STACK_EDGE_Y_RATIO + VERTICAL_STACK_EDGE_Y_PAD &&
+                (overlapX >= minWidth * VERTICAL_STACK_MIN_X_OVERLAP_RATIO ||
+                    edgeXGap <= minWidth * VERTICAL_STACK_EDGE_X_RATIO + VERTICAL_STACK_EDGE_X_PAD)
+        if (verticalStacked) return true
+
+        val horizontalAligned =
+            dy <= maxHeight * HORIZONTAL_JOIN_CENTER_Y_RATIO + HORIZONTAL_JOIN_CENTER_Y_PAD &&
+                edgeXGap <= maxWidth * HORIZONTAL_JOIN_EDGE_X_RATIO + HORIZONTAL_JOIN_EDGE_X_PAD &&
+                overlapY >= minHeight * HORIZONTAL_JOIN_MIN_Y_OVERLAP_RATIO
+        return horizontalAligned &&
+            edgeYGap <= maxHeight * HORIZONTAL_JOIN_EDGE_Y_RATIO + HORIZONTAL_JOIN_EDGE_Y_PAD
     }
 
     private fun isShortText(text: String): Boolean {
         val normalized = text.trim()
         if (normalized.isBlank()) return false
         val words = normalized.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val compactLength = normalized.count { !it.isWhitespace() && !isShortTextIgnoredChar(it) }
+        if (compactLength <= 0) return false
+        if (looksLikeLatinOrHangulText(normalized)) {
+            if (words.size > 1) {
+                return words.size <= LATIN_SHORT_TEXT_MAX_WORDS &&
+                    compactLength < LATIN_SHORT_TEXT_MAX_CHARS
+            }
+            return compactLength < LATIN_SHORT_TEXT_MAX_CHARS
+        }
         if (words.size > 1) {
             return words.size <= SHORT_TEXT_MAX_WORDS
         }
-        val compactLength = normalized.count { !it.isWhitespace() && !isShortTextIgnoredChar(it) }
-        return compactLength in 1 until SHORT_TEXT_MAX_CHARS
+        return compactLength < SHORT_TEXT_MAX_CHARS
     }
 
     private fun isShortTextIgnoredChar(char: Char): Boolean {
         return char in SHORT_TEXT_IGNORED_CHARS
+    }
+
+    private fun looksLikeLatinOrHangulText(text: String): Boolean {
+        var letterCount = 0
+        var latinOrHangulCount = 0
+        for (char in text) {
+            if (!char.isLetter()) continue
+            letterCount++
+            if (char in 'A'..'Z' || char in 'a'..'z' || char.code in HANGUL_SYLLABLE_START..HANGUL_SYLLABLE_END) {
+                latinOrHangulCount++
+            }
+        }
+        return letterCount > 0 && latinOrHangulCount * 2 >= letterCount
     }
 
     private fun edgeGap(startA: Float, endA: Float, startB: Float, endB: Float): Float {
@@ -170,6 +205,10 @@ object RectGeometryDeduplicator {
             endB < startA -> startA - endB
             else -> 0f
         }
+    }
+
+    private fun overlapLength(startA: Float, endA: Float, startB: Float, endB: Float): Float {
+        return max(0f, min(endA, endB) - max(startA, startB))
     }
 
     private fun mergeTextsByReadingOrder(a: MutableBubbleGroup, b: MutableBubbleGroup): String {
@@ -272,15 +311,27 @@ object RectGeometryDeduplicator {
     private const val DENSE_CLUSTER_MAX_UNION_FRACTION = 0.28f
     private const val SHORT_TEXT_MAX_CHARS = 6
     private const val SHORT_TEXT_MAX_WORDS = 2
-    private const val SHORT_TEXT_MAX_UNION_FRACTION = 0.08f
-    private const val SHORT_TEXT_NEAR_X_RATIO = 2.2f
-    private const val SHORT_TEXT_NEAR_Y_RATIO = 3.2f
-    private const val SHORT_TEXT_NEAR_X_PAD = 48f
-    private const val SHORT_TEXT_NEAR_Y_PAD = 56f
-    private const val SHORT_TEXT_EDGE_X_RATIO = 1.5f
-    private const val SHORT_TEXT_EDGE_Y_RATIO = 2.4f
-    private const val SHORT_TEXT_EDGE_X_PAD = 36f
-    private const val SHORT_TEXT_EDGE_Y_PAD = 44f
+    private const val LATIN_SHORT_TEXT_MAX_CHARS = 28
+    private const val LATIN_SHORT_TEXT_MAX_WORDS = 6
+    private const val SHORT_TEXT_MAX_UNION_FRACTION = 0.14f
+    private const val VERTICAL_STACK_CENTER_X_RATIO = 4.8f
+    private const val VERTICAL_STACK_CENTER_X_PAD = 138f
+    private const val VERTICAL_STACK_CENTER_X_MIN_WIDTH_RATIO = 2.0f
+    private const val VERTICAL_STACK_CENTER_X_MIN_WIDTH_PAD = 36f
+    private const val VERTICAL_STACK_EDGE_Y_RATIO = 11.5f
+    private const val VERTICAL_STACK_EDGE_Y_PAD = 330f
+    private const val VERTICAL_STACK_MIN_X_OVERLAP_RATIO = 0.02f
+    private const val VERTICAL_STACK_EDGE_X_RATIO = 2.2f
+    private const val VERTICAL_STACK_EDGE_X_PAD = 58f
+    private const val HORIZONTAL_JOIN_CENTER_Y_RATIO = 2.0f
+    private const val HORIZONTAL_JOIN_CENTER_Y_PAD = 44f
+    private const val HORIZONTAL_JOIN_EDGE_X_RATIO = 2.5f
+    private const val HORIZONTAL_JOIN_EDGE_X_PAD = 74f
+    private const val HORIZONTAL_JOIN_MIN_Y_OVERLAP_RATIO = 0.14f
+    private const val HORIZONTAL_JOIN_EDGE_Y_RATIO = 1.8f
+    private const val HORIZONTAL_JOIN_EDGE_Y_PAD = 40f
+    private const val HANGUL_SYLLABLE_START = 0xAC00
+    private const val HANGUL_SYLLABLE_END = 0xD7A3
     private val SHORT_TEXT_IGNORED_CHARS = setOf(
         '.', ',', '!', '?', ':', ';', '-', '_', '~', '·', '…',
         '，', '。', '！', '？', '：', '；', '、', '·', '・',
