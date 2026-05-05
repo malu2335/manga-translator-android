@@ -2,11 +2,11 @@
 
 面向安卓的漫画翻译 App：本地气泡检测与 OCR，结合 OpenAI 兼容接口完成翻译，并在原图上覆盖显示可拖动的翻译气泡。并支持屏幕翻译/悬浮窗翻译，可在任意 App 或桌面上直接识别并翻译当前屏幕中的漫画文本。
 
-使用教程：https://github.com/jedzqer/manga-translator/blob/main/Tutorial/简中教程.md
+使用教程：[简中教程](./Tutorial/简中教程.md)
 
 | 原图 | 翻译结果 |
 |------|----------|
-|![原图](https://raw.githubusercontent.com/jedzqer/manga-translator/main/Tutorial/FirePunch.webp) | ![翻译结果](https://raw.githubusercontent.com/jedzqer/manga-translator/main/Tutorial/translated.webp) |
+| ![原图](./Tutorial/FirePunch.webp) | ![翻译结果](./Tutorial/translated.webp) |
 
 
 ## 主要功能 ✨
