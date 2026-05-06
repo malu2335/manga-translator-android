@@ -1141,7 +1141,7 @@ class SettingsStore(context: Context) {
         private const val MAX_NORMAL_MIN_AREA_PER_CHAR_SP = 256f
         private const val DEFAULT_MAX_CONCURRENCY = 3
         private const val MIN_MAX_CONCURRENCY = 1
-        private const val MAX_MAX_CONCURRENCY = 50
+        private const val MAX_MAX_CONCURRENCY = 200
         private const val DEFAULT_API_RETRY_COUNT = 3
         private const val MIN_API_RETRY_COUNT = 1
         private const val MAX_API_RETRY_COUNT = 50

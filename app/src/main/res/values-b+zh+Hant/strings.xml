@@ -30,7 +30,7 @@
     <string name="api_timeout_hint">API 逾時 (秒, 30–1200)</string>
     <string name="api_retry_count_hint">API 最大重試次數 (1–50)</string>
     <string name="floating_api_timeout_hint">懸浮翻譯 API 逾時 (秒, 30–1200)</string>
-    <string name="max_concurrency_hint">最大並行數 (1–50)</string>
+    <string name="max_concurrency_hint">AI API 呼叫並行數 (1–200)</string>
     <string name="api_settings_note_openai">範例 URL：https://api.siliconflow.cn/v1</string>
     <string name="api_settings_note_gemini">範例 URL：https://generativelanguage.googleapis.com/v1beta</string>
     <string name="api_url_required">請先填寫 API 位址</string>
@@ -106,7 +106,7 @@
     <string name="multi_provider_scheduling_title">多供應商調度</string>
     <string name="multi_provider_scheduling_section_label">翻譯供應商池</string>
     <string name="multi_provider_scheduling_note">主供應商存取權重固定為 10。系統會按權重比例為頁面翻譯請求分配供應商。
-例如：主供應商 10，供應商 A 5，供應商 B 5，則按 10:5:5 分配請求。</string>
+例如：主供應商 10，供應商 A 5，供應商 B 5，則會盡量按 10:5:5 均勻分配請求。總並行數不能小於啟用中的供應商數量。</string>
     <string name="multi_provider_scheduling_add">新增一個供應商</string>
     <string name="multi_provider_scheduling_enabled">啟用</string>
     <string name="multi_provider_scheduling_row_title">供應商 %1$d</string>
@@ -115,6 +115,7 @@
     <string name="multi_provider_scheduling_saved">多供應商調度已儲存</string>
     <string name="multi_provider_scheduling_empty_field_error">啟用中的供應商必須填寫 API 位址、API Key 與模型名稱</string>
     <string name="multi_provider_scheduling_invalid_weight_error">啟用中的供應商存取權重必須是正整數</string>
+    <string name="max_concurrency_provider_count_error">AI API 呼叫並行數不能小於啟用中的供應商數量，目前至少需要 %1$d。</string>
     <string name="custom_request_params_button">自訂請求參數</string>
     <string name="custom_request_params_button_format">自訂請求參數：%1$d 項</string>
     <string name="custom_request_params_title">自訂請求參數</string>

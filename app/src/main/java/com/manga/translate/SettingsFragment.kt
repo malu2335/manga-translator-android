@@ -350,6 +350,14 @@ class SettingsFragment : Fragment() {
         if (normalizedConcurrencyText != concurrencyInput) {
             binding.maxConcurrencyInput.setText(normalizedConcurrencyText)
         }
+        if (!persisted.concurrencySaved) {
+            val minimumConcurrency = requiredMainTranslationProviderConcurrency()
+            Toast.makeText(
+                requireContext(),
+                getString(R.string.max_concurrency_provider_count_error, minimumConcurrency),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
         AppLogger.log("Settings", "API settings saved")
     }
 
@@ -588,6 +596,18 @@ class SettingsFragment : Fragment() {
             R.string.multi_provider_scheduling_button_format,
             providers.size
         )
+    }
+
+    private fun requiredMainTranslationProviderConcurrency(): Int {
+        val mainSettings = ApiSettings(
+            apiUrl = binding.apiUrlInput.text?.toString()?.trim().orEmpty(),
+            apiKey = binding.apiKeyInput.text?.toString()?.trim().orEmpty(),
+            modelName = binding.modelNameInput.text?.toString()?.trim().orEmpty(),
+            apiFormat = currentApiFormat()
+        )
+        var count = if (mainSettings.isValid()) 1 else 0
+        count += settingsStore.loadAdditionalTranslationProviders().count { it.enabled && it.isConfigured() }
+        return count.coerceAtLeast(1)
     }
 
     private fun updateAiProviderProfilesButton() {
@@ -1201,6 +1221,29 @@ class SettingsFragment : Fragment() {
                 val validationError = validateAdditionalTranslationProviders(providers)
                 if (validationError != null) {
                     Toast.makeText(requireContext(), validationError, Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                val requiredConcurrency = (
+                    if (ApiSettings(
+                            apiUrl = binding.apiUrlInput.text?.toString()?.trim().orEmpty(),
+                            apiKey = binding.apiKeyInput.text?.toString()?.trim().orEmpty(),
+                            modelName = binding.modelNameInput.text?.toString()?.trim().orEmpty(),
+                            apiFormat = currentApiFormat()
+                        ).isValid()
+                    ) 1 else 0
+                    ) + providers.count { it.enabled && it.isConfigured() }
+                val currentConcurrency = parseIntInput(
+                    binding.maxConcurrencyInput.text?.toString()?.trim()
+                ) ?: settingsStore.loadMaxConcurrency()
+                if (currentConcurrency < requiredConcurrency.coerceAtLeast(1)) {
+                    Toast.makeText(
+                        requireContext(),
+                        getString(
+                            R.string.max_concurrency_provider_count_error,
+                            requiredConcurrency.coerceAtLeast(1)
+                        ),
+                        Toast.LENGTH_SHORT
+                    ).show()
                     return@setOnClickListener
                 }
                 settingsStore.saveAdditionalTranslationProviders(providers)

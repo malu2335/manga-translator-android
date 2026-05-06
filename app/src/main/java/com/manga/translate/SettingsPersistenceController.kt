@@ -13,7 +13,8 @@ internal data class SettingsMainForm(
 internal data class SettingsPersistenceResult(
     val apiTimeoutSeconds: Int,
     val apiRetryCount: Int,
-    val maxConcurrency: Int
+    val maxConcurrency: Int,
+    val concurrencySaved: Boolean
 )
 
 internal class SettingsPersistenceController(
@@ -30,11 +31,16 @@ internal class SettingsPersistenceController(
         )
         settingsStore.saveApiTimeoutSeconds(form.apiTimeoutSeconds)
         settingsStore.saveApiRetryCount(form.apiRetryCount)
-        settingsStore.saveMaxConcurrency(form.maxConcurrency)
+        val minimumConcurrency = settingsStore.loadMainTranslationProviderPool().size.coerceAtLeast(1)
+        val concurrencySaved = form.maxConcurrency >= minimumConcurrency
+        if (concurrencySaved) {
+            settingsStore.saveMaxConcurrency(form.maxConcurrency)
+        }
         return SettingsPersistenceResult(
             apiTimeoutSeconds = settingsStore.loadApiTimeoutSeconds(),
             apiRetryCount = settingsStore.loadApiRetryCount(),
-            maxConcurrency = settingsStore.loadMaxConcurrency()
+            maxConcurrency = settingsStore.loadMaxConcurrency(),
+            concurrencySaved = concurrencySaved
         )
     }
 }

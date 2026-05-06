@@ -30,7 +30,7 @@
     <string name="api_timeout_hint">API 超时 (秒, 30–1200)</string>
     <string name="api_retry_count_hint">API 最大重试次数 (1–50)</string>
     <string name="floating_api_timeout_hint">悬浮翻译 API 超时 (秒, 30–1200)</string>
-    <string name="max_concurrency_hint">最大并发数 (1–50)</string>
+    <string name="max_concurrency_hint">AI API 调用并发数 (1–200)</string>
     <string name="api_settings_note_openai">示例 URL：https://api.siliconflow.cn/v1</string>
     <string name="api_settings_note_gemini">示例 URL：https://generativelanguage.googleapis.com/v1beta</string>
     <string name="api_url_required">请先填写 API 地址</string>
@@ -106,7 +106,7 @@
     <string name="multi_provider_scheduling_title">多供应商调度</string>
     <string name="multi_provider_scheduling_section_label">翻译供应商池</string>
     <string name="multi_provider_scheduling_note">主供应商访问权重固定为 10。系统会按权重比例为页面翻译请求分配供应商。
-例如：主供应商 10，供应商 A 5，供应商 B 5，则按 10:5:5 分配请求。</string>
+例如：主供应商 10，供应商 A 5，供应商 B 5，则会尽量按 10:5:5 均匀分配请求。总并发数不能小于启用中的供应商数量。</string>
     <string name="multi_provider_scheduling_add">添加一个供应商</string>
     <string name="multi_provider_scheduling_enabled">启用</string>
     <string name="multi_provider_scheduling_row_title">供应商 %1$d</string>
@@ -115,6 +115,7 @@
     <string name="multi_provider_scheduling_saved">多供应商调度已保存</string>
     <string name="multi_provider_scheduling_empty_field_error">启用的供应商必须填写 API 地址、API Key 和模型名称</string>
     <string name="multi_provider_scheduling_invalid_weight_error">启用的供应商访问权重必须是正整数</string>
+    <string name="max_concurrency_provider_count_error">AI API 调用并发数不能小于启用中的供应商数量，当前至少需要 %1$d。</string>
     <string name="custom_request_params_button">自定义请求参数</string>
     <string name="custom_request_params_button_format">自定义请求参数：%1$d 项</string>
     <string name="custom_request_params_title">自定义请求参数</string>

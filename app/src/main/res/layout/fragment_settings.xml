@@ -181,6 +181,22 @@
                 android:text="@string/settings_group_translation_title"
                 android:textAppearance="@style/Widget.MangaTranslator.CardTitle" />
 
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/max_concurrency_layout"
+                style="@style/Widget.MangaTranslator.Input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:hint="@string/max_concurrency_hint">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.MangaTranslator.EditText"
+                    android:id="@+id/max_concurrency_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number" />
+            </com.google.android.material.textfield.TextInputLayout>
+
             <Button
                 android:id="@+id/llm_params_button"
                 android:layout_width="match_parent"
@@ -243,22 +259,6 @@
                 android:layout_marginStart="2dp"
                 android:layout_marginEnd="2dp"
                 android:text="@string/floating_bubble_render_settings_button" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/max_concurrency_layout"
-                style="@style/Widget.MangaTranslator.Input"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:hint="@string/max_concurrency_hint">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    style="@style/Widget.MangaTranslator.EditText"
-                    android:id="@+id/max_concurrency_input"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number" />
-            </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
 
         <LinearLayout
