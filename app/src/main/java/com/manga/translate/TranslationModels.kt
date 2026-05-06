@@ -22,6 +22,7 @@ data class TranslationMetadata(
     val language: String = "",
     val promptAsset: String = "",
     val modelName: String = "",
+    val providerId: String = "",
     val apiFormat: String = "",
     val ocrCacheMode: String = "",
     val version: Int = CURRENT_VERSION
@@ -33,6 +34,7 @@ data class TranslationMetadata(
             language.isBlank() &&
             promptAsset.isBlank() &&
             modelName.isBlank() &&
+            providerId.isBlank() &&
             apiFormat.isBlank() &&
             ocrCacheMode.isBlank()
     }
@@ -54,7 +56,7 @@ data class TranslationMetadata(
     }
 
     companion object {
-        const val CURRENT_VERSION = 1
+        const val CURRENT_VERSION = 2
         const val MODE_STANDARD = "standard"
         const val MODE_FULL_PAGE = "full_page"
         const val MODE_VL_DIRECT = "vl_direct"

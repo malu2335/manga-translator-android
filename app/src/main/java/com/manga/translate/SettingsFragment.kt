@@ -27,11 +27,13 @@ import androidx.lifecycle.lifecycleScope
 import com.manga.translate.databinding.DialogCustomRequestParamsBinding
 import com.manga.translate.databinding.DialogAiProviderProfilesBinding
 import com.manga.translate.databinding.DialogLlmParamsBinding
+import com.manga.translate.databinding.DialogMultiProviderSchedulingBinding
 import com.manga.translate.databinding.DialogOcrSettingsBinding
 import com.manga.translate.databinding.DialogFloatingBubbleRenderSettingsBinding
 import com.manga.translate.databinding.DialogFloatingTranslateSettingsBinding
 import com.manga.translate.databinding.DialogNormalBubbleRenderSettingsBinding
 import com.manga.translate.databinding.FragmentSettingsBinding
+import com.manga.translate.databinding.ItemAdditionalTranslationProviderBinding
 import com.manga.translate.databinding.ItemCustomRequestParamBinding
 import com.manga.translate.di.appContainer
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
@@ -262,6 +264,10 @@ class SettingsFragment : Fragment() {
 
         binding.llmParamsButton.setOnClickListener {
             showLlmParamsDialog()
+        }
+
+        binding.multiProviderSchedulingButton.setOnClickListener {
+            showMultiProviderSchedulingDialog()
         }
 
         binding.customRequestParamsButton.setOnClickListener {
@@ -575,6 +581,15 @@ class SettingsFragment : Fragment() {
         )
     }
 
+    private fun updateMultiProviderSchedulingButton(
+        providers: List<AdditionalTranslationProvider>
+    ) {
+        binding.multiProviderSchedulingButton.text = getString(
+            R.string.multi_provider_scheduling_button_format,
+            providers.size
+        )
+    }
+
     private fun updateAiProviderProfilesButton() {
         val state = settingsStore.loadAiProviderProfilesState()
         binding.aiProviderProfilesButton.text = getString(
@@ -600,6 +615,7 @@ class SettingsFragment : Fragment() {
         updateReadingDisplayButton(settingsStore.loadReadingDisplayMode())
         updateReadingPageAnimationButton(settingsStore.loadReadingPageAnimationMode())
         updateLinkSourceButton(settingsStore.loadLinkSource())
+        updateMultiProviderSchedulingButton(settingsStore.loadAdditionalTranslationProviders())
         updateCustomRequestParamsButton(settingsStore.loadCustomRequestParameters())
         updateAiProviderProfilesButton()
         updateNormalBubbleRenderSettingsButton()
@@ -1107,6 +1123,107 @@ class SettingsFragment : Fragment() {
         dialog.show()
     }
 
+    private fun showMultiProviderSchedulingDialog() {
+        val dialogBinding = DialogMultiProviderSchedulingBinding.inflate(layoutInflater)
+        val existing = settingsStore.loadAdditionalTranslationProviders()
+
+        fun updateRowVisualState(rowBinding: ItemAdditionalTranslationProviderBinding) {
+            val enabled = rowBinding.translationProviderEnabledSwitch.isChecked
+            rowBinding.translationProviderFieldsContainer.alpha = if (enabled) 1f else 0.58f
+            rowBinding.translationProviderTitle.alpha = if (enabled) 1f else 0.72f
+        }
+
+        fun refreshRowTitles() {
+            for (index in 0 until dialogBinding.multiProviderSchedulingContainer.childCount) {
+                val child = dialogBinding.multiProviderSchedulingContainer.getChildAt(index)
+                val rowBinding = ItemAdditionalTranslationProviderBinding.bind(child)
+                rowBinding.translationProviderTitle.text = getString(
+                    R.string.multi_provider_scheduling_row_title,
+                    index + 1
+                )
+            }
+        }
+
+        fun addRow(
+            provider: AdditionalTranslationProvider = AdditionalTranslationProvider(
+                name = "",
+                apiUrl = "",
+                apiKey = "",
+                modelName = "",
+                weight = 1
+            )
+        ) {
+            val rowBinding = ItemAdditionalTranslationProviderBinding.inflate(
+                layoutInflater,
+                dialogBinding.multiProviderSchedulingContainer,
+                false
+            )
+            rowBinding.translationProviderEnabledSwitch.isChecked = provider.enabled
+            rowBinding.translationProviderApiUrlInput.setText(provider.apiUrl)
+            rowBinding.translationProviderApiKeyInput.setText(provider.apiKey)
+            rowBinding.translationProviderModelNameInput.setText(provider.modelName)
+            rowBinding.translationProviderWeightInput.setText(formatNumber(provider.weight))
+            rowBinding.translationProviderEnabledSwitch.setOnCheckedChangeListener { _, _ ->
+                updateRowVisualState(rowBinding)
+            }
+            rowBinding.translationProviderDeleteButton.setOnClickListener {
+                dialogBinding.multiProviderSchedulingContainer.removeView(rowBinding.root)
+                if (dialogBinding.multiProviderSchedulingContainer.childCount == 0) {
+                    addRow()
+                } else {
+                    refreshRowTitles()
+                }
+            }
+            dialogBinding.multiProviderSchedulingContainer.addView(rowBinding.root)
+            updateRowVisualState(rowBinding)
+            refreshRowTitles()
+        }
+
+        if (existing.isEmpty()) {
+            addRow()
+        } else {
+            existing.forEach(::addRow)
+        }
+        dialogBinding.multiProviderSchedulingAddButton.setOnClickListener {
+            addRow()
+        }
+
+        val dialog = AlertDialog.Builder(requireContext())
+            .setTitle(R.string.multi_provider_scheduling_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(R.string.llm_params_clear, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val providers = collectAdditionalTranslationProviders(dialogBinding)
+                val validationError = validateAdditionalTranslationProviders(providers)
+                if (validationError != null) {
+                    Toast.makeText(requireContext(), validationError, Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                settingsStore.saveAdditionalTranslationProviders(providers)
+                val saved = settingsStore.loadAdditionalTranslationProviders()
+                updateMultiProviderSchedulingButton(saved)
+                Toast.makeText(
+                    requireContext(),
+                    R.string.multi_provider_scheduling_saved,
+                    Toast.LENGTH_SHORT
+                ).show()
+                AppLogger.log("Settings", "Multi-provider scheduling updated")
+                dialog.dismiss()
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                settingsStore.saveAdditionalTranslationProviders(emptyList())
+                updateMultiProviderSchedulingButton(emptyList())
+                AppLogger.log("Settings", "Multi-provider scheduling cleared")
+                dialog.dismiss()
+            }
+        }
+        dialog.show()
+    }
+
     private fun showOcrSettingsDialog() {
         val currentSettings = settingsStore.loadOcrApiSettings()
         val dialogBinding = DialogOcrSettingsBinding.inflate(layoutInflater)
@@ -1313,6 +1430,27 @@ class SettingsFragment : Fragment() {
         return collected
     }
 
+    private fun collectAdditionalTranslationProviders(
+        dialogBinding: DialogMultiProviderSchedulingBinding
+    ): List<AdditionalTranslationProvider> {
+        val collected = mutableListOf<AdditionalTranslationProvider>()
+        for (index in 0 until dialogBinding.multiProviderSchedulingContainer.childCount) {
+            val child = dialogBinding.multiProviderSchedulingContainer.getChildAt(index)
+            val rowBinding = ItemAdditionalTranslationProviderBinding.bind(child)
+            collected += AdditionalTranslationProvider(
+                name = settingsStore.defaultAdditionalProviderName(index),
+                apiUrl = rowBinding.translationProviderApiUrlInput.text?.toString()?.trim().orEmpty(),
+                apiKey = rowBinding.translationProviderApiKeyInput.text?.toString()?.trim().orEmpty(),
+                modelName = rowBinding.translationProviderModelNameInput.text?.toString()?.trim().orEmpty(),
+                weight = parseIntInput(
+                    rowBinding.translationProviderWeightInput.text?.toString()?.trim()
+                ) ?: 0,
+                enabled = rowBinding.translationProviderEnabledSwitch.isChecked
+            )
+        }
+        return collected
+    }
+
     private fun validateCustomRequestParameters(parameters: List<CustomRequestParameter>): String? {
         val activeKeys = LinkedHashSet<String>()
         parameters.forEach { parameter ->
@@ -1333,6 +1471,25 @@ class SettingsFragment : Fragment() {
         } else {
             null
         }
+    }
+
+    private fun validateAdditionalTranslationProviders(
+        providers: List<AdditionalTranslationProvider>
+    ): String? {
+        providers.forEach { provider ->
+            val allBlank = provider.apiUrl.isBlank() &&
+                provider.apiKey.isBlank() &&
+                provider.modelName.isBlank()
+            if (allBlank) return@forEach
+            if (!provider.enabled) return@forEach
+            if (!provider.isConfigured()) {
+                return getString(R.string.multi_provider_scheduling_empty_field_error)
+            }
+            if (provider.weight <= 0) {
+                return getString(R.string.multi_provider_scheduling_invalid_weight_error)
+            }
+        }
+        return null
     }
 
     private fun supportsSiliconFlowThinkingParams(): Boolean {

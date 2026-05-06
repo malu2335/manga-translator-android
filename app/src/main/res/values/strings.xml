@@ -77,7 +77,7 @@
     <string name="ai_provider_profiles_title">AI 供应商配置</string>
     <string name="ai_provider_profiles_current">当前配置：%1$s</string>
     <string name="ai_provider_profiles_current_none">当前配置：未启用</string>
-    <string name="ai_provider_profiles_note">配置文件会保存当前主模型、OCR、悬浮窗翻译覆盖、AI 参数和自定义请求参数，切换时会整体应用。</string>
+    <string name="ai_provider_profiles_note">配置文件会保存当前主模型、OCR、悬浮窗翻译覆盖、AI 参数、多供应商调度和自定义请求参数，切换时会整体应用。</string>
     <string name="ai_provider_profiles_empty">还没有已保存的配置。</string>
     <string name="ai_provider_profiles_apply">切换到选中配置</string>
     <string name="ai_provider_profiles_save_new">新建并保存当前配置</string>
@@ -101,6 +101,20 @@
 %1$s</string>
     <string name="llm_params_button">AI 参数设置</string>
     <string name="llm_params_title">AI 参数设置</string>
+    <string name="multi_provider_scheduling_button">多供应商调度</string>
+    <string name="multi_provider_scheduling_button_format">多供应商调度：%1$d 个供应商</string>
+    <string name="multi_provider_scheduling_title">多供应商调度</string>
+    <string name="multi_provider_scheduling_section_label">翻译供应商池</string>
+    <string name="multi_provider_scheduling_note">主供应商访问权重固定为 10。系统会按权重比例为页面翻译请求分配供应商。
+例如：主供应商 10，供应商 A 5，供应商 B 5，则按 10:5:5 分配请求。</string>
+    <string name="multi_provider_scheduling_add">添加一个供应商</string>
+    <string name="multi_provider_scheduling_enabled">启用</string>
+    <string name="multi_provider_scheduling_row_title">供应商 %1$d</string>
+    <string name="multi_provider_scheduling_delete_action">删除</string>
+    <string name="multi_provider_scheduling_weight_hint">访问权重</string>
+    <string name="multi_provider_scheduling_saved">多供应商调度已保存</string>
+    <string name="multi_provider_scheduling_empty_field_error">启用的供应商必须填写 API 地址、API Key 和模型名称</string>
+    <string name="multi_provider_scheduling_invalid_weight_error">启用的供应商访问权重必须是正整数</string>
     <string name="custom_request_params_button">自定义请求参数</string>
     <string name="custom_request_params_button_format">自定义请求参数：%1$d 项</string>
     <string name="custom_request_params_title">自定义请求参数</string>

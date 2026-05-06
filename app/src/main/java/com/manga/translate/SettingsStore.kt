@@ -86,7 +86,8 @@ data class AiProviderProfile(
     val ocrSettings: OcrApiSettings,
     val floatingTranslateSettings: FloatingTranslateApiSettings,
     val llmParameters: LlmParameterSettings,
-    val customRequestParameters: List<CustomRequestParameter>
+    val customRequestParameters: List<CustomRequestParameter>,
+    val additionalTranslationProviders: List<AdditionalTranslationProvider>
 )
 
 data class AiProviderProfilesState(
@@ -593,6 +594,80 @@ class SettingsStore(context: Context) {
         }
     }
 
+    fun loadAdditionalTranslationProviders(): List<AdditionalTranslationProvider> {
+        val raw = prefs.getString(KEY_ADDITIONAL_TRANSLATION_PROVIDERS, null).orEmpty()
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    val provider = parseAdditionalTranslationProvider(item, index)
+                    if (
+                        provider.apiUrl.isBlank() &&
+                        provider.apiKey.isBlank() &&
+                        provider.modelName.isBlank()
+                    ) {
+                        continue
+                    }
+                    add(provider)
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun saveAdditionalTranslationProviders(providers: List<AdditionalTranslationProvider>) {
+        val array = JSONArray()
+        providers.forEachIndexed { index, provider ->
+            val apiUrl = provider.apiUrl.trim()
+            val apiKey = provider.apiKey.trim()
+            val modelName = provider.modelName.trim()
+            if (apiUrl.isBlank() && apiKey.isBlank() && modelName.isBlank()) return@forEachIndexed
+            array.put(
+                JSONObject()
+                    .put("name", provider.name.ifBlank { defaultAdditionalProviderName(index) })
+                    .put("apiUrl", apiUrl)
+                    .put("apiKey", apiKey)
+                    .put("modelName", modelName)
+                    .put("weight", provider.weight.coerceAtLeast(1))
+                    .put("enabled", provider.enabled)
+            )
+        }
+        prefs.edit() {
+            putString(KEY_ADDITIONAL_TRANSLATION_PROVIDERS, array.toString())
+        }
+    }
+
+    fun loadMainTranslationProviderPool(): List<WeightedProviderCandidate> {
+        val main = load()
+        val candidates = ArrayList<WeightedProviderCandidate>()
+        if (main.isValid()) {
+            candidates += WeightedProviderCandidate(
+                providerId = PRIMARY_PROVIDER_ID,
+                displayName = PRIMARY_PROVIDER_DISPLAY_NAME,
+                settings = main,
+                weight = PRIMARY_PROVIDER_WEIGHT,
+                isPrimary = true
+            )
+        }
+        loadAdditionalTranslationProviders().forEachIndexed { index, provider ->
+            if (!provider.enabled || !provider.isConfigured()) return@forEachIndexed
+            candidates += WeightedProviderCandidate(
+                providerId = "additional_${index + 1}",
+                displayName = provider.name.ifBlank { defaultAdditionalProviderName(index) },
+                settings = ApiSettings(
+                    apiUrl = provider.apiUrl.trim(),
+                    apiKey = provider.apiKey.trim(),
+                    modelName = provider.modelName.trim(),
+                    apiFormat = main.apiFormat
+                ),
+                weight = provider.weight.coerceAtLeast(1),
+                isPrimary = false
+            )
+        }
+        return candidates
+    }
+
     fun loadAiProviderProfilesState(): AiProviderProfilesState {
         val raw = runCatching {
             if (aiProviderProfilesFile.exists()) aiProviderProfilesFile.readText() else ""
@@ -660,6 +735,7 @@ class SettingsStore(context: Context) {
         saveFloatingTranslateApiSettings(profile.floatingTranslateSettings)
         saveLlmParameters(profile.llmParameters)
         saveCustomRequestParameters(profile.customRequestParameters)
+        saveAdditionalTranslationProviders(profile.additionalTranslationProviders)
         writeAiProviderProfilesState(
             currentState.copy(
                 activeProfileName = profile.name
@@ -690,7 +766,8 @@ class SettingsStore(context: Context) {
             ocrSettings = loadOcrApiSettings(),
             floatingTranslateSettings = loadFloatingTranslateApiSettings(),
             llmParameters = loadLlmParameters(),
-            customRequestParameters = loadCustomRequestParameters()
+            customRequestParameters = loadCustomRequestParameters(),
+            additionalTranslationProviders = loadAdditionalTranslationProviders()
         )
     }
 
@@ -794,6 +871,22 @@ class SettingsStore(context: Context) {
                     }
                 }
             )
+            .put(
+                "additionalTranslationProviders",
+                JSONArray().apply {
+                    profile.additionalTranslationProviders.forEachIndexed { index, provider ->
+                        put(
+                            JSONObject()
+                                .put("name", provider.name.ifBlank { defaultAdditionalProviderName(index) })
+                                .put("apiUrl", provider.apiUrl)
+                                .put("apiKey", provider.apiKey)
+                                .put("modelName", provider.modelName)
+                                .put("weight", provider.weight)
+                                .put("enabled", provider.enabled)
+                        )
+                    }
+                }
+            )
     }
 
     private fun parseAiProviderProfile(item: JSONObject): AiProviderProfile? {
@@ -804,6 +897,7 @@ class SettingsStore(context: Context) {
         val floatingJson = item.optJSONObject("floatingTranslateSettings") ?: JSONObject()
         val llmJson = item.optJSONObject("llmParameters") ?: JSONObject()
         val customParams = item.optJSONArray("customRequestParameters") ?: JSONArray()
+        val additionalProviders = item.optJSONArray("additionalTranslationProviders") ?: JSONArray()
         return AiProviderProfile(
             name = name,
             mainSettings = ApiSettings(
@@ -897,8 +991,32 @@ class SettingsStore(context: Context) {
                         )
                     )
                 }
+            },
+            additionalTranslationProviders = buildList {
+                for (index in 0 until additionalProviders.length()) {
+                    val providerJson = additionalProviders.optJSONObject(index) ?: continue
+                    add(parseAdditionalTranslationProvider(providerJson, index))
+                }
             }
         )
+    }
+
+    private fun parseAdditionalTranslationProvider(
+        item: JSONObject,
+        index: Int
+    ): AdditionalTranslationProvider {
+        return AdditionalTranslationProvider(
+            name = item.optString("name").trim().ifBlank { defaultAdditionalProviderName(index) },
+            apiUrl = item.optString("apiUrl"),
+            apiKey = item.optString("apiKey"),
+            modelName = item.optString("modelName"),
+            weight = item.optInt("weight", 1).coerceAtLeast(1),
+            enabled = item.optBoolean("enabled", true)
+        )
+    }
+
+    fun defaultAdditionalProviderName(index: Int): String {
+        return "供应商 ${index + 1}"
     }
 
     private fun readDoubleWithDefault(key: String, defaultValue: Double): Double? {
@@ -978,11 +1096,15 @@ class SettingsStore(context: Context) {
         private const val KEY_LLM_TOP_P = "llm_top_p"
         private const val KEY_LLM_TOP_K = "llm_top_k"
         private const val KEY_LLM_MAX_OUTPUT_TOKENS = "llm_max_output_tokens"
+        private const val KEY_ADDITIONAL_TRANSLATION_PROVIDERS = "additional_translation_providers"
         private const val KEY_LLM_ENABLE_THINKING = "llm_enable_thinking"
         private const val KEY_LLM_THINKING_BUDGET = "llm_thinking_budget"
         private const val KEY_LLM_FREQUENCY_PENALTY = "llm_frequency_penalty"
         private const val KEY_LLM_PRESENCE_PENALTY = "llm_presence_penalty"
         private const val KEY_CUSTOM_REQUEST_PARAMETERS = "custom_request_parameters"
+        const val PRIMARY_PROVIDER_WEIGHT = 10
+        const val PRIMARY_PROVIDER_ID = "primary"
+        const val PRIMARY_PROVIDER_DISPLAY_NAME = "主供应商"
         private const val DEFAULT_LLM_TEMPERATURE = 0.8
         private const val DEFAULT_LLM_TOP_P = 1.0
         private const val DEFAULT_LLM_ENABLE_THINKING = false

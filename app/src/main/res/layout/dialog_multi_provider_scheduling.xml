@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:clipToPadding="false"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:id="@+id/multi_provider_scheduling_section_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/multi_provider_scheduling_section_label"
+            android:textAppearance="@style/Widget.MangaTranslator.SectionLabel" />
+
+        <TextView
+            android:id="@+id/multi_provider_scheduling_note"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_dialog_card"
+            android:padding="14dp"
+            android:text="@string/multi_provider_scheduling_note"
+            android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
+
+        <LinearLayout
+            android:id="@+id/multi_provider_scheduling_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical" />
+
+        <Button
+            android:id="@+id/multi_provider_scheduling_add_button"
+            style="@style/Widget.MangaTranslator.Button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="12dp"
+            android:text="@string/multi_provider_scheduling_add" />
+    </LinearLayout>
+</ScrollView>

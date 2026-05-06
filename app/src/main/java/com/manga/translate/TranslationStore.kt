@@ -71,6 +71,7 @@ class TranslationStore {
                 put("language", metadata.language)
                 put("promptAsset", metadata.promptAsset)
                 put("modelName", metadata.modelName)
+                put("providerId", metadata.providerId)
                 put("apiFormat", metadata.apiFormat)
                 put("ocrCacheMode", metadata.ocrCacheMode)
                 put("version", metadata.version)
@@ -111,6 +112,7 @@ class TranslationStore {
             language = json?.optString("language").orEmpty(),
             promptAsset = json?.optString("promptAsset").orEmpty(),
             modelName = json?.optString("modelName").orEmpty(),
+            providerId = json?.optString("providerId").orEmpty(),
             apiFormat = json?.optString("apiFormat").orEmpty(),
             ocrCacheMode = json?.optString("ocrCacheMode").orEmpty(),
             version = json?.let { it.optInt("version", TranslationMetadata.CURRENT_VERSION) }
@@ -138,11 +140,31 @@ class TranslationStore {
         if (actual.isManual()) {
             return true
         }
+        val allowedProviderIds = expected.providerId
+            .split('|')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .toSet()
+        val allowedModelNames = expected.modelName
+            .split('|')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .toSet()
+        val modelMatches = when {
+            allowedModelNames.isEmpty() -> actual.modelName == expected.modelName
+            else -> actual.modelName in allowedModelNames
+        }
+        val providerMatches = when {
+            allowedProviderIds.isEmpty() -> actual.providerId.isBlank() || actual.providerId == expected.providerId
+            actual.providerId.isBlank() -> true
+            else -> actual.providerId in allowedProviderIds
+        }
         return actual.version == expected.version &&
             actual.mode == expected.mode &&
             actual.language == expected.language &&
             actual.promptAsset == expected.promptAsset &&
-            actual.modelName == expected.modelName &&
+            modelMatches &&
+            providerMatches &&
             actual.apiFormat == expected.apiFormat &&
             actual.ocrCacheMode == expected.ocrCacheMode
     }

@@ -12,7 +12,9 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -63,6 +65,12 @@ internal class FolderTranslationCoordinator(
         FAILED,
         ABORTED
     }
+
+    private data class PageTranslationExecutionResult(
+        val result: TranslationResult? = null,
+        val glossaryUsed: Map<String, String> = emptyMap(),
+        val recoveredFromModelError: Boolean = false
+    )
 
     private enum class ModelErrorAction {
         RETRY,
@@ -337,83 +345,32 @@ internal class FolderTranslationCoordinator(
             val job = scope.launch {
                 var failed = false
                 try {
-                    val glossary = glossaryStore.load(folder)
-                    var translatedCount = 0
+                    val glossary = glossaryStore.load(folder).toMutableMap()
+                    val glossaryMutex = Mutex()
                     ui.setFolderStatus(appContext.getString(R.string.translation_preparing))
-                    for (image in pendingImages) {
-                        currentCoroutineContext().ensureActive()
-                        var recoveredFromModelError = false
-                        val result = try {
-                            if (useVlDirectTranslate) {
-                                val vlOutcome = translationPipeline.translateImageWithVl(
-                                    imageFile = image,
-                                    language = language
+                    failed = executeConcurrentStandardPages(
+                        pages = pendingImages,
+                        folder = folder,
+                        force = force,
+                        useVlDirectTranslate = useVlDirectTranslate,
+                        language = language,
+                        glossary = glossary,
+                        glossaryMutex = glossaryMutex,
+                        onCountUpdated = { translatedCount ->
+                            ui.setFolderStatus(
+                                appContext.getString(
+                                    R.string.folder_translation_count,
+                                    translatedCount,
+                                    pendingImages.size
                                 )
-                                when {
-                                    vlOutcome.requiresVlModel -> {
-                                        ui.showToast(R.string.folder_vl_model_required)
-                                        failed = true
-                                        break
-                                    }
-                                    vlOutcome.timedOut -> {
-                                        ui.showToast(R.string.floating_translate_timeout)
-                                        failed = true
-                                        break
-                                    }
-                                    else -> vlOutcome.result
-                                }
-                            } else {
-                                translationPipeline.translateImage(image, glossary, force, language) { }
-                            }
-                        } catch (e: LlmRequestException) {
-                            AppLogger.log("Library", "Translation aborted for ${image.name}", e)
-                            ui.showApiError(e.errorCode, e.responseBody)
-                            failed = true
-                            break
-                        } catch (e: LlmResponseException) {
-                            AppLogger.log("Library", "Invalid model response for ${image.name}", e)
-                            when (reportModelError(e.responseContent)) {
-                                ModelErrorAction.RETRY -> {
-                                    recoveredFromModelError =
-                                        retryStandardImage(folder, image, force, language)
-                                }
-                                ModelErrorAction.SKIP -> {
-                                    skipStandardImage(folder, image, force, language)
-                                    recoveredFromModelError = true
-                                }
-                            }
-                            null
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            AppLogger.log("Library", "Translation failed for ${image.name}", e)
-                            null
-                        }
-                        if (result != null) {
-                            translationPipeline.saveResult(image, result)
-                            translatedCount += 1
-                        } else if (recoveredFromModelError) {
-                            translatedCount += 1
-                        } else {
-                            failed = true
-                        }
-                        if (glossary.isNotEmpty()) {
-                            glossaryStore.save(folder, glossary)
-                        }
-                        ui.setFolderStatus(
-                            appContext.getString(
-                                R.string.folder_translation_count,
+                            )
+                            TranslationKeepAliveService.updateProgress(
+                                appContext,
                                 translatedCount,
                                 pendingImages.size
                             )
-                        )
-                        TranslationKeepAliveService.updateProgress(
-                            appContext,
-                            translatedCount,
-                            pendingImages.size
-                        )
-                        if (failed) break
-                    }
+                        }
+                    )
                     ui.setFolderStatus(
                         if (failed) appContext.getString(R.string.translation_failed) else appContext.getString(
                             R.string.translation_done
@@ -437,7 +394,19 @@ internal class FolderTranslationCoordinator(
                     if (!failed) {
                         resumableTask = null
                     }
+                    if (glossary.isNotEmpty()) {
+                        glossaryStore.save(folder, glossary)
+                    }
                     ui.refreshImages(folder)
+                } catch (e: LlmRequestException) {
+                    failed = true
+                    AppLogger.log("Library", "Translation aborted for folder ${folder.name}", e)
+                    ui.showApiError(e.errorCode, e.responseBody)
+                    ui.setFolderStatus(appContext.getString(R.string.translation_failed))
+                    GlobalTaskProgressStore.fail(
+                        appContext.getString(R.string.translation_keepalive_title),
+                        appContext.getString(R.string.translation_failed)
+                    )
                 } catch (e: CancellationException) {
                     if (cancellationRequested.get()) {
                         AppLogger.log("Library", "Folder translation canceled: ${folder.name}")
@@ -618,112 +587,32 @@ internal class FolderTranslationCoordinator(
                         )
                     }
 
-                    val maxConcurrency = settingsStore.loadMaxConcurrency()
-                    val semaphore = Semaphore(maxConcurrency)
-                    val translatedCount = AtomicInteger(0)
-                    val hasFailures = AtomicBoolean(false)
-                    val requestFailed = AtomicBoolean(false)
-                    val requestException = AtomicReference<LlmRequestException?>(null)
+                    val glossaryMutex = Mutex()
                     ui.setFolderStatus(appContext.getString(R.string.translation_preparing))
-
-                    supervisorScope {
-                        val tasks = ocrResults.map { page ->
-                            async {
-                                semaphore.withPermit {
-                                    currentCoroutineContext().ensureActive()
-                                    if (requestFailed.get()) {
-                                        return@withPermit
-                                    }
-                                    val fullTransPromptAsset = "llm_prompts_FullTrans.json"
-                                    var recoveredFromModelError = false
-                                    val result = try {
-                                        translationPipeline.translateFullPage(
-                                            page,
-                                            glossary,
-                                            fullTransPromptAsset,
-                                            language
-                                        ) { }
-                                    } catch (e: LlmResponseException) {
-                                        AppLogger.log(
-                                            "Library",
-                                            "Invalid model response for ${page.imageFile.name}",
-                                            e
-                                        )
-                                        hasFailures.set(true)
-                                        when (reportModelError(e.responseContent)) {
-                                            ModelErrorAction.RETRY -> {
-                                                recoveredFromModelError = retryFullPageImage(
-                                                    folder,
-                                                    page,
-                                                    fullTransPromptAsset,
-                                                    language
-                                                )
-                                            }
-                                            ModelErrorAction.SKIP -> {
-                                                skipFullPageImage(
-                                                    folder,
-                                                    page,
-                                                    fullTransPromptAsset,
-                                                    language
-                                                )
-                                                recoveredFromModelError = true
-                                            }
-                                        }
-                                        null
-                                    } catch (e: LlmRequestException) {
-                                        requestFailed.set(true)
-                                        requestException.compareAndSet(null, e)
-                                        AppLogger.log(
-                                            "Library",
-                                            "Full-page translation aborted for ${page.imageFile.name}",
-                                            e
-                                        )
-                                        null
-                                    } catch (e: CancellationException) {
-                                        throw e
-                                    } catch (e: Exception) {
-                                        AppLogger.log(
-                                            "Library",
-                                            "Full-page translation failed for ${page.imageFile.name}",
-                                            e
-                                        )
-                                        null
-                                    }
-                                    if (requestFailed.get()) {
-                                        return@withPermit
-                                    }
-                                    if (result != null) {
-                                        translationPipeline.saveResult(page.imageFile, result)
-                                        translatedCount.incrementAndGet()
-                                    } else if (recoveredFromModelError) {
-                                        translatedCount.incrementAndGet()
-                                    } else {
-                                        hasFailures.set(true)
-                                    }
-                                    withContext(Dispatchers.Main) {
-                                        val processedCount: Int = translatedCount.get()
-                                        ui.setFolderStatus(
-                                            appContext.getString(
-                                                R.string.folder_translation_count,
-                                                processedCount,
-                                                pendingImages.size
-                                            )
-                                        )
-                                        TranslationKeepAliveService.updateProgress(
-                                            appContext,
-                                            processedCount,
-                                            pendingImages.size
-                                        )
-                                    }
-                                }
+                    failed = failed || executeConcurrentFullPages(
+                        pages = ocrResults,
+                        folder = folder,
+                        promptAsset = "llm_prompts_FullTrans.json",
+                        language = language,
+                        glossary = glossary,
+                        glossaryMutex = glossaryMutex,
+                        onCountUpdated = { processedCount ->
+                            withContext(Dispatchers.Main) {
+                                ui.setFolderStatus(
+                                    appContext.getString(
+                                        R.string.folder_translation_count,
+                                        processedCount,
+                                        pendingImages.size
+                                    )
+                                )
+                                TranslationKeepAliveService.updateProgress(
+                                    appContext,
+                                    processedCount,
+                                    pendingImages.size
+                                )
                             }
                         }
-                        tasks.awaitAll()
-                    }
-
-                    requestException.get()?.let { throw it }
-
-                    failed = failed || hasFailures.get()
+                    )
                     ui.setFolderStatus(
                         if (failed) appContext.getString(R.string.translation_failed) else appContext.getString(
                             R.string.translation_done
@@ -806,85 +695,41 @@ internal class FolderTranslationCoordinator(
         translatedImages: Int,
         totalImages: Int
     ): CollectionTaskResult {
-        var failed = false
-        val glossary = glossaryStore.load(task.folder)
-        for ((imageIndex, image) in task.pendingImages.withIndex()) {
-            currentCoroutineContext().ensureActive()
-            reportCollectionProgress(
-                chapterIndex = chapterIndex,
-                chapterTotal = chapterTotal,
-                imageIndex = translatedImages + imageIndex,
-                imageTotal = totalImages,
-                chapterName = task.folder.name,
-                imageName = image.name
-            )
-            var recoveredFromModelError = false
-            val result = try {
-                if (task.useVlDirectTranslate) {
-                    val vlOutcome = translationPipeline.translateImageWithVl(
-                        imageFile = image,
-                        language = task.language
+        val glossary = glossaryStore.load(task.folder).toMutableMap()
+        val glossaryMutex = Mutex()
+        return try {
+            val failed = executeConcurrentStandardPages(
+                pages = task.pendingImages,
+                folder = task.folder,
+                force = task.force,
+                useVlDirectTranslate = task.useVlDirectTranslate,
+                language = task.language,
+                glossary = glossary,
+                glossaryMutex = glossaryMutex,
+                onCountUpdated = { processedCount ->
+                    val imageName = task.pendingImages
+                        .getOrNull((processedCount - 1).coerceAtLeast(0))
+                        ?.name
+                        .orEmpty()
+                    reportCollectionProgress(
+                        chapterIndex = chapterIndex,
+                        chapterTotal = chapterTotal,
+                        imageIndex = translatedImages + processedCount,
+                        imageTotal = totalImages,
+                        chapterName = task.folder.name,
+                        imageName = imageName
                     )
-                    when {
-                        vlOutcome.requiresVlModel -> {
-                            ui.showToast(R.string.folder_vl_model_required)
-                            return CollectionTaskResult.ABORTED
-                        }
-                        vlOutcome.timedOut -> {
-                            ui.showToast(R.string.floating_translate_timeout)
-                            return CollectionTaskResult.ABORTED
-                        }
-                        else -> vlOutcome.result
-                    }
-                } else {
-                    translationPipeline.translateImage(
-                        image,
-                        glossary,
-                        task.force,
-                        task.language
-                    ) { }
                 }
-            } catch (e: LlmRequestException) {
-                AppLogger.log("Library", "Collection translation aborted for ${image.name}", e)
-                ui.showApiError(e.errorCode, e.responseBody)
-                return CollectionTaskResult.ABORTED
-            } catch (e: LlmResponseException) {
-                AppLogger.log("Library", "Invalid model response for ${image.name}", e)
-                when (reportModelError(e.responseContent)) {
-                    ModelErrorAction.RETRY -> {
-                        recoveredFromModelError =
-                            retryStandardImage(task.folder, image, task.force, task.language)
-                    }
-                    ModelErrorAction.SKIP -> {
-                        skipStandardImage(task.folder, image, task.force, task.language)
-                        recoveredFromModelError = true
-                    }
-                }
-                null
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLogger.log("Library", "Collection translation failed for ${image.name}", e)
-                null
-            }
-            if (result != null) {
-                translationPipeline.saveResult(image, result)
-            } else if (!recoveredFromModelError) {
-                failed = true
-            }
+            )
             if (glossary.isNotEmpty()) {
                 glossaryStore.save(task.folder, glossary)
             }
-            reportCollectionProgress(
-                chapterIndex = chapterIndex,
-                chapterTotal = chapterTotal,
-                imageIndex = translatedImages + imageIndex + 1,
-                imageTotal = totalImages,
-                chapterName = task.folder.name,
-                imageName = image.name
-            )
+            if (failed) CollectionTaskResult.FAILED else CollectionTaskResult.SUCCESS
+        } catch (e: LlmRequestException) {
+            AppLogger.log("Library", "Collection translation aborted for ${task.folder.name}", e)
+            ui.showApiError(e.errorCode, e.responseBody)
+            CollectionTaskResult.ABORTED
         }
-        return if (failed) CollectionTaskResult.FAILED else CollectionTaskResult.SUCCESS
     }
 
     private suspend fun translateCollectionFolderFull(
@@ -967,73 +812,37 @@ internal class FolderTranslationCoordinator(
             }
         }
 
-        for ((index, page) in ocrResults.withIndex()) {
-            currentCoroutineContext().ensureActive()
-            reportCollectionProgress(
-                chapterIndex = chapterIndex,
-                chapterTotal = chapterTotal,
-                imageIndex = translatedImages + index,
-                imageTotal = totalImages,
-                chapterName = task.folder.name,
-                imageName = page.imageFile.name
-            )
-            val fullTransPromptAsset = "llm_prompts_FullTrans.json"
-            var recoveredFromModelError = false
-            val result = try {
-                translationPipeline.translateFullPage(
-                    page,
-                    glossary,
-                    fullTransPromptAsset,
-                    task.language
-                ) { }
-            } catch (e: LlmResponseException) {
-                AppLogger.log("Library", "Invalid collection model response for ${page.imageFile.name}", e)
-                when (reportModelError(e.responseContent)) {
-                    ModelErrorAction.RETRY -> {
-                        recoveredFromModelError = retryFullPageImage(
-                            task.folder,
-                            page,
-                            fullTransPromptAsset,
-                            task.language
-                        )
-                    }
-                    ModelErrorAction.SKIP -> {
-                        skipFullPageImage(
-                            task.folder,
-                            page,
-                            fullTransPromptAsset,
-                            task.language
-                        )
-                        recoveredFromModelError = true
-                    }
+        val glossaryMutex = Mutex()
+        return try {
+            failed = failed || executeConcurrentFullPages(
+                pages = ocrResults,
+                folder = task.folder,
+                promptAsset = "llm_prompts_FullTrans.json",
+                language = task.language,
+                glossary = glossary,
+                glossaryMutex = glossaryMutex,
+                onCountUpdated = { processedCount ->
+                    val imageName = ocrResults
+                        .getOrNull((processedCount - 1).coerceAtLeast(0))
+                        ?.imageFile
+                        ?.name
+                        .orEmpty()
+                    reportCollectionProgress(
+                        chapterIndex = chapterIndex,
+                        chapterTotal = chapterTotal,
+                        imageIndex = translatedImages + processedCount,
+                        imageTotal = totalImages,
+                        chapterName = task.folder.name,
+                        imageName = imageName
+                    )
                 }
-                null
-            } catch (e: LlmRequestException) {
-                AppLogger.log("Library", "Collection full translation aborted for ${page.imageFile.name}", e)
-                ui.showApiError(e.errorCode, e.responseBody)
-                return CollectionTaskResult.ABORTED
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLogger.log("Library", "Collection full translation failed for ${page.imageFile.name}", e)
-                null
-            }
-            if (result != null) {
-                translationPipeline.saveResult(page.imageFile, result)
-            } else if (!recoveredFromModelError) {
-                failed = true
-            }
-            reportCollectionProgress(
-                chapterIndex = chapterIndex,
-                chapterTotal = chapterTotal,
-                imageIndex = translatedImages + index + 1,
-                imageTotal = totalImages,
-                chapterName = task.folder.name,
-                imageName = page.imageFile.name
             )
+            if (failed) CollectionTaskResult.FAILED else CollectionTaskResult.SUCCESS
+        } catch (e: LlmRequestException) {
+            AppLogger.log("Library", "Collection full translation aborted for ${task.folder.name}", e)
+            ui.showApiError(e.errorCode, e.responseBody)
+            CollectionTaskResult.ABORTED
         }
-
-        return if (failed) CollectionTaskResult.FAILED else CollectionTaskResult.SUCCESS
     }
 
     private fun reportCollectionProgress(
@@ -1103,6 +912,326 @@ internal class FolderTranslationCoordinator(
         return resolution.await()
     }
 
+    private suspend fun executeConcurrentStandardPages(
+        pages: List<File>,
+        folder: File,
+        force: Boolean,
+        useVlDirectTranslate: Boolean,
+        language: TranslationLanguage,
+        glossary: MutableMap<String, String>,
+        glossaryMutex: Mutex,
+        onCountUpdated: suspend (Int) -> Unit
+    ): Boolean {
+        val maxConcurrency = settingsStore.loadMaxConcurrency()
+        val semaphore = Semaphore(maxConcurrency)
+        val translatedCount = AtomicInteger(0)
+        val hasFailures = AtomicBoolean(false)
+        val requestFailed = AtomicBoolean(false)
+        val requestException = AtomicReference<LlmRequestException?>(null)
+        val scheduler = WeightedTranslationProviderScheduler(settingsStore.loadMainTranslationProviderPool())
+        supervisorScope {
+            val tasks = pages.map { image ->
+                async {
+                    semaphore.withPermit {
+                        currentCoroutineContext().ensureActive()
+                        if (requestFailed.get()) return@withPermit
+                        val execution = try {
+                            if (useVlDirectTranslate) {
+                                executeVlPageTranslation(image, language)
+                            } else {
+                                executeStandardPageTranslation(
+                                    folder = folder,
+                                    image = image,
+                                    force = force,
+                                    language = language,
+                                    scheduler = scheduler,
+                                    glossary = glossary,
+                                    glossaryMutex = glossaryMutex
+                                )
+                            }
+                        } catch (e: LlmRequestException) {
+                            requestFailed.set(true)
+                            requestException.compareAndSet(null, e)
+                            AppLogger.log("Library", "Translation aborted for ${image.name}", e)
+                            null
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            AppLogger.log("Library", "Translation failed for ${image.name}", e)
+                            null
+                        }
+                        if (requestFailed.get()) return@withPermit
+                        if (execution?.result != null) {
+                            translationPipeline.saveResult(image, execution.result)
+                            translatedCount.incrementAndGet()
+                        } else if (execution?.recoveredFromModelError == true) {
+                            translatedCount.incrementAndGet()
+                        } else {
+                            hasFailures.set(true)
+                        }
+                        onCountUpdated(translatedCount.get())
+                    }
+                }
+            }
+            tasks.awaitAll()
+        }
+        requestException.get()?.let { throw it }
+        return hasFailures.get()
+    }
+
+    private suspend fun executeConcurrentFullPages(
+        pages: List<PageOcrResult>,
+        folder: File,
+        promptAsset: String,
+        language: TranslationLanguage,
+        glossary: MutableMap<String, String>,
+        glossaryMutex: Mutex,
+        onCountUpdated: suspend (Int) -> Unit
+    ): Boolean {
+        val maxConcurrency = settingsStore.loadMaxConcurrency()
+        val semaphore = Semaphore(maxConcurrency)
+        val translatedCount = AtomicInteger(0)
+        val hasFailures = AtomicBoolean(false)
+        val requestFailed = AtomicBoolean(false)
+        val requestException = AtomicReference<LlmRequestException?>(null)
+        val scheduler = WeightedTranslationProviderScheduler(settingsStore.loadMainTranslationProviderPool())
+        supervisorScope {
+            val tasks = pages.map { page ->
+                async {
+                    semaphore.withPermit {
+                        currentCoroutineContext().ensureActive()
+                        if (requestFailed.get()) return@withPermit
+                        val execution = try {
+                            executeFullPageTranslation(
+                                folder = folder,
+                                page = page,
+                                promptAsset = promptAsset,
+                                language = language,
+                                scheduler = scheduler,
+                                glossary = glossary,
+                                glossaryMutex = glossaryMutex
+                            )
+                        } catch (e: LlmRequestException) {
+                            requestFailed.set(true)
+                            requestException.compareAndSet(null, e)
+                            AppLogger.log("Library", "Full-page translation aborted for ${page.imageFile.name}", e)
+                            null
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            AppLogger.log("Library", "Full-page translation failed for ${page.imageFile.name}", e)
+                            null
+                        }
+                        if (requestFailed.get()) return@withPermit
+                        if (execution?.result != null) {
+                            translationPipeline.saveResult(page.imageFile, execution.result)
+                            translatedCount.incrementAndGet()
+                        } else if (execution?.recoveredFromModelError == true) {
+                            translatedCount.incrementAndGet()
+                        } else {
+                            hasFailures.set(true)
+                        }
+                        onCountUpdated(translatedCount.get())
+                    }
+                }
+            }
+            tasks.awaitAll()
+        }
+        requestException.get()?.let { throw it }
+        return hasFailures.get()
+    }
+
+    private suspend fun executeStandardPageTranslation(
+        folder: File,
+        image: File,
+        force: Boolean,
+        language: TranslationLanguage,
+        scheduler: WeightedTranslationProviderScheduler,
+        glossary: MutableMap<String, String>,
+        glossaryMutex: Mutex
+    ): PageTranslationExecutionResult {
+        val orderedProviders = scheduler.orderedCandidatesForPage()
+        if (orderedProviders.isEmpty()) {
+            throw LlmRequestException("MISSING_API_SETTINGS", "No configured translation provider")
+        }
+        var lastResponseException: LlmResponseException? = null
+        var lastRequestException: LlmRequestException? = null
+        orderedProviders.forEach { providerContext ->
+            try {
+                val glossarySnapshot = glossaryMutex.withLock { LinkedHashMap(glossary) }
+                val result = translationPipeline.translateImage(
+                    imageFile = image,
+                    glossary = glossarySnapshot,
+                    forceOcr = force,
+                    language = language,
+                    providerContext = providerContext
+                ) { }
+                if (result != null) {
+                    val glossaryUsed = glossarySnapshot.filterKeys { key ->
+                        glossary[key] != glossarySnapshot[key]
+                    }
+                    mergeGlossary(glossary, glossaryUsed, glossaryMutex, folder)
+                    AppLogger.log(
+                        "Library",
+                        "Translated ${image.name} via ${providerContext.displayName}"
+                    )
+                    return PageTranslationExecutionResult(
+                        result = result,
+                        glossaryUsed = glossaryUsed
+                    )
+                }
+            } catch (e: LlmRequestException) {
+                lastRequestException = e
+                AppLogger.log(
+                    "Library",
+                    "Provider ${providerContext.displayName} request failed for ${image.name}",
+                    e
+                )
+            } catch (e: LlmResponseException) {
+                lastResponseException = e
+                AppLogger.log(
+                    "Library",
+                    "Provider ${providerContext.displayName} returned invalid response for ${image.name}",
+                    e
+                )
+            }
+        }
+        if (lastResponseException != null) {
+            AppLogger.log("Library", "Invalid model response for ${image.name}", lastResponseException)
+            return when (reportModelError(lastResponseException.responseContent)) {
+                ModelErrorAction.RETRY -> {
+                    val retried = retryStandardImage(folder, image, force, language, scheduler)
+                    PageTranslationExecutionResult(recoveredFromModelError = retried)
+                }
+                ModelErrorAction.SKIP -> {
+                    skipStandardImage(folder, image, force, language)
+                    PageTranslationExecutionResult(recoveredFromModelError = true)
+                }
+            }
+        }
+        lastRequestException?.let { throw it }
+        return PageTranslationExecutionResult()
+    }
+
+    private suspend fun executeFullPageTranslation(
+        folder: File,
+        page: PageOcrResult,
+        promptAsset: String,
+        language: TranslationLanguage,
+        scheduler: WeightedTranslationProviderScheduler,
+        glossary: MutableMap<String, String>,
+        glossaryMutex: Mutex
+    ): PageTranslationExecutionResult {
+        val orderedProviders = scheduler.orderedCandidatesForPage()
+        if (orderedProviders.isEmpty()) {
+            throw LlmRequestException("MISSING_API_SETTINGS", "No configured translation provider")
+        }
+        var lastResponseException: LlmResponseException? = null
+        var lastRequestException: LlmRequestException? = null
+        orderedProviders.forEach { providerContext ->
+            try {
+                val glossarySnapshot = glossaryMutex.withLock { LinkedHashMap(glossary) }
+                val result = translationPipeline.translateFullPage(
+                    page = page,
+                    glossary = glossarySnapshot,
+                    promptAsset = promptAsset,
+                    language = language,
+                    providerContext = providerContext
+                ) { }
+                if (result != null) {
+                    val glossaryUsed = glossarySnapshot.filterKeys { key ->
+                        glossary[key] != glossarySnapshot[key]
+                    }
+                    mergeGlossary(glossary, glossaryUsed, glossaryMutex, folder)
+                    AppLogger.log(
+                        "Library",
+                        "Translated ${page.imageFile.name} via ${providerContext.displayName}"
+                    )
+                    return PageTranslationExecutionResult(
+                        result = result,
+                        glossaryUsed = glossaryUsed
+                    )
+                }
+            } catch (e: LlmRequestException) {
+                lastRequestException = e
+                AppLogger.log(
+                    "Library",
+                    "Provider ${providerContext.displayName} request failed for ${page.imageFile.name}",
+                    e
+                )
+            } catch (e: LlmResponseException) {
+                lastResponseException = e
+                AppLogger.log(
+                    "Library",
+                    "Provider ${providerContext.displayName} returned invalid response for ${page.imageFile.name}",
+                    e
+                )
+            }
+        }
+        if (lastResponseException != null) {
+            AppLogger.log("Library", "Invalid model response for ${page.imageFile.name}", lastResponseException)
+            return when (reportModelError(lastResponseException.responseContent)) {
+                ModelErrorAction.RETRY -> {
+                    val retried = retryFullPageImage(folder, page, promptAsset, language, scheduler)
+                    PageTranslationExecutionResult(recoveredFromModelError = retried)
+                }
+                ModelErrorAction.SKIP -> {
+                    skipFullPageImage(folder, page, promptAsset, language)
+                    PageTranslationExecutionResult(recoveredFromModelError = true)
+                }
+            }
+        }
+        lastRequestException?.let { throw it }
+        return PageTranslationExecutionResult()
+    }
+
+    private suspend fun executeVlPageTranslation(
+        image: File,
+        language: TranslationLanguage
+    ): PageTranslationExecutionResult {
+        val outcome = translationPipeline.translateImageWithVl(
+            imageFile = image,
+            language = language
+        )
+        return when {
+            outcome.requiresVlModel -> {
+                ui.showToast(R.string.folder_vl_model_required)
+                throw LlmRequestException("VL_MODEL_REQUIRED", image.name)
+            }
+            outcome.timedOut -> {
+                ui.showToast(R.string.floating_translate_timeout)
+                throw LlmRequestException("TIMEOUT", image.name)
+            }
+            outcome.result != null -> {
+                PageTranslationExecutionResult(result = outcome.result)
+            }
+            else -> PageTranslationExecutionResult()
+        }
+    }
+
+    private suspend fun mergeGlossary(
+        glossary: MutableMap<String, String>,
+        additions: Map<String, String>,
+        glossaryMutex: Mutex,
+        folder: File
+    ) {
+        if (additions.isEmpty()) return
+        val changed = glossaryMutex.withLock {
+            var changed = false
+            additions.forEach { (key, value) ->
+                if (key.isBlank() || value.isBlank()) return@forEach
+                if (glossary[key] != value) {
+                    glossary[key] = value
+                    changed = true
+                }
+            }
+            changed
+        }
+        if (changed) {
+            glossaryStore.save(folder, glossary)
+        }
+    }
+
     private suspend fun skipStandardImage(
         folder: File,
         image: File,
@@ -1124,13 +1253,25 @@ internal class FolderTranslationCoordinator(
         folder: File,
         image: File,
         force: Boolean,
-        language: TranslationLanguage
+        language: TranslationLanguage,
+        scheduler: WeightedTranslationProviderScheduler = WeightedTranslationProviderScheduler(
+            settingsStore.loadMainTranslationProviderPool()
+        )
     ): Boolean {
-        val glossary = glossaryStore.load(folder)
-        val result = try {
-            translationPipeline.translateImage(image, glossary, force, language) { }
-        } catch (e: LlmResponseException) {
-            AppLogger.log("Library", "Retry still returned invalid response for ${image.name}", e)
+        val glossary = glossaryStore.load(folder).toMutableMap()
+        val glossaryMutex = Mutex()
+        val execution = try {
+            executeStandardPageTranslation(
+                folder = folder,
+                image = image,
+                force = force,
+                language = language,
+                scheduler = scheduler,
+                glossary = glossary,
+                glossaryMutex = glossaryMutex
+            )
+        } catch (e: LlmRequestException) {
+            AppLogger.log("Library", "Retry failed for ${image.name}", e)
             return false
         } catch (e: CancellationException) {
             throw e
@@ -1138,30 +1279,42 @@ internal class FolderTranslationCoordinator(
             AppLogger.log("Library", "Retry failed for ${image.name}", e)
             return false
         }
-        if (result == null) {
+        if (execution.result == null && !execution.recoveredFromModelError) {
             return false
         }
-        translationPipeline.saveResult(image, result)
+        execution.result?.let { translationPipeline.saveResult(image, it) }
         if (glossary.isNotEmpty()) {
             glossaryStore.save(folder, glossary)
         }
         withContext(Dispatchers.Main) {
             ui.refreshImages(folder)
         }
-        return true
+        return execution.result != null || execution.recoveredFromModelError
     }
 
     private suspend fun retryFullPageImage(
         folder: File,
         page: PageOcrResult,
         promptAsset: String,
-        language: TranslationLanguage
+        language: TranslationLanguage,
+        scheduler: WeightedTranslationProviderScheduler = WeightedTranslationProviderScheduler(
+            settingsStore.loadMainTranslationProviderPool()
+        )
     ): Boolean {
-        val glossary = glossaryStore.load(folder)
-        val result = try {
-            translationPipeline.translateFullPage(page, glossary, promptAsset, language) { }
-        } catch (e: LlmResponseException) {
-            AppLogger.log("Library", "Retry still returned invalid response for ${page.imageFile.name}", e)
+        val glossary = glossaryStore.load(folder).toMutableMap()
+        val glossaryMutex = Mutex()
+        val execution = try {
+            executeFullPageTranslation(
+                folder = folder,
+                page = page,
+                promptAsset = promptAsset,
+                language = language,
+                scheduler = scheduler,
+                glossary = glossary,
+                glossaryMutex = glossaryMutex
+            )
+        } catch (e: LlmRequestException) {
+            AppLogger.log("Library", "Retry failed for ${page.imageFile.name}", e)
             return false
         } catch (e: CancellationException) {
             throw e
@@ -1169,14 +1322,14 @@ internal class FolderTranslationCoordinator(
             AppLogger.log("Library", "Retry failed for ${page.imageFile.name}", e)
             return false
         }
-        if (result == null) {
+        if (execution.result == null && !execution.recoveredFromModelError) {
             return false
         }
-        translationPipeline.saveResult(page.imageFile, result)
+        execution.result?.let { translationPipeline.saveResult(page.imageFile, it) }
         withContext(Dispatchers.Main) {
             ui.refreshImages(folder)
         }
-        return true
+        return execution.result != null || execution.recoveredFromModelError
     }
 
     private suspend fun skipFullPageImage(

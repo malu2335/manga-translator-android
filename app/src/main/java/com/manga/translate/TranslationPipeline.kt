@@ -39,9 +39,11 @@ internal class TranslationPipeline(
         glossary: MutableMap<String, String>,
         forceOcr: Boolean,
         language: TranslationLanguage = TranslationLanguage.JA_TO_ZH,
+        providerContext: PageTranslationProviderContext? = null,
         onProgress: (String) -> Unit
     ): TranslationResult? = withContext(Dispatchers.Default) {
-        if (!llmClient.isConfigured()) {
+        val resolvedApiSettings = providerContext?.apiSettings
+        if (!llmClient.isConfigured(resolvedApiSettings)) {
             onProgress(appContext.getString(R.string.missing_api_settings))
             AppLogger.log("Pipeline", "Missing API settings")
             return@withContext null
@@ -52,7 +54,8 @@ internal class TranslationPipeline(
             language = language,
             mode = TranslationMetadata.MODE_STANDARD,
             promptAsset = STANDARD_PROMPT_ASSET,
-            ocrCacheMode = page.cacheMode
+            ocrCacheMode = page.cacheMode,
+            providerContext = providerContext
         )
         AppLogger.log("Pipeline", "Translate image ${imageFile.name}")
         val translatable = page.bubbles.filter { it.text.isNotBlank() }
@@ -78,6 +81,7 @@ internal class TranslationPipeline(
                     },
                     glossary = glossary,
                     promptAsset = promptAsset,
+                    apiSettings = resolvedApiSettings,
                     language = language,
                     logTag = "Pipeline",
                     translationMode = "standard"
@@ -205,6 +209,7 @@ internal class TranslationPipeline(
         glossary: Map<String, String>,
         promptAsset: String,
         language: TranslationLanguage = TranslationLanguage.JA_TO_ZH,
+        providerContext: PageTranslationProviderContext? = null,
         onProgress: (String) -> Unit
     ): TranslationResult? = withContext(Dispatchers.Default) {
         val metadata = buildTranslationMetadata(
@@ -212,7 +217,8 @@ internal class TranslationPipeline(
             language = language,
             mode = TranslationMetadata.MODE_FULL_PAGE,
             promptAsset = promptAsset,
-            ocrCacheMode = page.cacheMode
+            ocrCacheMode = page.cacheMode,
+            providerContext = providerContext
         )
         val translatable = page.bubbles.filter { it.text.isNotBlank() }
         if (translatable.isEmpty()) {
@@ -236,6 +242,7 @@ internal class TranslationPipeline(
                     },
                     glossary = glossary,
                     promptAsset = promptAsset,
+                    apiSettings = providerContext?.apiSettings,
                     language = language,
                     logTag = "Pipeline",
                     translationMode = "full_page"
@@ -275,7 +282,8 @@ internal class TranslationPipeline(
                             language = language,
                             mode = TranslationMetadata.MODE_VL_DIRECT,
                             promptAsset = VL_PROMPT_ASSET,
-                            ocrCacheMode = ""
+                            ocrCacheMode = "",
+                            providerContext = null
                         )
                     )
                 )
@@ -317,7 +325,8 @@ internal class TranslationPipeline(
                             language = language,
                             mode = TranslationMetadata.MODE_VL_DIRECT,
                             promptAsset = VL_PROMPT_ASSET,
-                            ocrCacheMode = ""
+                            ocrCacheMode = "",
+                            providerContext = null
                         )
                     )
                 )
@@ -375,7 +384,8 @@ internal class TranslationPipeline(
             language = language,
             mode = mode,
             promptAsset = promptAsset,
-            ocrCacheMode = page.cacheMode
+            ocrCacheMode = page.cacheMode,
+            providerContext = null
         )
         val bubbles = page.bubbles.map { bubble ->
             BubbleTranslation(bubble.id, bubble.rect, "", bubble.source, bubble.maskContour)
@@ -431,29 +441,48 @@ internal class TranslationPipeline(
         useVlDirectTranslate: Boolean,
         language: TranslationLanguage
     ): TranslationMetadata {
-        return when {
+        val baseMetadata = when {
             useVlDirectTranslate -> buildTranslationMetadata(
                 imageFile = imageFile,
                 language = language,
                 mode = TranslationMetadata.MODE_VL_DIRECT,
                 promptAsset = VL_PROMPT_ASSET,
-                ocrCacheMode = ""
+                ocrCacheMode = "",
+                providerContext = null
             )
             fullTranslate -> buildTranslationMetadata(
                 imageFile = imageFile,
                 language = language,
                 mode = TranslationMetadata.MODE_FULL_PAGE,
                 promptAsset = FULL_TRANS_PROMPT_ASSET,
-                ocrCacheMode = buildOcrCacheMode(settingsStore.loadOcrApiSettings().useLocalOcr, language)
+                ocrCacheMode = buildOcrCacheMode(settingsStore.loadOcrApiSettings().useLocalOcr, language),
+                providerContext = null
             )
             else -> buildTranslationMetadata(
                 imageFile = imageFile,
                 language = language,
                 mode = TranslationMetadata.MODE_STANDARD,
                 promptAsset = STANDARD_PROMPT_ASSET,
-                ocrCacheMode = buildOcrCacheMode(settingsStore.loadOcrApiSettings().useLocalOcr, language)
+                ocrCacheMode = buildOcrCacheMode(settingsStore.loadOcrApiSettings().useLocalOcr, language),
+                providerContext = null
             )
         }
+        if (useVlDirectTranslate) {
+            return baseMetadata
+        }
+        val providerPool = settingsStore.loadMainTranslationProviderPool()
+        if (providerPool.isEmpty()) {
+            return baseMetadata
+        }
+        return baseMetadata.copy(
+            modelName = providerPool.map { it.settings.modelName.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .joinToString("|"),
+            providerId = providerPool.map { it.providerId }
+                .distinct()
+                .joinToString("|")
+        )
     }
 
     private fun buildTranslationMetadata(
@@ -461,9 +490,13 @@ internal class TranslationPipeline(
         language: TranslationLanguage,
         mode: String,
         promptAsset: String,
-        ocrCacheMode: String
+        ocrCacheMode: String,
+        providerContext: PageTranslationProviderContext?
     ): TranslationMetadata {
-        val apiSettings = settingsStore.load()
+        val availableProviderIds = settingsStore.loadMainTranslationProviderPool()
+            .map { it.providerId }
+            .distinct()
+        val apiSettings = providerContext?.apiSettings ?: settingsStore.load()
         return TranslationMetadata(
             sourceLastModified = imageFile.lastModified(),
             sourceFileSize = imageFile.length(),
@@ -471,6 +504,11 @@ internal class TranslationPipeline(
             language = language.name,
             promptAsset = promptAsset,
             modelName = apiSettings.modelName,
+            providerId = when {
+                providerContext != null -> providerContext.providerId
+                availableProviderIds.isNotEmpty() -> availableProviderIds.joinToString("|")
+                else -> SettingsStore.PRIMARY_PROVIDER_ID
+            },
             apiFormat = apiSettings.apiFormat.prefValue,
             ocrCacheMode = ocrCacheMode
         )

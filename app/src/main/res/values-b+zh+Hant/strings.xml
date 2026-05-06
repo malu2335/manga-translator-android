@@ -77,7 +77,7 @@
     <string name="ai_provider_profiles_title">AI 供應商配置</string>
     <string name="ai_provider_profiles_current">目前配置：%1$s</string>
     <string name="ai_provider_profiles_current_none">目前配置：未啟用</string>
-    <string name="ai_provider_profiles_note">配置檔會儲存目前主模型、OCR、懸浮窗翻譯覆蓋、AI 參數和自訂請求參數，切換時會整體套用。</string>
+    <string name="ai_provider_profiles_note">配置檔會儲存目前主模型、OCR、懸浮窗翻譯覆蓋、AI 參數、多供應商調度和自訂請求參數，切換時會整體套用。</string>
     <string name="ai_provider_profiles_empty">還沒有已儲存的配置。</string>
     <string name="ai_provider_profiles_apply">切換到選中配置</string>
     <string name="ai_provider_profiles_save_new">新建並儲存目前配置</string>
@@ -101,6 +101,20 @@
 %1$s</string>
     <string name="llm_params_button">AI 參數設定</string>
     <string name="llm_params_title">AI 參數設定</string>
+    <string name="multi_provider_scheduling_button">多供應商調度</string>
+    <string name="multi_provider_scheduling_button_format">多供應商調度：%1$d 個供應商</string>
+    <string name="multi_provider_scheduling_title">多供應商調度</string>
+    <string name="multi_provider_scheduling_section_label">翻譯供應商池</string>
+    <string name="multi_provider_scheduling_note">主供應商存取權重固定為 10。系統會按權重比例為頁面翻譯請求分配供應商。
+例如：主供應商 10，供應商 A 5，供應商 B 5，則按 10:5:5 分配請求。</string>
+    <string name="multi_provider_scheduling_add">新增一個供應商</string>
+    <string name="multi_provider_scheduling_enabled">啟用</string>
+    <string name="multi_provider_scheduling_row_title">供應商 %1$d</string>
+    <string name="multi_provider_scheduling_delete_action">刪除</string>
+    <string name="multi_provider_scheduling_weight_hint">存取權重</string>
+    <string name="multi_provider_scheduling_saved">多供應商調度已儲存</string>
+    <string name="multi_provider_scheduling_empty_field_error">啟用中的供應商必須填寫 API 位址、API Key 與模型名稱</string>
+    <string name="multi_provider_scheduling_invalid_weight_error">啟用中的供應商存取權重必須是正整數</string>
     <string name="custom_request_params_button">自訂請求參數</string>
     <string name="custom_request_params_button_format">自訂請求參數：%1$d 項</string>
     <string name="custom_request_params_title">自訂請求參數</string>
