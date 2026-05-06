@@ -90,7 +90,11 @@ object UpdateChecker {
 
     private fun parseUpdateInfo(body: String, includePreview: Boolean): UpdateInfo? {
         return try {
-            val json = JSONObject(body)
+            val normalizedBody = normalizeUpdateJson(body)
+            if (normalizedBody !== body) {
+                AppLogger.log("UpdateChecker", "Normalized update json before parsing")
+            }
+            val json = JSONObject(normalizedBody)
             val history = buildHistory(json)
             val latest = buildLatest(json) ?: return null
             val selected = selectUpdateInfo(latest, history, includePreview) ?: latest
@@ -105,6 +109,50 @@ object UpdateChecker {
             AppLogger.log("UpdateChecker", "Parse update json failed", e)
             null
         }
+    }
+
+    private fun normalizeUpdateJson(body: String): String {
+        if (body.isBlank()) return body
+        val result = StringBuilder(body.length)
+        var inString = false
+        var escaping = false
+        var index = 0
+        while (index < body.length) {
+            val current = body[index]
+            if (inString) {
+                result.append(current)
+                if (escaping) {
+                    escaping = false
+                } else if (current == '\\') {
+                    escaping = true
+                } else if (current == '"') {
+                    inString = false
+                }
+                index++
+                continue
+            }
+
+            when (current) {
+                '"' -> {
+                    inString = true
+                    result.append(current)
+                }
+                ',' -> {
+                    var lookAhead = index + 1
+                    while (lookAhead < body.length && body[lookAhead].isWhitespace()) {
+                        lookAhead++
+                    }
+                    if (lookAhead < body.length && (body[lookAhead] == '}' || body[lookAhead] == ']')) {
+                        index++
+                        continue
+                    }
+                    result.append(current)
+                }
+                else -> result.append(current)
+            }
+            index++
+        }
+        return result.toString()
     }
 
     private fun buildLatest(json: JSONObject): UpdateInfo? {
