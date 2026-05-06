@@ -35,6 +35,7 @@ class TranslationKeepAliveService : Service() {
             handleCancelTranslation()
             return START_NOT_STICKY
         }
+        ensureForegroundNotificationChannel()
         val title = intent?.getStringExtra(EXTRA_TITLE)
             ?: getString(R.string.translation_keepalive_title)
         val message = intent?.getStringExtra(EXTRA_MESSAGE)
@@ -174,6 +175,11 @@ class TranslationKeepAliveService : Service() {
             releaseWakeLock()
             stopSelf()
         }
+    }
+
+    private fun ensureForegroundNotificationChannel() {
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        ensureChannel(this, manager)
     }
 
     companion object {

@@ -91,7 +91,7 @@ object UpdateChecker {
     private fun parseUpdateInfo(body: String, includePreview: Boolean): UpdateInfo? {
         return try {
             val normalizedBody = normalizeUpdateJson(body)
-            if (normalizedBody !== body) {
+            if (normalizedBody != body) {
                 AppLogger.log("UpdateChecker", "Normalized update json before parsing")
             }
             val json = JSONObject(normalizedBody)
