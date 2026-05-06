@@ -67,13 +67,6 @@ class SettingsFragment : Fragment() {
         numberFormatter.parse(text?.trim().orEmpty())?.toDouble()
     }.getOrNull()
 
-    private fun parseModelCandidates(input: String?): List<String> {
-        return input.orEmpty()
-            .split(",")
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-    }
-
     private fun setupFloatingGestureActionDropdown(
         inputView: MaterialAutoCompleteTextView,
         currentAction: FloatingBallGestureAction
@@ -1389,16 +1382,17 @@ class SettingsFragment : Fragment() {
 
     private fun showModelSelectionDialog(models: List<String>) {
         val items = models.toTypedArray()
-        val currentSelections = parseModelCandidates(binding.modelNameInput.text?.toString()).toSet()
-        val checkedItems = BooleanArray(items.size) { index -> items[index] in currentSelections }
+        val currentSelection = binding.modelNameInput.text?.toString()?.trim().orEmpty()
+        var selectedIndex = items.indexOf(currentSelection)
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.fetch_models_title)
-            .setMultiChoiceItems(items, checkedItems) { _, which, isChecked ->
-                checkedItems[which] = isChecked
+            .setSingleChoiceItems(items, selectedIndex) { _, which ->
+                selectedIndex = which
             }
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                val selectedModels = items.filterIndexed { index, _ -> checkedItems[index] }
-                binding.modelNameInput.setText(selectedModels.joinToString(","))
+                if (selectedIndex >= 0) {
+                    binding.modelNameInput.setText(items[selectedIndex])
+                }
             }
             .setNeutralButton(R.string.llm_params_clear) { _, _ ->
                 binding.modelNameInput.setText("")

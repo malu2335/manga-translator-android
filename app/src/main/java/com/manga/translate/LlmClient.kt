@@ -22,7 +22,6 @@ import java.net.URLEncoder
 import java.io.ByteArrayOutputStream
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -191,7 +190,7 @@ class LlmClient(
     ): String? {
         val settings = apiSettings ?: settingsStore.load()
         if (!settings.isValid()) return null
-        val selectedModel = selectModelForRequest(settings.modelName)
+        val selectedModel = settings.modelName.trim()
         val endpoint = buildEndpoint(settings, selectedModel)
         val userPayload = userPayloadOverride ?: if (useJsonPayload) {
             buildUserPayload(text, glossary)
@@ -296,7 +295,7 @@ class LlmClient(
     ): String? {
         val settings = apiSettings ?: settingsStore.load()
         if (!settings.isValid()) return null
-        val selectedModel = selectModelForRequest(settings.modelName)
+        val selectedModel = settings.modelName.trim()
         val endpoint = buildEndpoint(settings, selectedModel)
         val payload = buildImageTranslationPayload(
             settings = settings,
@@ -520,19 +519,6 @@ class LlmClient(
         buildGeminiGenerationConfig(useJsonPayload = true)?.let { payload.put("generationConfig", it) }
         applyCustomRequestParameters(payload, ApiFormat.GEMINI)
         return payload
-    }
-
-    private fun selectModelForRequest(modelConfig: String): String {
-        val models = parseModelCandidates(modelConfig)
-        if (models.isEmpty()) return modelConfig.trim()
-        val index = requestCounter.getAndIncrement().mod(models.size.toLong()).toInt()
-        return models[index]
-    }
-
-    private fun parseModelCandidates(modelConfig: String): List<String> {
-        return modelConfig.split(",")
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
     }
 
     private fun parseResponseContent(body: String, apiFormat: ApiFormat): String? {
@@ -1426,8 +1412,6 @@ class LlmClient(
         private const val RETRY_BASE_DELAY_MS = 750
         private const val RETRY_MAX_DELAY_MS = 4_000
         private const val CONFIGURED_RETRY_DELAY_MS = 3_000
-        private val requestCounter = AtomicLong(0)
-
         fun reservedRequestKeys(apiFormat: ApiFormat): Set<String> {
             return when (apiFormat) {
                 ApiFormat.OPENAI_COMPATIBLE -> setOf(
