@@ -1267,7 +1267,7 @@ class FloatingBallOverlayService : Service() {
             R.string.api_request_failed_message,
             ErrorDialogFormatter.formatApiErrorMessage(this, errorCode, detail)
         )
-        val dialog = AlertDialog.Builder(this)
+        val dialog = createAlertDialogBuilder(this)
             .setTitle(R.string.api_request_failed_title)
             .setMessage(message)
             .setPositiveButton(android.R.string.ok, null)

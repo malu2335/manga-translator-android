@@ -10,6 +10,14 @@ open class SafeNestedScrollView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
 ) : NestedScrollView(context, attrs, defStyleAttr) {
+    init {
+        // Disable framework scrollbars by default to avoid OEM/framework crashes
+        // in ScrollBarDrawable code paths.
+        isVerticalScrollBarEnabled = false
+        isHorizontalScrollBarEnabled = false
+        isScrollbarFadingEnabled = false
+    }
+
     private var scrollBarCrashOccurred = false
 
     override fun draw(canvas: Canvas) {

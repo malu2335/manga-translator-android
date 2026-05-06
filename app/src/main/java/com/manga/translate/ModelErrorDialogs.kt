@@ -11,7 +11,7 @@ internal fun showModelErrorDialog(
     negativeButtonResId: Int = R.string.translation_skip,
     windowType: Int? = null
 ): AlertDialog {
-    val dialog = AlertDialog.Builder(context)
+    val dialog = createAlertDialogBuilder(context)
         .setTitle(R.string.model_response_failed_title)
         .setMessage(ErrorDialogFormatter.formatModelErrorMessage(context, responseContent))
         .setNegativeButton(negativeButtonResId) { _, _ -> onSkip?.invoke() }
