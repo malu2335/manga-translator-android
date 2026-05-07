@@ -140,8 +140,8 @@ class SettingsFragment : Fragment() {
                 getString(R.string.japanese_local_ocr_engine_manga_ocr)
             ),
             JapaneseLocalOcrEngineOption(
-                JapaneseLocalOcrEngine.PLACEHOLDER,
-                getString(R.string.japanese_local_ocr_engine_placeholder)
+                JapaneseLocalOcrEngine.MANGA_OCR_MOBILE,
+                getString(R.string.japanese_local_ocr_engine_manga_ocr_mobile)
             )
         )
     }

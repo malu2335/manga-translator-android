@@ -545,7 +545,7 @@ internal class TranslationPipeline(
             when (language) {
                 TranslationLanguage.JA_TO_ZH -> when (ocrSettings.japaneseLocalOcrEngine) {
                     JapaneseLocalOcrEngine.MANGA_OCR -> "local_ja_mangaocr"
-                    JapaneseLocalOcrEngine.PLACEHOLDER -> "local_ja_placeholder"
+                    JapaneseLocalOcrEngine.MANGA_OCR_MOBILE -> "local_ja_mangaocr_mobile"
                 }
                 TranslationLanguage.EN_TO_ZH -> "local_en"
                 TranslationLanguage.KO_TO_ZH -> "local_ko"

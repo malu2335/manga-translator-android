@@ -1,0 +1,17 @@
+{
+  "config_name": "trial_v1A_mocr_mobile",
+  "encoder_name": "timm/repvit_m1_1.dist_450e_in1k",
+  "decoder_name": "KoichiYasuoka/roberta-small-japanese-aozora-char",
+  "image_size": 224,
+  "batch_size": 1,
+  "max_length": 256,
+  "decoder_start_token_id": 2,
+  "eos_token_id": 3,
+  "pad_token_id": 0,
+  "hidden_size": 256,
+  "num_heads": 4,
+  "head_dim": 64,
+  "num_decoder_layers": 4,
+  "encoder_seq_len": 196,
+  "encoder_hidden_size": 256
+}

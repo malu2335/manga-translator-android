@@ -37,11 +37,11 @@ enum class JapaneseLocalOcrEngine(
     val prefValue: String
 ) {
     MANGA_OCR("manga_ocr"),
-    PLACEHOLDER("placeholder");
+    MANGA_OCR_MOBILE("manga_ocr_mobile");
 
     companion object {
         fun fromPref(value: String?): JapaneseLocalOcrEngine {
-            return entries.firstOrNull { it.prefValue == value } ?: MANGA_OCR
+            return entries.firstOrNull { it.prefValue == value } ?: MANGA_OCR_MOBILE
         }
     }
 }

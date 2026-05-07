@@ -10,6 +10,7 @@ class OcrEngineRegistry(
 ) {
     private val appContext = context.applicationContext
     private var mangaOcr: MangaOcr? = null
+    private var mangaOcrMobile: MangaOcrMobile? = null
     private var englishOcr: EnglishOcr? = null
     private var koreanOcr: KoreanOcr? = null
     private var englishLineDetector: EnglishLineDetector? = null
@@ -20,6 +21,18 @@ class OcrEngineRegistry(
             MangaOcr(appContext, settingsStore = settingsStore).also { mangaOcr = it }
         } catch (e: Exception) {
             AppLogger.log(logTag, "Failed to init OCR", e)
+            null
+        }
+    }
+
+    fun getMangaOcrMobile(logTag: String): MangaOcrMobile? {
+        if (mangaOcrMobile != null) return mangaOcrMobile
+        return try {
+            MangaOcrMobile(appContext, settingsStore = settingsStore).also {
+                mangaOcrMobile = it
+            }
+        } catch (e: Exception) {
+            AppLogger.log(logTag, "Failed to init mobile OCR", e)
             null
         }
     }
@@ -71,7 +84,7 @@ class BubbleTextRecognizer(
                 settingsStore.loadOcrApiSettings().japaneseLocalOcrEngine
             ) {
                 JapaneseLocalOcrEngine.MANGA_OCR -> engineRegistry.getMangaOcr(logTag)
-                JapaneseLocalOcrEngine.PLACEHOLDER -> null
+                JapaneseLocalOcrEngine.MANGA_OCR_MOBILE -> engineRegistry.getMangaOcrMobile(logTag)
             }
             TranslationLanguage.EN_TO_ZH -> engineRegistry.getEnglishOcr(logTag)
             TranslationLanguage.KO_TO_ZH -> engineRegistry.getKoreanOcr(logTag)
@@ -136,7 +149,10 @@ class BubbleTextRecognizer(
                         val engine = engineRegistry.getMangaOcr(logTag) ?: return ""
                         engine.recognize(crop).trim()
                     }
-                    JapaneseLocalOcrEngine.PLACEHOLDER -> ""
+                    JapaneseLocalOcrEngine.MANGA_OCR_MOBILE -> {
+                        val engine = engineRegistry.getMangaOcrMobile(logTag) ?: return ""
+                        engine.recognize(crop).trim()
+                    }
                 }
             }
 

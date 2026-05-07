@@ -75,7 +75,8 @@
 ### 模型与资源
 将以下模型文件放入 `assets/`：
 - `comic-speech-bubble-detector.onnx`（气泡检测）
-- `encoder_model.onnx`、`decoder_model.onnx`（当前默认日文 OCR：MangaOcr）
+- `encoder_model.onnx`、`decoder_model.onnx`（日文 OCR：MangaOcr，可在设置中切换）
+- `manga_ocr_mobile/encoder.tflite`、`manga_ocr_mobile/decoder.tflite` 及 tokenizer/config（当前默认日文 OCR：MangaOcr Mobile）
 - `en_PP-OCRv5_rec_mobile_infer.onnx`（英文 OCR）
 - `korean_PP-OCRv3_rec_infer.onnx`（韩文 OCR）
 - `ysgyolo_1.2_OS1.0.onnx`（文本补检 + 文字蒙版）
@@ -86,7 +87,7 @@
 - OCR 模型：https://huggingface.co/l0wgear/manga-ocr-2025-onnx
 - 韩文 OCR 模型：https://huggingface.co/breezedeus/cnocr-ppocr-korean_PP-OCRv3
 
-当前已移除日文 `PP-OCR` 默认实现，代码中只保留了新的日文轻量本地 OCR 预留位置，等待后续接入。
+当前已移除日文 `PP-OCR` 默认实现。日文本地 OCR 现支持 `MangaOcr` 与更轻量的 `MangaOcr Mobile`，默认使用后者。
 
 提示词与 OCR 配置位于 `assets/`，名称需与代码保持一致。
 
@@ -100,4 +101,5 @@
 
 - [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) - 提供 OCR 模型支持
 - [kha-white/manga-ocr](https://github.com/kha-white/manga-ocr) - MangaOCR 模型支持
+- [bluolightning/manga-ocr-mobile](https://huggingface.co/bluolightning/manga-ocr-mobile) - MangaOCR-mobile 模型支持
 - 所有用户的支持
