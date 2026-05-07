@@ -42,10 +42,7 @@ internal class AppContainer(private val appContext: Context) {
         FloatingTranslationCacheStore(appContext)
     }
     val textBubbleTranslationCoordinator by lazy(LazyThreadSafetyMode.NONE) {
-        TextBubbleTranslationCoordinator(
-            llmClient = llmClient,
-            floatingTranslationCacheStore = floatingTranslationCacheStore
-        )
+        TextBubbleTranslationCoordinator(llmClient = llmClient)
     }
     val libraryPrefs by lazy(LazyThreadSafetyMode.NONE) {
         appContext.getSharedPreferences(LIBRARY_PREFS_NAME, Context.MODE_PRIVATE)

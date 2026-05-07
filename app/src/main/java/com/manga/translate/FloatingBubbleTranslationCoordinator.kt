@@ -14,8 +14,7 @@ internal class FloatingBubbleTranslationCoordinator(
     private val settingsStore: SettingsStore
 ) {
     private val textBubbleTranslationCoordinator = TextBubbleTranslationCoordinator(
-        llmClient = llmClient,
-        floatingTranslationCacheStore = floatingTranslationCacheStore
+        llmClient = llmClient
     )
 
     suspend fun translateTextBubbles(
@@ -84,7 +83,6 @@ internal class FloatingBubbleTranslationCoordinator(
                 apiSettings = apiSettings,
                 language = language,
                 logTag = logTag,
-                useFloatingTextCache = false,
                 translationMode = "floating_text"
             ) ?: return null
             for (bubble in result.bubbles) {

@@ -19,10 +19,7 @@ internal class TranslationPipeline(
     private val floatingTranslationCacheStore: FloatingTranslationCacheStore =
         FloatingTranslationCacheStore(context.applicationContext),
     private val textBubbleTranslationCoordinator: TextBubbleTranslationCoordinator =
-        TextBubbleTranslationCoordinator(
-            llmClient = llmClient,
-            floatingTranslationCacheStore = floatingTranslationCacheStore
-        ),
+        TextBubbleTranslationCoordinator(llmClient = llmClient),
     private val floatingBubbleTranslationCoordinator: FloatingBubbleTranslationCoordinator =
         FloatingBubbleTranslationCoordinator(
             llmClient = llmClient,

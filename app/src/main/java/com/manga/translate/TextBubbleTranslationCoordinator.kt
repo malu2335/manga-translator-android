@@ -1,8 +1,7 @@
 package com.manga.translate
 
 internal class TextBubbleTranslationCoordinator(
-    private val llmClient: LlmClient,
-    private val floatingTranslationCacheStore: FloatingTranslationCacheStore? = null
+    private val llmClient: LlmClient
 ) {
 
     suspend fun translateBubbles(
@@ -14,7 +13,6 @@ internal class TextBubbleTranslationCoordinator(
         apiSettings: ApiSettings? = null,
         language: TranslationLanguage = TranslationLanguage.JA_TO_ZH,
         logTag: String,
-        useFloatingTextCache: Boolean = false,
         translationMode: String
     ): TextBubbleTranslationBatchResult? {
         if (bubbles.isEmpty()) {
@@ -34,31 +32,7 @@ internal class TextBubbleTranslationCoordinator(
 
         val translatedMap = HashMap<Int, String>(translatable.size)
         val cacheMisses = ArrayList<BubbleTranslation>(translatable.size)
-        if (useFloatingTextCache) {
-            val cacheStore = floatingTranslationCacheStore
-            requireNotNull(cacheStore) { "Floating text cache requested but cache store is unavailable" }
-            var exactCacheHits = 0
-            var similarityCacheHits = 0
-            for (bubble in translatable) {
-                val cached = cacheStore.findTextTranslation(bubble.text)
-                if (cached == null) {
-                    cacheMisses.add(bubble)
-                    continue
-                }
-                translatedMap[bubble.id] = cached.translation
-                if (cached.matchedBySimilarity) {
-                    similarityCacheHits++
-                } else {
-                    exactCacheHits++
-                }
-            }
-            AppLogger.log(
-                "FloatingCache",
-                "Text cache exactHits=$exactCacheHits similarityHits=$similarityCacheHits misses=${cacheMisses.size}"
-            )
-        } else {
-            cacheMisses.addAll(translatable)
-        }
+        cacheMisses.addAll(translatable)
 
         fun merge(): List<BubbleTranslation> {
             return bubbles.map { bubble ->
@@ -121,9 +95,6 @@ internal class TextBubbleTranslationCoordinator(
         for (source in cacheMisses) {
             val translatedText = translationById[source.id].orEmpty()
             translatedMap[source.id] = translatedText
-            if (useFloatingTextCache && translatedText.isNotBlank()) {
-                floatingTranslationCacheStore?.putTextTranslation(source.text, translatedText)
-            }
         }
 
         return TextBubbleTranslationBatchResult(
