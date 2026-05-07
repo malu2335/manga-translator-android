@@ -523,7 +523,23 @@ internal class TranslationPipeline(
         val engineModel = if (ocrSettings.useLocalOcr) {
             "local:$cacheMode"
         } else {
-            "api:${ocrSettings.modelName}"
+            val customParamsFingerprint = settingsStore.loadCustomRequestParameters()
+                .asSequence()
+                .filter { it.enabled && it.targetProviderId == OCR_PROVIDER_ID }
+                .map {
+                    buildString {
+                        append(it.key.trim())
+                        append('=')
+                        append(it.value.trim())
+                    }
+                }
+                .sorted()
+                .joinToString("&")
+            if (customParamsFingerprint.isBlank()) {
+                "api:${ocrSettings.modelName}"
+            } else {
+                "api:${ocrSettings.modelName}?$customParamsFingerprint"
+            }
         }
         return OcrMetadata(
             sourceLastModified = imageFile.lastModified(),

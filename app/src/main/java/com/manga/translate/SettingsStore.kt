@@ -7,6 +7,7 @@ import org.json.JSONObject
 import java.io.File
 
 const val PRIMARY_PROVIDER_ID = "primary"
+const val OCR_PROVIDER_ID = "ocr"
 
 data class ApiSettings(
     val apiUrl: String,

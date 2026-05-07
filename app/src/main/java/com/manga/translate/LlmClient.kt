@@ -109,7 +109,7 @@ class LlmClient(
             return@withContext null
         }
         val endpoint = buildOpenAiEndpoint(ocrSettings.apiUrl)
-        val payload = buildImageOcrPayload(ocrSettings.modelName, image)
+        val payload = buildImageOcrPayload(ocrSettings, image)
         val timeoutMs = ocrSettings.timeoutSeconds * 1000
         var lastErrorCode: String? = null
         var lastErrorBody: String? = null
@@ -581,7 +581,7 @@ class LlmClient(
         }
     }
 
-    private fun buildImageOcrPayload(modelName: String, image: Bitmap): JSONObject {
+    private fun buildImageOcrPayload(ocrSettings: OcrApiSettings, image: Bitmap): JSONObject {
         val config = getPromptConfig(OCR_PROMPT_CONFIG_ASSET)
         val imageBase64 = encodeBitmapToBase64(image)
         val userInstruction = config.userPromptPrefix.ifBlank { DEFAULT_OCR_USER_PROMPT }
@@ -619,9 +619,20 @@ class LlmClient(
                 .put("role", "user")
                 .put("content", userContent)
         )
-        return JSONObject()
-            .put("model", modelName)
+        val payload = JSONObject()
+            .put("model", ocrSettings.modelName)
             .put("messages", messages)
+        applyCustomRequestParameters(
+            payload,
+            ApiSettings(
+                apiUrl = ocrSettings.apiUrl,
+                apiKey = ocrSettings.apiKey,
+                modelName = ocrSettings.modelName,
+                apiFormat = ApiFormat.OPENAI_COMPATIBLE,
+                providerId = OCR_PROVIDER_ID
+            )
+        )
+        return payload
     }
 
     private fun buildImageTranslationPayload(

@@ -86,6 +86,10 @@ class SettingsFragment : Fragment() {
             RequestParamProviderOption(
                 providerId = PRIMARY_PROVIDER_ID,
                 label = getString(R.string.custom_request_params_provider_primary)
+            ),
+            RequestParamProviderOption(
+                providerId = OCR_PROVIDER_ID,
+                label = getString(R.string.custom_request_params_provider_ocr)
             )
         )
         settingsStore.loadAdditionalTranslationProviders().forEachIndexed { index, _ ->
@@ -1701,15 +1705,31 @@ class SettingsFragment : Fragment() {
             .filter { it.enabled }
             .mapNotNull {
                 val key = it.key.trim()
-                if (key.isBlank() && it.value.trim().isBlank()) null else key
+                if (key.isBlank() && it.value.trim().isBlank()) {
+                    null
+                } else {
+                    parameterReservedKeyScope(it.targetProviderId) to key
+                }
             }
-        val conflict = activeParamKeys.firstOrNull {
-            it in LlmClient.reservedRequestKeys(currentApiFormat())
+        val conflict = activeParamKeys.firstOrNull { (providerId, key) ->
+            key in LlmClient.reservedRequestKeys(resolveRequestParamApiFormat(providerId))
         }
         return if (conflict != null) {
-            getString(R.string.custom_request_params_conflict_error, conflict)
+            getString(R.string.custom_request_params_conflict_error, conflict.second)
         } else {
             null
+        }
+    }
+
+    private fun parameterReservedKeyScope(providerId: String): String {
+        return providerId.trim().ifBlank { PRIMARY_PROVIDER_ID }
+    }
+
+    private fun resolveRequestParamApiFormat(providerId: String): ApiFormat {
+        return if (providerId == OCR_PROVIDER_ID) {
+            ApiFormat.OPENAI_COMPATIBLE
+        } else {
+            currentApiFormat()
         }
     }
 

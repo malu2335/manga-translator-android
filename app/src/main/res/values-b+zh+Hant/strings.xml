@@ -120,7 +120,7 @@
     <string name="custom_request_params_button">自訂請求參數</string>
     <string name="custom_request_params_button_format">自訂請求參數：%1$d 項</string>
     <string name="custom_request_params_title">自訂請求參數</string>
-    <string name="custom_request_params_note">會以頂層欄位附加到 AI 請求本體。預設作用於主供應商，也可以單獨指定給供應商 1、供應商 2 等。支援多組鍵值對，自動辨識布林值、數字、null，以及合法 JSON 物件或陣列。不能覆蓋既有內建參數；同一供應商內的重複鍵和衝突會被攔截。</string>
+    <string name="custom_request_params_note">會以頂層欄位附加到 AI 請求本體。預設作用於主供應商，也可以單獨指定給 OCR API、供應商 1、供應商 2 等。支援多組鍵值對，自動辨識布林值、數字、null，以及合法 JSON 物件或陣列。不能覆蓋既有內建參數；同一供應商內的重複鍵和衝突會被攔截。</string>
     <string name="custom_request_params_add">新增一項參數</string>
     <string name="custom_request_params_delete">刪除此參數</string>
     <string name="custom_request_params_enabled">啟用</string>
@@ -131,6 +131,7 @@
     <string name="custom_request_params_row_title">參數 %1$d</string>
     <string name="custom_request_params_delete_action">刪除</string>
     <string name="custom_request_params_provider_primary">主供應商</string>
+    <string name="custom_request_params_provider_ocr">OCR API</string>
     <string name="custom_request_params_empty_row_error">參數鍵名不能為空</string>
     <string name="custom_request_params_duplicate_error">存在重複的自訂參數鍵：%1$s</string>
     <string name="custom_request_params_duplicate_error_scoped">供應商「%1$s」存在重複的自訂參數鍵：%2$s</string>
