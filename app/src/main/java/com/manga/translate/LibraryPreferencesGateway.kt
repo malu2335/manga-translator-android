@@ -20,9 +20,22 @@ internal class LibraryPreferencesGateway(
         )
     }
 
+    fun isGlossaryProcessingEnabled(folder: File): Boolean {
+        return prefs.getBoolean(
+            glossaryProcessingKeyPrefix + settingsFolder(folder).absolutePath,
+            true
+        )
+    }
+
     fun setFullTranslateEnabled(folder: File, enabled: Boolean) {
         prefs.edit() {
             putBoolean(fullTranslateKeyPrefix + settingsFolder(folder).absolutePath, enabled)
+        }
+    }
+
+    fun setGlossaryProcessingEnabled(folder: File, enabled: Boolean) {
+        prefs.edit() {
+            putBoolean(glossaryProcessingKeyPrefix + settingsFolder(folder).absolutePath, enabled)
         }
     }
 
@@ -152,11 +165,13 @@ internal class LibraryPreferencesGateway(
         private const val importTreeKey = "ehviewer_tree_uri"
         private const val exportTreeKey = "export_tree_uri"
         private const val fullTranslateKeyPrefix = "full_translate_enabled_"
+        private const val glossaryProcessingKeyPrefix = "glossary_processing_enabled_"
         private const val languageKeyPrefix = "translation_language_"
         private const val vlDirectTranslateKeyPrefix = "vl_direct_translate_enabled_"
         private const val readingModeKeyPrefix = "reading_mode_"
         private val settingsKeyPrefixes = listOf(
             fullTranslateKeyPrefix,
+            glossaryProcessingKeyPrefix,
             languageKeyPrefix,
             vlDirectTranslateKeyPrefix,
             readingModeKeyPrefix

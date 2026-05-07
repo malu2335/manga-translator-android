@@ -27,6 +27,7 @@ internal data class FolderTranslationTask(
     val images: List<File>,
     val force: Boolean,
     val fullTranslate: Boolean,
+    val glossaryProcessingEnabled: Boolean,
     val useVlDirectTranslate: Boolean,
     val language: TranslationLanguage
 )
@@ -46,6 +47,7 @@ internal class FolderTranslationCoordinator(
         val images: List<File>,
         val force: Boolean,
         val fullTranslate: Boolean,
+        val glossaryProcessingEnabled: Boolean,
         val useVlDirectTranslate: Boolean,
         val language: TranslationLanguage,
         val onTranslateEnabled: (Boolean) -> Unit
@@ -56,6 +58,7 @@ internal class FolderTranslationCoordinator(
         val pendingImages: List<File>,
         val force: Boolean,
         val fullTranslate: Boolean,
+        val glossaryProcessingEnabled: Boolean,
         val useVlDirectTranslate: Boolean,
         val language: TranslationLanguage
     )
@@ -91,6 +94,7 @@ internal class FolderTranslationCoordinator(
         images: List<File>,
         force: Boolean,
         fullTranslate: Boolean,
+        glossaryProcessingEnabled: Boolean,
         useVlDirectTranslate: Boolean,
         language: TranslationLanguage,
         onTranslateEnabled: (Boolean) -> Unit
@@ -100,6 +104,7 @@ internal class FolderTranslationCoordinator(
             images = images.toList(),
             force = force,
             fullTranslate = fullTranslate,
+            glossaryProcessingEnabled = glossaryProcessingEnabled,
             useVlDirectTranslate = useVlDirectTranslate,
             language = language,
             onTranslateEnabled = onTranslateEnabled
@@ -112,6 +117,7 @@ internal class FolderTranslationCoordinator(
                 folder,
                 images,
                 force,
+                glossaryProcessingEnabled,
                 useVlDirectTranslate,
                 language,
                 onTranslateEnabled
@@ -172,6 +178,7 @@ internal class FolderTranslationCoordinator(
                     pendingImages = pendingImages,
                     force = task.force,
                     fullTranslate = task.fullTranslate,
+                    glossaryProcessingEnabled = task.glossaryProcessingEnabled,
                     useVlDirectTranslate = task.useVlDirectTranslate,
                     language = task.language
                 )
@@ -305,6 +312,7 @@ internal class FolderTranslationCoordinator(
         folder: File,
         images: List<File>,
         force: Boolean,
+        glossaryProcessingEnabled: Boolean,
         useVlDirectTranslate: Boolean,
         language: TranslationLanguage,
         onTranslateEnabled: (Boolean) -> Unit
@@ -352,6 +360,7 @@ internal class FolderTranslationCoordinator(
                         pages = pendingImages,
                         folder = folder,
                         force = force,
+                        glossaryProcessingEnabled = glossaryProcessingEnabled,
                         useVlDirectTranslate = useVlDirectTranslate,
                         language = language,
                         glossary = glossary,
@@ -702,6 +711,7 @@ internal class FolderTranslationCoordinator(
                 pages = task.pendingImages,
                 folder = task.folder,
                 force = task.force,
+                glossaryProcessingEnabled = task.glossaryProcessingEnabled,
                 useVlDirectTranslate = task.useVlDirectTranslate,
                 language = task.language,
                 glossary = glossary,
@@ -916,6 +926,7 @@ internal class FolderTranslationCoordinator(
         pages: List<File>,
         folder: File,
         force: Boolean,
+        glossaryProcessingEnabled: Boolean,
         useVlDirectTranslate: Boolean,
         language: TranslationLanguage,
         glossary: MutableMap<String, String>,
@@ -943,6 +954,7 @@ internal class FolderTranslationCoordinator(
                                     folder = folder,
                                     image = image,
                                     force = force,
+                                    glossaryProcessingEnabled = glossaryProcessingEnabled,
                                     language = language,
                                     scheduler = scheduler,
                                     glossary = glossary,
@@ -1045,6 +1057,7 @@ internal class FolderTranslationCoordinator(
         folder: File,
         image: File,
         force: Boolean,
+        glossaryProcessingEnabled: Boolean,
         language: TranslationLanguage,
         scheduler: WeightedTranslationProviderScheduler,
         glossary: MutableMap<String, String>,
@@ -1067,10 +1080,16 @@ internal class FolderTranslationCoordinator(
                     providerContext = providerContext
                 ) { }
                 if (result != null) {
-                    val glossaryUsed = glossarySnapshot.filterKeys { key ->
-                        glossary[key] != glossarySnapshot[key]
+                    val glossaryUsed = if (glossaryProcessingEnabled) {
+                        glossarySnapshot.filterKeys { key ->
+                            glossary[key] != glossarySnapshot[key]
+                        }
+                    } else {
+                        emptyMap()
                     }
-                    mergeGlossary(glossary, glossaryUsed, glossaryMutex, folder)
+                    if (glossaryProcessingEnabled) {
+                        mergeGlossary(glossary, glossaryUsed, glossaryMutex, folder)
+                    }
                     AppLogger.log(
                         "Library",
                         "Translated ${image.name} via ${providerContext.displayName}"
@@ -1100,7 +1119,14 @@ internal class FolderTranslationCoordinator(
             AppLogger.log("Library", "Invalid model response for ${image.name}", lastResponseException)
             return when (reportModelError(lastResponseException.responseContent)) {
                 ModelErrorAction.RETRY -> {
-                    val retried = retryStandardImage(folder, image, force, language, scheduler)
+                    val retried = retryStandardImage(
+                        folder = folder,
+                        image = image,
+                        force = force,
+                        glossaryProcessingEnabled = glossaryProcessingEnabled,
+                        language = language,
+                        scheduler = scheduler
+                    )
                     PageTranslationExecutionResult(recoveredFromModelError = retried)
                 }
                 ModelErrorAction.SKIP -> {
@@ -1253,6 +1279,7 @@ internal class FolderTranslationCoordinator(
         folder: File,
         image: File,
         force: Boolean,
+        glossaryProcessingEnabled: Boolean,
         language: TranslationLanguage,
         scheduler: WeightedTranslationProviderScheduler = WeightedTranslationProviderScheduler(
             settingsStore.loadMainTranslationProviderPool()
@@ -1265,6 +1292,7 @@ internal class FolderTranslationCoordinator(
                 folder = folder,
                 image = image,
                 force = force,
+                glossaryProcessingEnabled = glossaryProcessingEnabled,
                 language = language,
                 scheduler = scheduler,
                 glossary = glossary,

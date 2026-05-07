@@ -420,7 +420,13 @@ class LibraryFragment : Fragment() {
         binding.folderLanguageSetting.setOnClickListener { showLanguageSettingDialog() }
         binding.folderReadingModeButton.setOnClickListener { showFolderReadingModeDialog() }
         binding.folderFullTranslateSwitch.setOnCheckedChangeListener { _, isChecked ->
-            currentFolder?.let { preferencesGateway.setFullTranslateEnabled(it, isChecked) }
+            currentFolder?.let { folder ->
+                preferencesGateway.setFullTranslateEnabled(folder, isChecked)
+                updateGlossaryProcessingSwitchState(folder)
+            }
+        }
+        binding.folderGlossaryProcessingSwitch.setOnCheckedChangeListener { _, isChecked ->
+            currentFolder?.let { preferencesGateway.setGlossaryProcessingEnabled(it, isChecked) }
         }
         binding.folderVlDirectTranslateSwitch.setOnCheckedChangeListener { _, isChecked ->
             currentFolder?.let { folder ->
@@ -609,6 +615,9 @@ class LibraryFragment : Fragment() {
         resetFolderTopBar(forceVisible = true)
         binding.folderTitle.text = buildFolderTitle(folder)
         binding.folderFullTranslateSwitch.isChecked = preferencesGateway.isFullTranslateEnabled(folder)
+        binding.folderGlossaryProcessingSwitch.isChecked =
+            preferencesGateway.isGlossaryProcessingEnabled(folder)
+        updateGlossaryProcessingSwitchState(folder)
         binding.folderVlDirectTranslateSwitch.isChecked =
             preferencesGateway.isVlDirectTranslateEnabled(folder)
         updateLanguageSettingButton(folder)
@@ -1098,6 +1107,7 @@ class LibraryFragment : Fragment() {
 
     private fun runTranslation(folder: File, images: List<File>, force: Boolean) {
         val fullTranslate = preferencesGateway.isFullTranslateEnabled(folder)
+        val glossaryProcessingEnabled = preferencesGateway.isGlossaryProcessingEnabled(folder)
         val useVlDirectTranslate = preferencesGateway.isVlDirectTranslateEnabled(folder)
         val useLocalOcr = settingsStore.loadOcrApiSettings().useLocalOcr
         val language = if (useLocalOcr) {
@@ -1113,6 +1123,7 @@ class LibraryFragment : Fragment() {
                 images = images,
                 force = force,
                 fullTranslate = fullTranslate,
+                glossaryProcessingEnabled = glossaryProcessingEnabled,
                 useVlDirectTranslate = useVlDirectTranslate,
                 language = language
             )
@@ -1145,6 +1156,7 @@ class LibraryFragment : Fragment() {
                     images = repository.listImages(folder),
                     force = force,
                     fullTranslate = preferencesGateway.isFullTranslateEnabled(folder),
+                    glossaryProcessingEnabled = preferencesGateway.isGlossaryProcessingEnabled(folder),
                     useVlDirectTranslate = preferencesGateway.isVlDirectTranslateEnabled(folder),
                     language = language
                 )
@@ -1162,10 +1174,17 @@ class LibraryFragment : Fragment() {
                 images = repository.listImages(chapter),
                 force = force,
                 fullTranslate = preferencesGateway.isFullTranslateEnabled(chapter),
+                glossaryProcessingEnabled = preferencesGateway.isGlossaryProcessingEnabled(chapter),
                 useVlDirectTranslate = preferencesGateway.isVlDirectTranslateEnabled(chapter),
                 language = language
             )
         }
+    }
+
+    private fun updateGlossaryProcessingSwitchState(folder: File) {
+        val enabled = !preferencesGateway.isFullTranslateEnabled(folder)
+        binding.folderGlossaryProcessingSwitch.isEnabled = enabled
+        binding.folderGlossaryProcessingNote.alpha = if (enabled) 1f else 0.5f
     }
 
     private fun exportFolder() {

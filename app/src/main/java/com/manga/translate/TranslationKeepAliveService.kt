@@ -163,6 +163,7 @@ class TranslationKeepAliveService : Service() {
                     images = first.images,
                     force = first.force,
                     fullTranslate = first.fullTranslate,
+                    glossaryProcessingEnabled = first.glossaryProcessingEnabled,
                     useVlDirectTranslate = first.useVlDirectTranslate,
                     language = first.language,
                     onTranslateEnabled = { }

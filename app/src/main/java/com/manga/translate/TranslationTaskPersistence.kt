@@ -18,6 +18,7 @@ internal data class FolderTranslationTaskDescriptor(
     val imagePaths: List<String>,
     val force: Boolean,
     val fullTranslate: Boolean,
+    val glossaryProcessingEnabled: Boolean,
     val useVlDirectTranslate: Boolean,
     val language: TranslationLanguage
 )
@@ -62,6 +63,7 @@ internal class TranslationTaskPersistence(context: Context) {
             .put("imagePaths", images)
             .put("force", force)
             .put("fullTranslate", fullTranslate)
+            .put("glossaryProcessingEnabled", glossaryProcessingEnabled)
             .put("useVlDirectTranslate", useVlDirectTranslate)
             .put("language", language.name)
     }
@@ -75,6 +77,7 @@ internal class TranslationTaskPersistence(context: Context) {
             images: List<File>,
             force: Boolean,
             fullTranslate: Boolean,
+            glossaryProcessingEnabled: Boolean,
             useVlDirectTranslate: Boolean,
             language: TranslationLanguage
         ): TranslationTaskDescriptor {
@@ -86,6 +89,7 @@ internal class TranslationTaskPersistence(context: Context) {
                         imagePaths = images.map(File::getAbsolutePath),
                         force = force,
                         fullTranslate = fullTranslate,
+                        glossaryProcessingEnabled = glossaryProcessingEnabled,
                         useVlDirectTranslate = useVlDirectTranslate,
                         language = language
                     )
@@ -114,6 +118,7 @@ internal class TranslationTaskPersistence(context: Context) {
                 imagePaths = images.map(File::getAbsolutePath),
                 force = force,
                 fullTranslate = fullTranslate,
+                glossaryProcessingEnabled = glossaryProcessingEnabled,
                 useVlDirectTranslate = useVlDirectTranslate,
                 language = language
             )
@@ -154,6 +159,7 @@ private fun parseFolderTranslationTaskDescriptor(json: JSONObject): FolderTransl
         imagePaths = imagePaths,
         force = json.optBoolean("force"),
         fullTranslate = json.optBoolean("fullTranslate"),
+        glossaryProcessingEnabled = json.optBoolean("glossaryProcessingEnabled", true),
         useVlDirectTranslate = json.optBoolean("useVlDirectTranslate"),
         language = TranslationLanguage.fromString(
             json.optString("language", TranslationLanguage.JA_TO_ZH.name)
@@ -172,6 +178,7 @@ internal fun TranslationTaskDescriptor.toJsonString(): String {
                 .put("imagePaths", images)
                 .put("force", task.force)
                 .put("fullTranslate", task.fullTranslate)
+                .put("glossaryProcessingEnabled", task.glossaryProcessingEnabled)
                 .put("useVlDirectTranslate", task.useVlDirectTranslate)
                 .put("language", task.language.name)
         )
@@ -196,6 +203,7 @@ internal fun TranslationTaskDescriptor.toFolderTasks(): List<FolderTranslationTa
                 images = images,
                 force = descriptor.force,
                 fullTranslate = descriptor.fullTranslate,
+                glossaryProcessingEnabled = descriptor.glossaryProcessingEnabled,
                 useVlDirectTranslate = descriptor.useVlDirectTranslate,
                 language = descriptor.language
             )
