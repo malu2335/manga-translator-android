@@ -11,7 +11,7 @@ import java.nio.FloatBuffer
 
 /**
  * 韩文OCR识别器，基于PaddleOCR的Korean PP-OCRv3识别模型
- * 需要配合EnglishLineDetector使用Multilingual_PP-OCRv3_det_infer.onnx进行文字行检测
+ * 需要配合EnglishLineDetector使用models/detection/Multilingual_PP-OCRv3_det_infer.onnx进行文字行检测
  */
 class KoreanOcr(
     private val context: Context,
@@ -19,7 +19,7 @@ class KoreanOcr(
     private val settingsStore: SettingsStore = SettingsStore(context.applicationContext)
 ) : OcrEngine {
     private val env = OnnxRuntimeSupport.environment()
-    private val session: OrtSession = createSession("korean_PP-OCRv3_rec_infer.onnx")
+    private val session: OrtSession = createSession("models/ocr/korean_PP-OCRv3_rec_infer.onnx")
     private val charset: List<String> = readCharset()
     private val inputName: String = session.inputInfo.keys.first()
 

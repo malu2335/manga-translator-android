@@ -17,7 +17,7 @@ import kotlin.math.min
 
 class EnglishLineDetector(
     private val context: Context,
-    private val modelAssetName: String = "Multilingual_PP-OCRv3_det_infer.onnx",
+    private val modelAssetName: String = "models/detection/Multilingual_PP-OCRv3_det_infer.onnx",
     private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT,
     private val settingsStore: SettingsStore = SettingsStore(context.applicationContext)
 ) {

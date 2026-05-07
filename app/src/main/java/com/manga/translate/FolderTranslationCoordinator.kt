@@ -558,7 +558,7 @@ internal class FolderTranslationCoordinator(
                             total = 1,
                             imageName = glossaryImage.orEmpty()
                         )
-                        val abstractPromptAsset = "llm_prompts_abstract.json"
+                        val abstractPromptAsset = "prompts/llm_prompts_abstract.json"
                         while (true) {
                             try {
                                 val extracted =
@@ -601,7 +601,7 @@ internal class FolderTranslationCoordinator(
                     failed = failed || executeConcurrentFullPages(
                         pages = ocrResults,
                         folder = folder,
-                        promptAsset = "llm_prompts_FullTrans.json",
+                        promptAsset = "prompts/llm_prompts_FullTrans.json",
                         language = language,
                         glossary = glossary,
                         glossaryMutex = glossaryMutex,
@@ -789,7 +789,7 @@ internal class FolderTranslationCoordinator(
         }
         val glossaryText = buildGlossaryText(glossaryPages)
         if (glossaryText.isNotBlank()) {
-            val abstractPromptAsset = "llm_prompts_abstract.json"
+            val abstractPromptAsset = "prompts/llm_prompts_abstract.json"
             while (true) {
                 try {
                     val extracted = llmClient.extractGlossary(glossaryText, glossary, abstractPromptAsset)
@@ -827,7 +827,7 @@ internal class FolderTranslationCoordinator(
             failed = failed || executeConcurrentFullPages(
                 pages = ocrResults,
                 folder = task.folder,
-                promptAsset = "llm_prompts_FullTrans.json",
+                promptAsset = "prompts/llm_prompts_FullTrans.json",
                 language = task.language,
                 glossary = glossary,
                 glossaryMutex = glossaryMutex,

@@ -17,9 +17,10 @@ class MangaOcr(
     private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT,
     private val settingsStore: SettingsStore = SettingsStore(context.applicationContext)
 ) : OcrEngine {
+    private val assetBasePath = "models/ocr/manga_ocr"
     private val env = OnnxRuntimeSupport.environment()
-    private val encoderSession: OrtSession = createSession("encoder_model.onnx")
-    private val decoderSession: OrtSession = createSession("decoder_model.onnx")
+    private val encoderSession: OrtSession = createSession("$assetBasePath/encoder_model.onnx")
+    private val decoderSession: OrtSession = createSession("$assetBasePath/decoder_model.onnx")
     private val generationConfig = loadGenerationConfig()
     private val imageConfig = loadImageConfig()
     private val tokenizer = loadTokenizer()
@@ -162,7 +163,7 @@ class MangaOcr(
     }
 
     private fun loadGenerationConfig(): GenerationConfig {
-        val json = JSONObject(readAsset("generation_config.json"))
+        val json = JSONObject(readAsset("$assetBasePath/generation_config.json"))
         return GenerationConfig(
             decoderStartTokenId = json.getInt("decoder_start_token_id"),
             eosTokenId = json.getInt("eos_token_id"),
@@ -172,7 +173,7 @@ class MangaOcr(
     }
 
     private fun loadImageConfig(): ImageConfig {
-        val json = JSONObject(readAsset("preprocessor_config.json"))
+        val json = JSONObject(readAsset("$assetBasePath/preprocessor_config.json"))
         val size = json.getJSONObject("size")
         val mean = json.getJSONArray("image_mean")
         val std = json.getJSONArray("image_std")
@@ -194,7 +195,7 @@ class MangaOcr(
     }
 
     private fun loadTokenizer(): SimpleTokenizer {
-        val tokenizerJson = JSONObject(readAsset("tokenizer.json"))
+        val tokenizerJson = JSONObject(readAsset("$assetBasePath/tokenizer.json"))
         val modelJson = tokenizerJson.getJSONObject("model")
         val vocabJson = modelJson.getJSONObject("vocab")
         val entries = ArrayList<Pair<String, Int>>(vocabJson.length())
@@ -213,7 +214,7 @@ class MangaOcr(
             }
         }
 
-        val specialJson = JSONObject(readAsset("special_tokens_map.json"))
+        val specialJson = JSONObject(readAsset("$assetBasePath/special_tokens_map.json"))
         val specialTokens = HashSet<String>()
         val specialKeys = specialJson.keys()
         while (specialKeys.hasNext()) {

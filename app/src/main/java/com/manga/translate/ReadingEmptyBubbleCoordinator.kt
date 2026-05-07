@@ -108,7 +108,7 @@ internal class ReadingEmptyBubbleCoordinator(
         glossary: Map<String, String>,
         language: TranslationLanguage
     ): TextBubbleTranslationBatchResult? = withContext(Dispatchers.IO) {
-        val promptAsset = "llm_prompts.json"
+        val promptAsset = "prompts/llm_prompts.json"
         try {
             textBubbleTranslationCoordinator.translateBubbles(
                 bubbles = bubbles.map { bubble ->

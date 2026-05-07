@@ -47,12 +47,9 @@ lint-reports/
 .DS_Store
 Thumbs.db
 
+# Large model assets
+assets/models/
+
 # Misc
 *.swp
 *.swo
-
-# Model weights (local only)
-assets/*.onnx
-!assets/ysgyolo_1.2_OS1.0.onnx
-!assets/migan_512.onnx
-assets/*.pt

@@ -8,8 +8,16 @@ object PromptAssetResolver {
         if (!shouldUseTraditionalPrompts(context)) return assetName
         val candidate = assetName.toTraditionalVariantName()
         if (candidate == assetName) return assetName
-        val assets = context.assets.list("").orEmpty()
-        return if (candidate in assets) candidate else assetName
+        return if (assetExists(context, candidate)) candidate else assetName
+    }
+
+    private fun assetExists(context: Context, assetName: String): Boolean {
+        return try {
+            context.assets.open(assetName).close()
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun shouldUseTraditionalPrompts(context: Context): Boolean {

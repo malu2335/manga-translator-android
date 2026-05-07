@@ -1410,8 +1410,8 @@ class LlmClient(
     }
 
     companion object {
-        private const val PROMPT_CONFIG_ASSET = "llm_prompts.json"
-        private const val OCR_PROMPT_CONFIG_ASSET = "ocr_prompts.json"
+        private const val PROMPT_CONFIG_ASSET = "prompts/llm_prompts.json"
+        private const val OCR_PROMPT_CONFIG_ASSET = "prompts/ocr_prompts.json"
         private const val DEFAULT_OCR_USER_PROMPT =
             "<image>\nExtract only visible text from this image. Do not describe objects, people, or scene. If no text is visible, return None."
         private const val DEFAULT_IMAGE_TRANSLATION_USER_PROMPT =

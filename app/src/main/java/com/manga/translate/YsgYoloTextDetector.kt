@@ -26,7 +26,7 @@ data class TextDetection(
 
 class YsgYoloTextDetector(
     private val context: Context,
-    private val modelAssetName: String = "ysgyolo_1.2_OS1.0.onnx",
+    private val modelAssetName: String = "models/text_detection/ysgyolo_1.2_OS1.0.onnx",
     private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT
 ) {
     private val env = OnnxRuntimeSupport.environment()

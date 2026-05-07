@@ -11,7 +11,7 @@ import java.nio.FloatBuffer
 
 /**
  * 英文OCR识别器，基于PP-OCRv5识别模型
- * 需要配合EnglishLineDetector使用Multilingual_PP-OCRv3_det_infer.onnx进行英文行检测
+ * 需要配合EnglishLineDetector使用models/detection/Multilingual_PP-OCRv3_det_infer.onnx进行英文行检测
  */
 class EnglishOcr(
     private val context: Context,
@@ -19,7 +19,7 @@ class EnglishOcr(
     private val settingsStore: SettingsStore = SettingsStore(context.applicationContext)
 ) : OcrEngine {
     private val env = OnnxRuntimeSupport.environment()
-    private val session: OrtSession = createSession("en_PP-OCRv5_rec_mobile_infer.onnx")
+    private val session: OrtSession = createSession("models/ocr/en_PP-OCRv5_rec_mobile_infer.onnx")
     private val charset: List<String> = readCharset()
     private val inputName: String = session.inputInfo.keys.first()
 

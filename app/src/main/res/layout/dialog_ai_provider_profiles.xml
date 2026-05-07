@@ -48,27 +48,37 @@
             android:listSelector="@android:color/transparent"
             android:scrollbars="none" />
 
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_dialog_divider" />
+
         <LinearLayout
             android:id="@+id/ai_provider_profiles_primary_actions"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:gravity="end"
+            android:baselineAligned="false"
+            android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <Button
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/ai_provider_profiles_save_new_button"
-                style="@style/Widget.MangaTranslator.Button"
-                android:layout_width="wrap_content"
+                style="@style/Widget.MangaTranslator.DialogActionButton"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
                 android:text="@string/ai_provider_profiles_save_new" />
 
-            <Button
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/ai_provider_profiles_apply_button"
-                style="@style/Widget.MangaTranslator.Button"
-                android:layout_width="wrap_content"
+                style="@style/Widget.MangaTranslator.DialogActionButton"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
                 android:text="@string/ai_provider_profiles_apply" />
         </LinearLayout>
 
@@ -76,23 +86,27 @@
             android:id="@+id/ai_provider_profiles_secondary_actions"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:gravity="end"
+            android:layout_marginTop="12dp"
+            android:baselineAligned="false"
+            android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <Button
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/ai_provider_profiles_overwrite_button"
-                style="@style/Widget.MangaTranslator.Button"
-                android:layout_width="wrap_content"
+                style="@style/Widget.MangaTranslator.DialogActionButton"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
                 android:text="@string/ai_provider_profiles_overwrite" />
 
-            <Button
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/ai_provider_profiles_delete_button"
-                style="@style/Widget.MangaTranslator.Button"
-                android:layout_width="wrap_content"
+                style="@style/Widget.MangaTranslator.DialogActionButton"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
                 android:text="@string/ai_provider_profiles_delete" />
         </LinearLayout>
 

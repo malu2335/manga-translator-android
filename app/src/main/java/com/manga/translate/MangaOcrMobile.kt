@@ -21,85 +21,99 @@ class MangaOcrMobile(
 ) : OcrEngine {
     private val config = loadConfig()
     private val tokenizer = loadTokenizer()
-    private val encoderInterpreter = createInterpreter(ENCODER_ASSET_NAME)
-    private val decoderInterpreter = createInterpreter(DECODER_ASSET_NAME)
 
     override fun recognize(bitmap: Bitmap): String {
         val encoderInput = preprocess(bitmap)
-        val encoderOutput = Array(1) { Array(config.encoderSeqLen) { FloatArray(config.encoderHiddenSize) } }
-        encoderInterpreter.run(encoderInput, encoderOutput)
+        createInterpreter(ENCODER_ASSET_NAME).use { encoderInterpreter ->
+            createInterpreter(DECODER_ASSET_NAME).use { decoderInterpreter ->
+                val encoderOutput =
+                    Array(1) { Array(config.encoderSeqLen) { FloatArray(config.encoderHiddenSize) } }
+                encoderInterpreter.run(encoderInput, encoderOutput)
 
-        val initInputs = mutableMapOf<String, Any>(
-            "args_0" to encoderOutput,
-            "args_1" to arrayOf(longArrayOf(config.decoderStartTokenId.toLong()))
-        )
-        val initOutputs = mutableMapOf<String, Any>(
-            "output_0" to Array(1) { FloatArray(config.vocabSize) },
-            "output_1" to Array(config.numDecoderLayers) {
-                Array(1) { Array(config.numHeads) { Array(1) { FloatArray(config.headDim) } } }
-            },
-            "output_2" to Array(config.numDecoderLayers) {
-                Array(1) { Array(config.numHeads) { Array(1) { FloatArray(config.headDim) } } }
-            },
-            "output_3" to Array(config.numDecoderLayers) {
-                Array(1) { Array(config.numHeads) { Array(config.encoderSeqLen) { FloatArray(config.headDim) } } }
-            },
-            "output_4" to Array(config.numDecoderLayers) {
-                Array(1) { Array(config.numHeads) { Array(config.encoderSeqLen) { FloatArray(config.headDim) } } }
-            }
-        )
-        decoderInterpreter.runSignature(initInputs, initOutputs, DECODER_INIT_SIGNATURE)
+                val initInputs = mutableMapOf<String, Any>(
+                    "args_0" to encoderOutput,
+                    "args_1" to arrayOf(longArrayOf(config.decoderStartTokenId.toLong()))
+                )
+                val initOutputs = mutableMapOf<String, Any>(
+                    "output_0" to Array(1) { FloatArray(config.vocabSize) },
+                    "output_1" to Array(config.numDecoderLayers) {
+                        Array(1) { Array(config.numHeads) { Array(1) { FloatArray(config.headDim) } } }
+                    },
+                    "output_2" to Array(config.numDecoderLayers) {
+                        Array(1) { Array(config.numHeads) { Array(1) { FloatArray(config.headDim) } } }
+                    },
+                    "output_3" to Array(config.numDecoderLayers) {
+                        Array(1) {
+                            Array(config.numHeads) {
+                                Array(config.encoderSeqLen) { FloatArray(config.headDim) }
+                            }
+                        }
+                    },
+                    "output_4" to Array(config.numDecoderLayers) {
+                        Array(1) {
+                            Array(config.numHeads) {
+                                Array(config.encoderSeqLen) { FloatArray(config.headDim) }
+                            }
+                        }
+                    }
+                )
+                decoderInterpreter.runSignature(initInputs, initOutputs, DECODER_INIT_SIGNATURE)
 
-        val tokenIds = ArrayList<Int>(config.maxLength)
-        var logits = outputLogits("output_0", initOutputs)
-        var selfKeys = initializeSelfCache(initOutputs.getValue("output_1"))
-        var selfValues = initializeSelfCache(initOutputs.getValue("output_2"))
-        val crossKeys = initOutputs.getValue("output_3")
-        val crossValues = initOutputs.getValue("output_4")
+                val tokenIds = ArrayList<Int>(config.maxLength)
+                var logits = outputLogits("output_0", initOutputs)
+                var selfKeys = initializeSelfCache(initOutputs.getValue("output_1"))
+                var selfValues = initializeSelfCache(initOutputs.getValue("output_2"))
+                val crossKeys = initOutputs.getValue("output_3")
+                val crossValues = initOutputs.getValue("output_4")
 
-        var nextToken = argmax(logits[0])
-        var position = 1L
-        while (tokenIds.size < config.maxLength && nextToken != config.eosTokenId) {
-            tokenIds.add(nextToken)
-            val stepInputs = mutableMapOf<String, Any>(
-                "args_0" to encoderOutput,
-                "args_1" to arrayOf(longArrayOf(nextToken.toLong())),
-                "args_2" to arrayOf(longArrayOf(position)),
-                "args_3" to selfKeys,
-                "args_4" to selfValues,
-                "args_5" to crossKeys,
-                "args_6" to crossValues
-            )
-            val stepOutputs = mutableMapOf<String, Any>(
-                "output_0" to Array(1) { FloatArray(config.vocabSize) },
-                "output_1" to Array(config.numDecoderLayers) {
-                    Array(1) { Array(config.numHeads) { Array(1) { FloatArray(config.headDim) } } }
-                },
-                "output_2" to Array(config.numDecoderLayers) {
-                    Array(1) { Array(config.numHeads) { Array(1) { FloatArray(config.headDim) } } }
+                var nextToken = argmax(logits[0])
+                var position = 1L
+                while (tokenIds.size < config.maxLength && nextToken != config.eosTokenId) {
+                    tokenIds.add(nextToken)
+                    if (tokenIds.size >= config.maxLength) {
+                        break
+                    }
+                    val stepInputs = mutableMapOf<String, Any>(
+                        "args_0" to encoderOutput,
+                        "args_1" to arrayOf(longArrayOf(nextToken.toLong())),
+                        "args_2" to arrayOf(longArrayOf(position)),
+                        "args_3" to selfKeys,
+                        "args_4" to selfValues,
+                        "args_5" to crossKeys,
+                        "args_6" to crossValues
+                    )
+                    val stepOutputs = mutableMapOf<String, Any>(
+                        "output_0" to Array(1) { FloatArray(config.vocabSize) },
+                        "output_1" to Array(config.numDecoderLayers) {
+                            Array(1) { Array(config.numHeads) { Array(1) { FloatArray(config.headDim) } } }
+                        },
+                        "output_2" to Array(config.numDecoderLayers) {
+                            Array(1) { Array(config.numHeads) { Array(1) { FloatArray(config.headDim) } } }
+                        }
+                    )
+                    decoderInterpreter.runSignature(stepInputs, stepOutputs, DECODER_STEP_SIGNATURE)
+                    logits = outputLogits("output_0", stepOutputs)
+                    selfKeys = appendSelfCache(
+                        currentCache = selfKeys,
+                        stepCache = stepOutputs.getValue("output_1"),
+                        position = tokenIds.size
+                    )
+                    selfValues = appendSelfCache(
+                        currentCache = selfValues,
+                        stepCache = stepOutputs.getValue("output_2"),
+                        position = tokenIds.size
+                    )
+                    nextToken = argmax(logits[0])
+                    position++
                 }
-            )
-            decoderInterpreter.runSignature(stepInputs, stepOutputs, DECODER_STEP_SIGNATURE)
-            logits = outputLogits("output_0", stepOutputs)
-            selfKeys = appendSelfCache(
-                currentCache = selfKeys,
-                stepCache = stepOutputs.getValue("output_1"),
-                position = tokenIds.size
-            )
-            selfValues = appendSelfCache(
-                currentCache = selfValues,
-                stepCache = stepOutputs.getValue("output_2"),
-                position = tokenIds.size
-            )
-            nextToken = argmax(logits[0])
-            position++
-        }
 
-        val text = tokenizer.decode(tokenIds)
-        if (settingsStore.loadModelIoLogging()) {
-            AppLogger.log("MangaOcrMobile", "Input ${bitmap.width}x${bitmap.height}, output: $text")
+                val text = tokenizer.decode(tokenIds)
+                if (settingsStore.loadModelIoLogging()) {
+                    AppLogger.log("MangaOcrMobile", "Input ${bitmap.width}x${bitmap.height}, output: $text")
+                }
+                return text
+            }
         }
-        return text
     }
 
     private fun preprocess(bitmap: Bitmap): ByteBuffer {
@@ -305,11 +319,11 @@ class MangaOcrMobile(
     }
 
     companion object {
-        private const val CONFIG_ASSET_NAME = "manga_ocr_mobile/config.json"
-        private const val ENCODER_ASSET_NAME = "manga_ocr_mobile/encoder.tflite"
-        private const val DECODER_ASSET_NAME = "manga_ocr_mobile/decoder.tflite"
-        private const val TOKENIZER_ASSET_NAME = "manga_ocr_mobile/tokenizer/tokenizer.json"
-        private const val SPECIAL_TOKENS_ASSET_NAME = "manga_ocr_mobile/tokenizer/special_tokens_map.json"
+        private const val CONFIG_ASSET_NAME = "models/ocr/manga_ocr_mobile/config.json"
+        private const val ENCODER_ASSET_NAME = "models/ocr/manga_ocr_mobile/encoder.tflite"
+        private const val DECODER_ASSET_NAME = "models/ocr/manga_ocr_mobile/decoder.tflite"
+        private const val TOKENIZER_ASSET_NAME = "models/ocr/manga_ocr_mobile/tokenizer/tokenizer.json"
+        private const val SPECIAL_TOKENS_ASSET_NAME = "models/ocr/manga_ocr_mobile/tokenizer/special_tokens_map.json"
         private const val DECODER_INIT_SIGNATURE = "init"
         private const val DECODER_STEP_SIGNATURE = "step"
     }

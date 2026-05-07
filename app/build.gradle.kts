@@ -68,7 +68,11 @@ android {
 
     packaging {
         jniLibs {
-            keepDebugSymbols += setOf("**/libtensorflowlite_jni.so")
+            keepDebugSymbols += setOf(
+                "**/libtensorflowlite_jni.so",
+                "**/libonnxruntime.so",
+                "**/libonnxruntime4j_jni.so"
+            )
         }
     }
 
@@ -89,7 +93,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.19.2")
-    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite:2.17.0")
     implementation("net.lingala.zip4j:zip4j:2.11.5")
 
 }

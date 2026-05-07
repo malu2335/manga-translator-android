@@ -1628,8 +1628,8 @@ class FloatingBallOverlayService : Service() {
         private const val FLOATING_PROGRESS_HIDE_DELAY_MS = 2_000L
         private const val CHANNEL_ID = "floating_detect_channel"
         private const val NOTIFICATION_ID = 2002
-        private const val FLOAT_PROMPT_ASSET = "float_llm_prompts.json"
-        private const val FLOAT_VL_PROMPT_ASSET = "vl_bubble_prompts.json"
+        private const val FLOAT_PROMPT_ASSET = "prompts/float_llm_prompts.json"
+        private const val FLOAT_VL_PROMPT_ASSET = "prompts/vl_bubble_prompts.json"
         private const val FLOATING_TRANSLATE_RETRY_COUNT = 1
         private const val MODEL_RESPONSE_SILENT_RETRY_COUNT = 3
         private const val MAX_FLOATING_VL_TRANSLATE_CONCURRENCY = 16

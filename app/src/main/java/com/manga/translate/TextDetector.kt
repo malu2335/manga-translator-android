@@ -7,7 +7,7 @@ import kotlin.math.max
 
 class TextDetector(
     context: Context,
-    modelAssetName: String = "ysgyolo_1.2_OS1.0.onnx",
+    modelAssetName: String = "models/text_detection/ysgyolo_1.2_OS1.0.onnx",
     private val settingsStore: SettingsStore = SettingsStore(context.applicationContext)
 ) {
     private val detector = YsgYoloTextDetector(context, modelAssetName)

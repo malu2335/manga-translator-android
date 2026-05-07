@@ -429,9 +429,9 @@ internal class TranslationPipeline(
         }
 
     companion object {
-        private const val STANDARD_PROMPT_ASSET = "llm_prompts.json"
-        private const val FULL_TRANS_PROMPT_ASSET = "llm_prompts_FullTrans.json"
-        private const val VL_PROMPT_ASSET = "vl_bubble_prompts.json"
+        private const val STANDARD_PROMPT_ASSET = "prompts/llm_prompts.json"
+        private const val FULL_TRANS_PROMPT_ASSET = "prompts/llm_prompts_FullTrans.json"
+        private const val VL_PROMPT_ASSET = "prompts/vl_bubble_prompts.json"
         private const val MODEL_RESPONSE_SILENT_RETRY_COUNT = 3
     }
 

@@ -28,7 +28,7 @@ data class BubbleDetection(
 
 class BubbleDetector(
     private val context: Context,
-    private val modelAssetName: String = "yolov8m_seg-speech-bubble.onnx",
+    private val modelAssetName: String = "models/detection/yolov8m_seg-speech-bubble.onnx",
     private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT,
     private val settingsStore: SettingsStore = SettingsStore(context.applicationContext)
 ) {

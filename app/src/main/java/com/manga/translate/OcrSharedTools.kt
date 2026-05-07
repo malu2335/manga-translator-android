@@ -11,6 +11,7 @@ class OcrEngineRegistry(
     private val appContext = context.applicationContext
     private var mangaOcr: MangaOcr? = null
     private var mangaOcrMobile: MangaOcrMobile? = null
+    private var mangaOcrMobileInitFailed = false
     private var englishOcr: EnglishOcr? = null
     private var koreanOcr: KoreanOcr? = null
     private var englishLineDetector: EnglishLineDetector? = null
@@ -27,11 +28,13 @@ class OcrEngineRegistry(
 
     fun getMangaOcrMobile(logTag: String): MangaOcrMobile? {
         if (mangaOcrMobile != null) return mangaOcrMobile
+        if (mangaOcrMobileInitFailed) return null
         return try {
             MangaOcrMobile(appContext, settingsStore = settingsStore).also {
                 mangaOcrMobile = it
             }
         } catch (e: Exception) {
+            mangaOcrMobileInitFailed = true
             AppLogger.log(logTag, "Failed to init mobile OCR", e)
             null
         }
