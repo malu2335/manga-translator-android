@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="10dp"
@@ -73,13 +74,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:hint="@string/custom_request_param_target_provider_hint">
+            android:hint="@string/custom_request_param_target_provider_hint"
+            app:endIconMode="dropdown_menu">
 
             <com.google.android.material.textfield.MaterialAutoCompleteTextView
                 android:id="@+id/custom_request_param_target_provider_input"
                 style="@style/Widget.MangaTranslator.DialogEditText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:focusable="false"
+                android:importantForAutofill="no"
                 android:inputType="none" />
         </com.google.android.material.textfield.TextInputLayout>
 
