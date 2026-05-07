@@ -6,11 +6,14 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
+const val PRIMARY_PROVIDER_ID = "primary"
+
 data class ApiSettings(
     val apiUrl: String,
     val apiKey: String,
     val modelName: String,
-    val apiFormat: ApiFormat = ApiFormat.OPENAI_COMPATIBLE
+    val apiFormat: ApiFormat = ApiFormat.OPENAI_COMPATIBLE,
+    val providerId: String = PRIMARY_PROVIDER_ID
 ) {
     fun isValid(): Boolean {
         return apiUrl.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()
@@ -76,7 +79,8 @@ data class FloatingBubbleRenderSettings(
 data class CustomRequestParameter(
     val key: String,
     val value: String,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val targetProviderId: String = PRIMARY_PROVIDER_ID
 )
 
 data class AiProviderProfile(
@@ -104,7 +108,7 @@ class SettingsStore(context: Context) {
         val key = prefs.getString(KEY_API_KEY, "") ?: ""
         val model = prefs.getString(KEY_MODEL_NAME, DEFAULT_MODEL) ?: DEFAULT_MODEL
         val apiFormat = ApiFormat.fromPref(prefs.getString(KEY_API_FORMAT, null))
-        return ApiSettings(url, key, model, apiFormat)
+        return ApiSettings(url, key, model, apiFormat, PRIMARY_PROVIDER_ID)
     }
 
     fun save(settings: ApiSettings) {
@@ -170,7 +174,8 @@ class SettingsStore(context: Context) {
             apiUrl = floating.apiUrl.ifBlank { main.apiUrl },
             apiKey = floating.apiKey.ifBlank { main.apiKey },
             modelName = floating.modelName.ifBlank { main.modelName },
-            apiFormat = main.apiFormat
+            apiFormat = main.apiFormat,
+            providerId = PRIMARY_PROVIDER_ID
         )
     }
 
@@ -569,8 +574,18 @@ class SettingsStore(context: Context) {
                     val key = item.optString("key").trim()
                     val value = item.optString("value")
                     val enabled = item.optBoolean("enabled", true)
+                    val targetProviderId = item.optString("targetProviderId")
+                        .trim()
+                        .ifBlank { PRIMARY_PROVIDER_ID }
                     if (key.isBlank() && value.isBlank()) continue
-                    add(CustomRequestParameter(key = key, value = value, enabled = enabled))
+                    add(
+                        CustomRequestParameter(
+                            key = key,
+                            value = value,
+                            enabled = enabled,
+                            targetProviderId = targetProviderId
+                        )
+                    )
                 }
             }
         }.getOrDefault(emptyList())
@@ -587,6 +602,10 @@ class SettingsStore(context: Context) {
                     .put("key", key)
                     .put("value", value)
                     .put("enabled", parameter.enabled)
+                    .put(
+                        "targetProviderId",
+                        parameter.targetProviderId.trim().ifBlank { PRIMARY_PROVIDER_ID }
+                    )
             )
         }
         prefs.edit() {
@@ -659,7 +678,8 @@ class SettingsStore(context: Context) {
                     apiUrl = provider.apiUrl.trim(),
                     apiKey = provider.apiKey.trim(),
                     modelName = provider.modelName.trim(),
-                    apiFormat = main.apiFormat
+                    apiFormat = main.apiFormat,
+                    providerId = "additional_${index + 1}"
                 ),
                 weight = provider.weight.coerceAtLeast(1),
                 isPrimary = false
@@ -867,6 +887,10 @@ class SettingsStore(context: Context) {
                                 .put("key", parameter.key)
                                 .put("value", parameter.value)
                                 .put("enabled", parameter.enabled)
+                                .put(
+                                    "targetProviderId",
+                                    parameter.targetProviderId.ifBlank { PRIMARY_PROVIDER_ID }
+                                )
                         )
                     }
                 }
@@ -904,7 +928,8 @@ class SettingsStore(context: Context) {
                 apiUrl = mainJson.optString("apiUrl", DEFAULT_API_URL),
                 apiKey = mainJson.optString("apiKey"),
                 modelName = mainJson.optString("modelName", DEFAULT_MODEL),
-                apiFormat = ApiFormat.fromPref(mainJson.optStringOrNull("apiFormat"))
+                apiFormat = ApiFormat.fromPref(mainJson.optStringOrNull("apiFormat")),
+                providerId = PRIMARY_PROVIDER_ID
             ),
             apiTimeoutSeconds = mainJson.optInt(
                 "apiTimeoutSeconds",
@@ -987,7 +1012,10 @@ class SettingsStore(context: Context) {
                         CustomRequestParameter(
                             key = key,
                             value = value,
-                            enabled = param.optBoolean("enabled", true)
+                            enabled = param.optBoolean("enabled", true),
+                            targetProviderId = param.optString("targetProviderId")
+                                .trim()
+                                .ifBlank { PRIMARY_PROVIDER_ID }
                         )
                     )
                 }
@@ -1103,7 +1131,6 @@ class SettingsStore(context: Context) {
         private const val KEY_LLM_PRESENCE_PENALTY = "llm_presence_penalty"
         private const val KEY_CUSTOM_REQUEST_PARAMETERS = "custom_request_parameters"
         const val PRIMARY_PROVIDER_WEIGHT = 10
-        const val PRIMARY_PROVIDER_ID = "primary"
         const val PRIMARY_PROVIDER_DISPLAY_NAME = "主供应商"
         private const val DEFAULT_LLM_TEMPERATURE = 0.8
         private const val DEFAULT_LLM_TOP_P = 1.0

@@ -507,7 +507,7 @@ internal class TranslationPipeline(
             providerId = when {
                 providerContext != null -> providerContext.providerId
                 availableProviderIds.isNotEmpty() -> availableProviderIds.joinToString("|")
-                else -> SettingsStore.PRIMARY_PROVIDER_ID
+                else -> PRIMARY_PROVIDER_ID
             },
             apiFormat = apiSettings.apiFormat.prefValue,
             ocrCacheMode = ocrCacheMode

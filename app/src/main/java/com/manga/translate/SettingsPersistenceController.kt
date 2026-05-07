@@ -26,7 +26,8 @@ internal class SettingsPersistenceController(
                 apiUrl = form.apiUrl,
                 apiKey = form.apiKey,
                 modelName = form.modelName,
-                apiFormat = form.apiFormat
+                apiFormat = form.apiFormat,
+                providerId = PRIMARY_PROVIDER_ID
             )
         )
         settingsStore.saveApiTimeoutSeconds(form.apiTimeoutSeconds)

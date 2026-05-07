@@ -502,7 +502,7 @@ class LlmClient(
             .put("messages", messages)
         applyOpenAiSamplingParams(payload, llmParams, settings)
         applyOpenAiExtraBody(payload, llmParams, settings)
-        applyCustomRequestParameters(payload, settings.apiFormat)
+        applyCustomRequestParameters(payload, settings)
         return payload
     }
 
@@ -517,7 +517,10 @@ class LlmClient(
             payload.put("systemInstruction", buildGeminiSystemInstruction(config.systemPrompt))
         }
         buildGeminiGenerationConfig(useJsonPayload = true)?.let { payload.put("generationConfig", it) }
-        applyCustomRequestParameters(payload, ApiFormat.GEMINI)
+        applyCustomRequestParameters(
+            payload,
+            ApiSettings(apiUrl = "", apiKey = "", modelName = "", apiFormat = ApiFormat.GEMINI)
+        )
         return payload
     }
 
@@ -691,7 +694,7 @@ class LlmClient(
             .put("messages", messages)
         applyOpenAiSamplingParams(payload, llmParams, settings)
         applyOpenAiExtraBody(payload, llmParams, settings)
-        applyCustomRequestParameters(payload, settings.apiFormat)
+        applyCustomRequestParameters(payload, settings)
         return payload
     }
 
@@ -732,17 +735,22 @@ class LlmClient(
         buildGeminiGenerationConfig(useJsonPayload = false)?.let {
             payload.put("generationConfig", it)
         }
-        applyCustomRequestParameters(payload, ApiFormat.GEMINI)
+        applyCustomRequestParameters(
+            payload,
+            ApiSettings(apiUrl = "", apiKey = "", modelName = "", apiFormat = ApiFormat.GEMINI)
+        )
         return payload
     }
 
-    private fun applyCustomRequestParameters(payload: JSONObject, apiFormat: ApiFormat) {
+    private fun applyCustomRequestParameters(payload: JSONObject, settings: ApiSettings) {
         val parameters = settingsStore.loadCustomRequestParameters()
         if (parameters.isEmpty()) return
-        val reservedKeys = reservedRequestKeys(apiFormat)
+        val providerId = settings.providerId.ifBlank { PRIMARY_PROVIDER_ID }
+        val reservedKeys = reservedRequestKeys(settings.apiFormat)
         val seenKeys = LinkedHashSet<String>()
         parameters.forEach { parameter ->
             if (!parameter.enabled) return@forEach
+            if (parameter.targetProviderId != providerId) return@forEach
             val key = parameter.key.trim()
             val value = parameter.value.trim()
             if (key.isBlank() && value.isBlank()) return@forEach

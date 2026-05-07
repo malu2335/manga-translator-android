@@ -71,6 +71,79 @@ class SettingsFragment : Fragment() {
         numberFormatter.parse(text?.trim().orEmpty())?.toDouble()
     }.getOrNull()
 
+    private data class RequestParamProviderOption(
+        val providerId: String,
+        val label: String
+    )
+
+    private fun buildCustomRequestParamProviderOptions(): List<RequestParamProviderOption> {
+        val options = mutableListOf(
+            RequestParamProviderOption(
+                providerId = PRIMARY_PROVIDER_ID,
+                label = getString(R.string.custom_request_params_provider_primary)
+            )
+        )
+        settingsStore.loadAdditionalTranslationProviders().forEachIndexed { index, _ ->
+            options += RequestParamProviderOption(
+                providerId = "additional_${index + 1}",
+                label = settingsStore.defaultAdditionalProviderName(index)
+            )
+        }
+        return options
+    }
+
+    private fun setupCustomRequestParamProviderDropdown(
+        inputView: MaterialAutoCompleteTextView,
+        options: List<RequestParamProviderOption>,
+        selectedProviderId: String
+    ) {
+        val labels = options.map { it.label }
+        val textColor = resolveColorAttr(R.attr.dialogTextColor)
+        inputView.setAdapter(
+            object : ArrayAdapter<String>(
+                requireContext(),
+                android.R.layout.simple_list_item_1,
+                labels
+            ) {
+                private fun applyThemeTextColor(view: View): View {
+                    (view as? TextView)?.setTextColor(textColor)
+                    return view
+                }
+
+                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                    return applyThemeTextColor(super.getView(position, convertView, parent))
+                }
+
+                override fun getDropDownView(
+                    position: Int,
+                    convertView: View?,
+                    parent: ViewGroup
+                ): View {
+                    return applyThemeTextColor(super.getDropDownView(position, convertView, parent))
+                }
+            }
+        )
+        val selectedLabel = options.firstOrNull { it.providerId == selectedProviderId }?.label
+            ?: options.first().label
+        inputView.setText(selectedLabel, false)
+    }
+
+    private fun parseCustomRequestParamProviderId(
+        inputView: MaterialAutoCompleteTextView,
+        options: List<RequestParamProviderOption>
+    ): String {
+        val selectedLabel = inputView.text?.toString()?.trim().orEmpty()
+        return options.firstOrNull { it.label == selectedLabel }?.providerId
+            ?: PRIMARY_PROVIDER_ID
+    }
+
+    private fun resolveCustomRequestParamProviderLabel(providerId: String): String {
+        return buildCustomRequestParamProviderOptions()
+            .firstOrNull { it.providerId == providerId }
+            ?.label
+            ?: getString(R.string.custom_request_params_provider_primary)
+    }
+
     private fun setupFloatingGestureActionDropdown(
         inputView: MaterialAutoCompleteTextView,
         currentAction: FloatingBallGestureAction
@@ -605,7 +678,8 @@ class SettingsFragment : Fragment() {
             apiUrl = binding.apiUrlInput.text?.toString()?.trim().orEmpty(),
             apiKey = binding.apiKeyInput.text?.toString()?.trim().orEmpty(),
             modelName = binding.modelNameInput.text?.toString()?.trim().orEmpty(),
-            apiFormat = currentApiFormat()
+            apiFormat = currentApiFormat(),
+            providerId = PRIMARY_PROVIDER_ID
         )
         var count = if (mainSettings.isValid()) 1 else 0
         count += settingsStore.loadAdditionalTranslationProviders().count { it.enabled && it.isConfigured() }
@@ -1082,6 +1156,7 @@ class SettingsFragment : Fragment() {
     private fun showCustomRequestParamsDialog() {
         val dialogBinding = DialogCustomRequestParamsBinding.inflate(layoutInflater)
         val existing = settingsStore.loadCustomRequestParameters()
+        val providerOptions = buildCustomRequestParamProviderOptions()
 
         fun updateRowVisualState(rowBinding: ItemCustomRequestParamBinding) {
             val enabled = rowBinding.customRequestParamEnabledSwitch.isChecked
@@ -1100,7 +1175,9 @@ class SettingsFragment : Fragment() {
             }
         }
 
-        fun addRow(parameter: CustomRequestParameter = CustomRequestParameter("", "")) {
+        fun addRow(
+            parameter: CustomRequestParameter = CustomRequestParameter("", "")
+        ) {
             val rowBinding = ItemCustomRequestParamBinding.inflate(
                 layoutInflater,
                 dialogBinding.customRequestParamsContainer,
@@ -1109,6 +1186,11 @@ class SettingsFragment : Fragment() {
             rowBinding.customRequestParamEnabledSwitch.isChecked = parameter.enabled
             rowBinding.customRequestParamKeyInput.setText(parameter.key)
             rowBinding.customRequestParamValueInput.setText(parameter.value)
+            setupCustomRequestParamProviderDropdown(
+                rowBinding.customRequestParamTargetProviderInput,
+                providerOptions,
+                parameter.targetProviderId
+            )
             rowBinding.customRequestParamEnabledSwitch.setOnCheckedChangeListener { _, _ ->
                 updateRowVisualState(rowBinding)
             }
@@ -1143,7 +1225,7 @@ class SettingsFragment : Fragment() {
             .create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val parameters = collectCustomRequestParameters(dialogBinding)
+                val parameters = collectCustomRequestParameters(dialogBinding, providerOptions)
                 val validationError = validateCustomRequestParameters(parameters)
                 if (validationError != null) {
                     Toast.makeText(requireContext(), validationError, Toast.LENGTH_SHORT).show()
@@ -1250,7 +1332,8 @@ class SettingsFragment : Fragment() {
                             apiUrl = binding.apiUrlInput.text?.toString()?.trim().orEmpty(),
                             apiKey = binding.apiKeyInput.text?.toString()?.trim().orEmpty(),
                             modelName = binding.modelNameInput.text?.toString()?.trim().orEmpty(),
-                            apiFormat = currentApiFormat()
+                            apiFormat = currentApiFormat(),
+                            providerId = PRIMARY_PROVIDER_ID
                         ).isValid()
                     ) 1 else 0
                     ) + providers.count { it.enabled && it.isConfigured() }
@@ -1480,7 +1563,8 @@ class SettingsFragment : Fragment() {
     }
 
     private fun collectCustomRequestParameters(
-        dialogBinding: DialogCustomRequestParamsBinding
+        dialogBinding: DialogCustomRequestParamsBinding,
+        providerOptions: List<RequestParamProviderOption>
     ): List<CustomRequestParameter> {
         val collected = mutableListOf<CustomRequestParameter>()
         for (index in 0 until dialogBinding.customRequestParamsContainer.childCount) {
@@ -1489,7 +1573,11 @@ class SettingsFragment : Fragment() {
             collected += CustomRequestParameter(
                 key = rowBinding.customRequestParamKeyInput.text?.toString()?.trim().orEmpty(),
                 value = rowBinding.customRequestParamValueInput.text?.toString().orEmpty(),
-                enabled = rowBinding.customRequestParamEnabledSwitch.isChecked
+                enabled = rowBinding.customRequestParamEnabledSwitch.isChecked,
+                targetProviderId = parseCustomRequestParamProviderId(
+                    rowBinding.customRequestParamTargetProviderInput,
+                    providerOptions
+                )
             )
         }
         return collected
@@ -1526,11 +1614,24 @@ class SettingsFragment : Fragment() {
                 return getString(R.string.custom_request_params_empty_row_error)
             }
             if (!parameter.enabled) return@forEach
-            if (!activeKeys.add(key)) {
-                return getString(R.string.custom_request_params_duplicate_error, key)
+            val scopedKey = "${parameter.targetProviderId}\u0000$key"
+            if (!activeKeys.add(scopedKey)) {
+                return getString(
+                    R.string.custom_request_params_duplicate_error_scoped,
+                    resolveCustomRequestParamProviderLabel(parameter.targetProviderId),
+                    key
+                )
             }
         }
-        val conflict = activeKeys.firstOrNull { it in LlmClient.reservedRequestKeys(currentApiFormat()) }
+        val activeParamKeys = parameters
+            .filter { it.enabled }
+            .mapNotNull {
+                val key = it.key.trim()
+                if (key.isBlank() && it.value.trim().isBlank()) null else key
+            }
+        val conflict = activeParamKeys.firstOrNull {
+            it in LlmClient.reservedRequestKeys(currentApiFormat())
+        }
         return if (conflict != null) {
             getString(R.string.custom_request_params_conflict_error, conflict)
         } else {
