@@ -88,8 +88,6 @@
 - OCR 模型：https://huggingface.co/l0wgear/manga-ocr-2025-onnx
 - 韩文 OCR 模型：https://huggingface.co/breezedeus/cnocr-ppocr-korean_PP-OCRv3
 
-当前已移除日文 `PP-OCR` 默认实现。日文本地 OCR 现支持 `MangaOcr` 与更轻量的 `MangaOcr Mobile`，默认使用后者。
-
 提示词、字体与 OCR 配置位于 `assets/` 子目录中，名称需与代码保持一致。
 
 ### 发布版本号同步
