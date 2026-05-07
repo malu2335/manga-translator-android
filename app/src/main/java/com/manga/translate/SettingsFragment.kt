@@ -325,6 +325,8 @@ class SettingsFragment : Fragment() {
                 }
             }
         )
+        inputView.threshold = 0
+        inputView.setOnClickListener { inputView.showDropDown() }
         inputView.setText(getString(currentShape.labelRes), false)
     }
 
