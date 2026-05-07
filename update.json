@@ -1,11 +1,19 @@
 {
-  "versionCode": 51,
-  "versionName": "3.0.10",
+  "versionCode": 54,
+  "versionName": "3.0.13",
   "releaseChannel": "stable",
-  "releasedAt": "2026-05-06",
-  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v3.0.10/app-release.apk",
-  "changelog": "修复模型缓存损坏导致的崩溃，修复前台服务崩溃与更新日志格式异常。",
+  "releasedAt": "2026-05-07",
+  "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v3.0.13/app-release.apk",
+  "changelog": "新增多供应商翻译调度，支持为 OCR 和多供应商配置自定义请求参数；新增移动端模型与轻量化日文 OCR 模型，支持关闭译名处理；优化设置界面与弹窗样式，修复弹窗崩溃，并将缓存限制为仅悬浮窗使用。",
   "history": [
+    {
+      "versionCode": 51,
+      "versionName": "3.0.10",
+      "releaseChannel": "stable",
+      "releasedAt": "2026-05-06",
+      "apkUrl": "https://github.com/jedzqer/manga-translator-android/releases/download/v3.0.10/app-release.apk",
+      "changelog": "修复模型缓存损坏导致的崩溃，修复前台服务崩溃与更新日志格式异常。"
+    },
     {
       "versionCode": 50,
       "versionName": "3.0.9",
