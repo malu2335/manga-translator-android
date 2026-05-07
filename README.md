@@ -75,7 +75,8 @@
 ### 模型与资源
 将以下模型文件放入 `assets/`：
 - `comic-speech-bubble-detector.onnx`（气泡检测）
-- `encoder_model.onnx`、`decoder_model.onnx`（OCR）
+- `japan_PP-OCRv3_mobile_rec_infer.onnx`（默认日文 OCR，更快）
+- `encoder_model.onnx`、`decoder_model.onnx`（MangaOcr，可在设置中切换，质量更好）
 - `en_PP-OCRv5_rec_mobile_infer.onnx`（英文 OCR）
 - `korean_PP-OCRv3_rec_infer.onnx`（韩文 OCR）
 - `ysgyolo_1.2_OS1.0.onnx`（文本补检 + 文字蒙版）
@@ -83,6 +84,7 @@
 
 模型下载链接：
 - 气泡检测模型：https://huggingface.co/ogkalu/comic-speech-bubble-detector-yolov8m
+- 日文 PP-OCR 模型：请放置兼容的 `japan_PP-OCRv3_mobile_rec_infer.onnx`
 - OCR 模型：https://huggingface.co/l0wgear/manga-ocr-2025-onnx
 - 韩文 OCR 模型：https://huggingface.co/breezedeus/cnocr-ppocr-korean_PP-OCRv3
 

@@ -32,7 +32,7 @@ internal class AppContainer(private val appContext: Context) {
         com.manga.translate.OcrEngineRegistry(appContext, settingsStore)
     }
     val bubbleTextRecognizer by lazy(LazyThreadSafetyMode.NONE) {
-        com.manga.translate.BubbleTextRecognizer(llmClient, ocrEngineRegistry)
+        com.manga.translate.BubbleTextRecognizer(llmClient, ocrEngineRegistry, settingsStore)
     }
     val translationStore by lazy(LazyThreadSafetyMode.NONE) { TranslationStore() }
     val ocrStore by lazy(LazyThreadSafetyMode.NONE) { OcrStore() }

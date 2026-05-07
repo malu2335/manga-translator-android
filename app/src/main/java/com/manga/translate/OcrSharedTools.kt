@@ -10,6 +10,7 @@ class OcrEngineRegistry(
 ) {
     private val appContext = context.applicationContext
     private var mangaOcr: MangaOcr? = null
+    private var japanesePpOcr: JapanesePpOcr? = null
     private var englishOcr: EnglishOcr? = null
     private var koreanOcr: KoreanOcr? = null
     private var englishLineDetector: EnglishLineDetector? = null
@@ -20,6 +21,16 @@ class OcrEngineRegistry(
             MangaOcr(appContext, settingsStore = settingsStore).also { mangaOcr = it }
         } catch (e: Exception) {
             AppLogger.log(logTag, "Failed to init OCR", e)
+            null
+        }
+    }
+
+    fun getJapanesePpOcr(logTag: String): JapanesePpOcr? {
+        if (japanesePpOcr != null) return japanesePpOcr
+        return try {
+            JapanesePpOcr(appContext, settingsStore = settingsStore).also { japanesePpOcr = it }
+        } catch (e: Exception) {
+            AppLogger.log(logTag, "Failed to init Japanese PP-OCR", e)
             null
         }
     }
@@ -59,14 +70,20 @@ class OcrEngineRegistry(
 
 class BubbleTextRecognizer(
     private val llmClient: LlmClient,
-    private val engineRegistry: OcrEngineRegistry
+    private val engineRegistry: OcrEngineRegistry,
+    private val settingsStore: SettingsStore
 ) {
     fun getLocalOcrEngine(
         language: TranslationLanguage,
         logTag: String
     ): OcrEngine? {
         return when (language) {
-            TranslationLanguage.JA_TO_ZH -> engineRegistry.getMangaOcr(logTag)
+            TranslationLanguage.JA_TO_ZH -> when (
+                settingsStore.loadOcrApiSettings().japaneseLocalOcrEngine
+            ) {
+                JapaneseLocalOcrEngine.PP_OCR -> engineRegistry.getJapanesePpOcr(logTag)
+                JapaneseLocalOcrEngine.MANGA_OCR -> engineRegistry.getMangaOcr(logTag)
+            }
             TranslationLanguage.EN_TO_ZH -> engineRegistry.getEnglishOcr(logTag)
             TranslationLanguage.KO_TO_ZH -> engineRegistry.getKoreanOcr(logTag)
         }
@@ -90,7 +107,10 @@ class BubbleTextRecognizer(
                 recognizeKoreanLines(source, lineRects, engine)
             }
 
-            TranslationLanguage.JA_TO_ZH -> emptyList()
+            TranslationLanguage.JA_TO_ZH -> {
+                val engine = engineRegistry.getJapanesePpOcr(logTag) ?: return emptyList()
+                recognizeJapaneseLines(source, lineRects, engine)
+            }
         }
     }
 
@@ -125,8 +145,23 @@ class BubbleTextRecognizer(
         }
         return when (language) {
             TranslationLanguage.JA_TO_ZH -> {
-                val engine = engineRegistry.getMangaOcr(logTag) ?: return ""
-                engine.recognize(crop).trim()
+                when (settingsStore.loadOcrApiSettings().japaneseLocalOcrEngine) {
+                    JapaneseLocalOcrEngine.MANGA_OCR -> {
+                        val engine = engineRegistry.getMangaOcr(logTag) ?: return ""
+                        engine.recognize(crop).trim()
+                    }
+                    JapaneseLocalOcrEngine.PP_OCR -> {
+                        val engine = engineRegistry.getJapanesePpOcr(logTag) ?: return ""
+                        val lineDetector = engineRegistry.getEnglishLineDetector(logTag)
+                        val lineRects = lineDetector?.detectLines(crop).orEmpty()
+                        val lines = recognizeJapaneseLines(crop, lineRects, engine)
+                        if (lines.isEmpty()) {
+                            engine.recognize(crop).trim()
+                        } else {
+                            lines.joinToString("\n") { it.text }
+                        }
+                    }
+                }
             }
 
             TranslationLanguage.EN_TO_ZH -> {
@@ -154,6 +189,26 @@ class BubbleTextRecognizer(
             }
         }
     }
+}
+
+fun recognizeJapaneseLines(
+    source: Bitmap,
+    lineRects: List<RectF>,
+    ocrEngine: JapanesePpOcr,
+    minLineScore: Float = DEFAULT_EN_MIN_LINE_SCORE
+): List<EnglishLine> {
+    if (lineRects.isEmpty()) return emptyList()
+    val results = ArrayList<EnglishLine>(lineRects.size)
+    for (rect in lineRects) {
+        withBitmapCrop(source, rect) { crop ->
+            val decoded = ocrEngine.recognizeWithScore(crop)
+            val text = decoded.text.trim()
+            if (decoded.score >= minLineScore && text.isNotBlank()) {
+                results.add(EnglishLine(rect, text))
+            }
+        }
+    }
+    return results
 }
 
 const val DEFAULT_EN_MIN_LINE_SCORE = 0.5f

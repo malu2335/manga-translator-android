@@ -76,6 +76,11 @@ class SettingsFragment : Fragment() {
         val label: String
     )
 
+    private data class JapaneseLocalOcrEngineOption(
+        val engine: JapaneseLocalOcrEngine,
+        val label: String
+    )
+
     private fun buildCustomRequestParamProviderOptions(): List<RequestParamProviderOption> {
         val options = mutableListOf(
             RequestParamProviderOption(
@@ -124,6 +129,57 @@ class SettingsFragment : Fragment() {
             }
         )
         val selectedLabel = options.firstOrNull { it.providerId == selectedProviderId }?.label
+            ?: options.first().label
+        inputView.setText(selectedLabel, false)
+    }
+
+    private fun buildJapaneseLocalOcrEngineOptions(): List<JapaneseLocalOcrEngineOption> {
+        return listOf(
+            JapaneseLocalOcrEngineOption(
+                JapaneseLocalOcrEngine.PP_OCR,
+                getString(R.string.japanese_local_ocr_engine_ppocr)
+            ),
+            JapaneseLocalOcrEngineOption(
+                JapaneseLocalOcrEngine.MANGA_OCR,
+                getString(R.string.japanese_local_ocr_engine_manga_ocr)
+            )
+        )
+    }
+
+    private fun setupJapaneseLocalOcrEngineDropdown(
+        inputView: MaterialAutoCompleteTextView,
+        options: List<JapaneseLocalOcrEngineOption>,
+        selectedEngine: JapaneseLocalOcrEngine
+    ) {
+        val labels = options.map { it.label }
+        val textColor = resolveColorAttr(R.attr.dialogTextColor)
+        inputView.setAdapter(
+            object : ArrayAdapter<String>(
+                requireContext(),
+                android.R.layout.simple_list_item_1,
+                labels
+            ) {
+                private fun applyThemeTextColor(view: View): View {
+                    (view as? TextView)?.setTextColor(textColor)
+                    return view
+                }
+
+                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                    return applyThemeTextColor(super.getView(position, convertView, parent))
+                }
+
+                override fun getDropDownView(
+                    position: Int,
+                    convertView: View?,
+                    parent: ViewGroup
+                ): View {
+                    return applyThemeTextColor(
+                        super.getDropDownView(position, convertView, parent)
+                    )
+                }
+            }
+        )
+        val selectedLabel = options.firstOrNull { it.engine == selectedEngine }?.label
             ?: options.first().label
         inputView.setText(selectedLabel, false)
     }
@@ -1375,7 +1431,13 @@ class SettingsFragment : Fragment() {
     private fun showOcrSettingsDialog() {
         val currentSettings = settingsStore.loadOcrApiSettings()
         val dialogBinding = DialogOcrSettingsBinding.inflate(layoutInflater)
+        val japaneseEngineOptions = buildJapaneseLocalOcrEngineOptions()
         dialogBinding.useLocalOcrSwitch.isChecked = currentSettings.useLocalOcr
+        setupJapaneseLocalOcrEngineDropdown(
+            dialogBinding.japaneseLocalOcrEngineInput,
+            japaneseEngineOptions,
+            currentSettings.japaneseLocalOcrEngine
+        )
         dialogBinding.ocrApiUrlInput.setText(currentSettings.apiUrl)
         dialogBinding.ocrApiKeyInput.setText(currentSettings.apiKey)
         dialogBinding.ocrModelNameInput.setText(currentSettings.modelName)
@@ -1385,6 +1447,8 @@ class SettingsFragment : Fragment() {
 
         fun updateInputsEnabled(useLocalOcr: Boolean) {
             val enabled = !useLocalOcr
+            dialogBinding.japaneseLocalOcrEngineLayout.isEnabled = useLocalOcr
+            dialogBinding.japaneseLocalOcrEngineInput.isEnabled = useLocalOcr
             dialogBinding.ocrApiUrlLayout.isEnabled = enabled
             dialogBinding.ocrApiKeyLayout.isEnabled = enabled
             dialogBinding.ocrModelNameLayout.isEnabled = enabled
@@ -1411,8 +1475,12 @@ class SettingsFragment : Fragment() {
                 val timeoutSeconds = parseIntInput(timeoutInput)
                     ?.coerceIn(OCR_TIMEOUT_MIN_SECONDS, OCR_TIMEOUT_MAX_SECONDS)
                     ?: currentSettings.timeoutSeconds
+                val selectedJapaneseEngine = japaneseEngineOptions.firstOrNull {
+                    it.label == dialogBinding.japaneseLocalOcrEngineInput.text?.toString()
+                }?.engine ?: currentSettings.japaneseLocalOcrEngine
                 val settings = OcrApiSettings(
                     useLocalOcr = dialogBinding.useLocalOcrSwitch.isChecked,
+                    japaneseLocalOcrEngine = selectedJapaneseEngine,
                     apiUrl = dialogBinding.ocrApiUrlInput.text?.toString()?.trim().orEmpty(),
                     apiKey = dialogBinding.ocrApiKeyInput.text?.toString()?.trim().orEmpty(),
                     modelName = dialogBinding.ocrModelNameInput.text?.toString()?.trim().orEmpty(),
@@ -1421,7 +1489,13 @@ class SettingsFragment : Fragment() {
                 settingsStore.saveOcrApiSettings(settings)
                 AppLogger.log(
                     "Settings",
-                    "OCR mode set to ${if (settings.useLocalOcr) "local" else "openai-compatible api"}"
+                    "OCR mode set to ${
+                        if (settings.useLocalOcr) {
+                            "local:${settings.japaneseLocalOcrEngine.prefValue}"
+                        } else {
+                            "openai-compatible api"
+                        }
+                    }"
                 )
             }
             .setNegativeButton(android.R.string.cancel, null)

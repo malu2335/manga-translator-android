@@ -22,6 +22,7 @@ data class ApiSettings(
 
 data class OcrApiSettings(
     val useLocalOcr: Boolean,
+    val japaneseLocalOcrEngine: JapaneseLocalOcrEngine,
     val apiUrl: String,
     val apiKey: String,
     val modelName: String,
@@ -29,6 +30,19 @@ data class OcrApiSettings(
 ) {
     fun isValid(): Boolean {
         return useLocalOcr || (apiUrl.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank())
+    }
+}
+
+enum class JapaneseLocalOcrEngine(
+    val prefValue: String
+) {
+    PP_OCR("ppocr"),
+    MANGA_OCR("manga_ocr");
+
+    companion object {
+        fun fromPref(value: String?): JapaneseLocalOcrEngine {
+            return entries.firstOrNull { it.prefValue == value } ?: PP_OCR
+        }
     }
 }
 
@@ -220,6 +234,9 @@ class SettingsStore(context: Context) {
             .coerceIn(MIN_OCR_API_TIMEOUT_SECONDS, MAX_OCR_API_TIMEOUT_SECONDS)
         return OcrApiSettings(
             useLocalOcr = useLocal,
+            japaneseLocalOcrEngine = JapaneseLocalOcrEngine.fromPref(
+                prefs.getString(KEY_JAPANESE_LOCAL_OCR_ENGINE, null)
+            ),
             apiUrl = url,
             apiKey = key,
             modelName = model,
@@ -232,6 +249,10 @@ class SettingsStore(context: Context) {
             .coerceIn(MIN_OCR_API_TIMEOUT_SECONDS, MAX_OCR_API_TIMEOUT_SECONDS)
         prefs.edit() {
                 putBoolean(KEY_OCR_USE_LOCAL, settings.useLocalOcr)
+                .putString(
+                    KEY_JAPANESE_LOCAL_OCR_ENGINE,
+                    settings.japaneseLocalOcrEngine.prefValue
+                )
                 .putString(KEY_OCR_API_URL, settings.apiUrl)
                 .putString(KEY_OCR_API_KEY, settings.apiKey)
                 .putString(KEY_OCR_MODEL_NAME, settings.modelName)
@@ -820,6 +841,10 @@ class SettingsStore(context: Context) {
                 "ocrSettings",
                 JSONObject()
                     .put("useLocalOcr", profile.ocrSettings.useLocalOcr)
+                    .put(
+                        "japaneseLocalOcrEngine",
+                        profile.ocrSettings.japaneseLocalOcrEngine.prefValue
+                    )
                     .put("apiUrl", profile.ocrSettings.apiUrl)
                     .put("apiKey", profile.ocrSettings.apiKey)
                     .put("modelName", profile.ocrSettings.modelName)
@@ -937,6 +962,9 @@ class SettingsStore(context: Context) {
             ).coerceIn(MIN_API_TIMEOUT_SECONDS, MAX_API_TIMEOUT_SECONDS),
             ocrSettings = OcrApiSettings(
                 useLocalOcr = ocrJson.optBoolean("useLocalOcr", true),
+                japaneseLocalOcrEngine = JapaneseLocalOcrEngine.fromPref(
+                    ocrJson.optStringOrNull("japaneseLocalOcrEngine")
+                ),
                 apiUrl = ocrJson.optString("apiUrl", DEFAULT_OCR_API_URL),
                 apiKey = ocrJson.optString("apiKey"),
                 modelName = ocrJson.optString("modelName", DEFAULT_OCR_MODEL_NAME),
@@ -1076,6 +1104,7 @@ class SettingsStore(context: Context) {
         private const val KEY_MODEL_NAME = "model_name"
         private const val KEY_API_FORMAT = "api_format"
         private const val KEY_OCR_USE_LOCAL = "ocr_use_local"
+        private const val KEY_JAPANESE_LOCAL_OCR_ENGINE = "japanese_local_ocr_engine"
         private const val KEY_OCR_API_URL = "ocr_api_url"
         private const val KEY_OCR_API_KEY = "ocr_api_key"
         private const val KEY_OCR_MODEL_NAME = "ocr_model_name"

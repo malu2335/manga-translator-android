@@ -15,7 +15,7 @@ internal class TranslationPipeline(
     private val ocrEngineRegistry: OcrEngineRegistry =
         OcrEngineRegistry(context.applicationContext, settingsStore),
     private val bubbleTextRecognizer: BubbleTextRecognizer =
-        BubbleTextRecognizer(llmClient, ocrEngineRegistry),
+        BubbleTextRecognizer(llmClient, ocrEngineRegistry, settingsStore),
     private val floatingTranslationCacheStore: FloatingTranslationCacheStore =
         FloatingTranslationCacheStore(context.applicationContext),
     private val textBubbleTranslationCoordinator: TextBubbleTranslationCoordinator =
@@ -541,8 +541,12 @@ internal class TranslationPipeline(
         return if (!useLocalOcr) {
             "api"
         } else {
+            val ocrSettings = settingsStore.loadOcrApiSettings()
             when (language) {
-                TranslationLanguage.JA_TO_ZH -> "local_ja"
+                TranslationLanguage.JA_TO_ZH -> when (ocrSettings.japaneseLocalOcrEngine) {
+                    JapaneseLocalOcrEngine.PP_OCR -> "local_ja_ppocr"
+                    JapaneseLocalOcrEngine.MANGA_OCR -> "local_ja_mangaocr"
+                }
                 TranslationLanguage.EN_TO_ZH -> "local_en"
                 TranslationLanguage.KO_TO_ZH -> "local_ko"
             }
