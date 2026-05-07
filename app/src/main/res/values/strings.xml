@@ -75,6 +75,7 @@
     <string name="ai_provider_profiles_button_format">AI 供应商配置：%1$s（%2$d 个）</string>
     <string name="ai_provider_profiles_none">未启用</string>
     <string name="ai_provider_profiles_title">AI 供应商配置</string>
+    <string name="ai_provider_profiles_section_label">配置档列表</string>
     <string name="ai_provider_profiles_current">当前配置：%1$s</string>
     <string name="ai_provider_profiles_current_none">当前配置：未启用</string>
     <string name="ai_provider_profiles_note">配置文件会保存当前主模型、OCR、悬浮窗翻译覆盖、AI 参数、多供应商调度和自定义请求参数，切换时会整体应用。</string>

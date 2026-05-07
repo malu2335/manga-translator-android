@@ -1,66 +1,100 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingTop="8dp">
-
-    <TextView
-        android:id="@+id/ai_provider_profiles_current_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textAppearance="@style/Widget.MangaTranslator.BodyMuted"
-        android:textColor="?attr/dialogTextColor" />
-
-    <TextView
-        android:id="@+id/ai_provider_profiles_note_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textAppearance="@style/Widget.MangaTranslator.BodyMuted"
-        android:textColor="?attr/dialogTextColor" />
-
-    <ListView
-        android:id="@+id/ai_provider_profiles_list"
-        android:layout_width="match_parent"
-        android:layout_height="240dp"
-        android:layout_marginTop="12dp"
-        android:choiceMode="singleChoice"
-        android:divider="@android:color/transparent"
-        android:dividerHeight="6dp" />
+    android:clipToPadding="false"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:padding="20dp">
 
-        <Button
-            android:id="@+id/ai_provider_profiles_apply_button"
+        <TextView
+            android:id="@+id/ai_provider_profiles_section_label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/ai_provider_profiles_apply" />
+            android:text="@string/ai_provider_profiles_section_label"
+            android:textAppearance="@style/Widget.MangaTranslator.SectionLabel" />
 
-        <Button
-            android:id="@+id/ai_provider_profiles_save_new_button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/ai_provider_profiles_save_new" />
-
-        <Button
-            android:id="@+id/ai_provider_profiles_overwrite_button"
+        <TextView
+            android:id="@+id/ai_provider_profiles_current_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="@string/ai_provider_profiles_overwrite" />
+            android:background="@drawable/bg_dialog_card"
+            android:padding="14dp"
+            android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
 
-        <Button
-            android:id="@+id/ai_provider_profiles_delete_button"
+        <TextView
+            android:id="@+id/ai_provider_profiles_note_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/ai_provider_profiles_delete" />
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_dialog_card"
+            android:padding="14dp"
+            android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
+
+        <ListView
+            android:id="@+id/ai_provider_profiles_list"
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:layout_marginTop="16dp"
+            android:background="@android:color/transparent"
+            android:choiceMode="singleChoice"
+            android:divider="@android:color/transparent"
+            android:dividerHeight="10dp"
+            android:listSelector="@android:color/transparent"
+            android:scrollbars="none" />
+
+        <LinearLayout
+            android:id="@+id/ai_provider_profiles_primary_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/ai_provider_profiles_save_new_button"
+                style="@style/Widget.MangaTranslator.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_provider_profiles_save_new" />
+
+            <Button
+                android:id="@+id/ai_provider_profiles_apply_button"
+                style="@style/Widget.MangaTranslator.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="@string/ai_provider_profiles_apply" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ai_provider_profiles_secondary_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/ai_provider_profiles_overwrite_button"
+                style="@style/Widget.MangaTranslator.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_provider_profiles_overwrite" />
+
+            <Button
+                android:id="@+id/ai_provider_profiles_delete_button"
+                style="@style/Widget.MangaTranslator.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="@string/ai_provider_profiles_delete" />
+        </LinearLayout>
+
     </LinearLayout>
-
-</LinearLayout>
+</ScrollView>

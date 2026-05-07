@@ -75,6 +75,7 @@
     <string name="ai_provider_profiles_button_format">AI 供應商配置：%1$s（%2$d 個）</string>
     <string name="ai_provider_profiles_none">未啟用</string>
     <string name="ai_provider_profiles_title">AI 供應商配置</string>
+    <string name="ai_provider_profiles_section_label">配置檔列表</string>
     <string name="ai_provider_profiles_current">目前配置：%1$s</string>
     <string name="ai_provider_profiles_current_none">目前配置：未啟用</string>
     <string name="ai_provider_profiles_note">配置檔會儲存目前主模型、OCR、懸浮窗翻譯覆蓋、AI 參數、多供應商調度和自訂請求參數，切換時會整體套用。</string>

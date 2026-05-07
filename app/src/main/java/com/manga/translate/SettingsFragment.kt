@@ -7,10 +7,12 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
 import android.widget.ArrayAdapter
-import android.widget.ScrollView
+import android.widget.BaseAdapter
+import android.widget.CheckedTextView
+import android.widget.EditText
 import android.widget.ProgressBar
+import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -769,13 +771,31 @@ class SettingsFragment : Fragment() {
     private fun showAiProviderProfilesDialog() {
         val dialogBinding = DialogAiProviderProfilesBinding.inflate(layoutInflater)
         val profileNames = ArrayList<String>()
-        val adapter = ArrayAdapter(
-            requireContext(),
-            android.R.layout.simple_list_item_single_choice,
-            profileNames
-        )
-        dialogBinding.aiProviderProfilesList.adapter = adapter
         var selectedName: String? = null
+        val adapter = object : BaseAdapter() {
+            override fun getCount(): Int = profileNames.size
+
+            override fun getItem(position: Int): String = profileNames[position]
+
+            override fun getItemId(position: Int): Long = position.toLong()
+
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val view = convertView ?: layoutInflater.inflate(
+                    R.layout.item_ai_provider_profile,
+                    parent,
+                    false
+                )
+                val name = getItem(position)
+                val nameView = view.findViewById<TextView>(R.id.ai_provider_profile_name)
+                val checkView = view.findViewById<CheckedTextView>(R.id.ai_provider_profile_check)
+                val isChecked = name == selectedName
+                nameView.text = name
+                view.isActivated = isChecked
+                checkView.isChecked = isChecked
+                return view
+            }
+        }
+        dialogBinding.aiProviderProfilesList.adapter = adapter
 
         fun refreshProfiles(preferredSelection: String? = selectedName) {
             val state = settingsStore.loadAiProviderProfilesState()
@@ -790,6 +810,7 @@ class SettingsFragment : Fragment() {
             } else {
                 dialogBinding.aiProviderProfilesList.clearChoices()
             }
+            adapter.notifyDataSetChanged()
             dialogBinding.aiProviderProfilesCurrentText.text = state.activeProfileName?.let {
                 getString(R.string.ai_provider_profiles_current, it)
             } ?: getString(R.string.ai_provider_profiles_current_none)
@@ -807,6 +828,7 @@ class SettingsFragment : Fragment() {
         dialogBinding.aiProviderProfilesList.setOnItemClickListener { _, _, position, _ ->
             selectedName = profileNames.getOrNull(position)
             dialogBinding.aiProviderProfilesDeleteButton.isEnabled = selectedName != null
+            adapter.notifyDataSetChanged()
         }
 
         val dialog = AlertDialog.Builder(requireContext())
