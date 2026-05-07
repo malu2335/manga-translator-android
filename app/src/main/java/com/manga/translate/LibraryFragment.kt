@@ -30,10 +30,16 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
 import com.manga.translate.databinding.FragmentLibraryBinding
 import com.manga.translate.di.appContainer
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.ArrayDeque
 
 class LibraryFragment : Fragment() {
+    private companion object {
+        const val MODEL_ERROR_RESHOW_DELAY_MS = 15_000L
+    }
+
     private data class PendingModelErrorDialog(
         val content: String,
         val onRetry: (() -> Unit)?,
@@ -545,13 +551,9 @@ class LibraryFragment : Fragment() {
 
     override fun onDestroyView() {
         LibraryUiBridge.unregister(uiCallbacks)
-        activeModelErrorRequest?.onSkip?.invoke()
-        activeModelErrorRequest = null
         activeModelErrorDialog?.dismiss()
         activeModelErrorDialog = null
-        while (pendingModelErrorDialogs.isNotEmpty()) {
-            pendingModelErrorDialogs.removeFirst().onSkip?.invoke()
-        }
+        activeModelErrorRequest = null
         super.onDestroyView()
         _binding = null
     }
@@ -572,6 +574,14 @@ class LibraryFragment : Fragment() {
             request.content,
             onRetry = request.onRetry,
             onSkip = request.onSkip,
+            onUnresolvedDismiss = {
+                requeueModelErrorDialog(request)
+            },
+            onDialogDismissed = {
+                activeModelErrorRequest = null
+                activeModelErrorDialog = null
+                showNextModelErrorDialog()
+            },
             windowType = if (request.useSystemOverlay) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -585,9 +595,16 @@ class LibraryFragment : Fragment() {
         )
         activeModelErrorRequest = request
         activeModelErrorDialog = dialog
-        dialog.setOnDismissListener {
-            activeModelErrorRequest = null
-            activeModelErrorDialog = null
+    }
+
+    private fun requeueModelErrorDialog(request: PendingModelErrorDialog) {
+        if (!isAdded) return
+        activeModelErrorRequest = null
+        activeModelErrorDialog = null
+        viewLifecycleOwner.lifecycleScope.launch {
+            delay(MODEL_ERROR_RESHOW_DELAY_MS)
+            if (!isAdded || _binding == null) return@launch
+            pendingModelErrorDialogs.addFirst(request)
             showNextModelErrorDialog()
         }
     }

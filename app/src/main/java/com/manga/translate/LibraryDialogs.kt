@@ -246,6 +246,8 @@ internal class LibraryDialogs {
         responseContent: String,
         onRetry: (() -> Unit)? = null,
         onSkip: (() -> Unit)? = null,
+        onUnresolvedDismiss: (() -> Unit)? = null,
+        onDialogDismissed: (() -> Unit)? = null,
         negativeButtonResId: Int = R.string.translation_skip,
         windowType: Int? = null
     ): AlertDialog {
@@ -254,6 +256,8 @@ internal class LibraryDialogs {
             responseContent = responseContent,
             onRetry = onRetry,
             onSkip = onSkip,
+            onUnresolvedDismiss = onUnresolvedDismiss,
+            onDialogDismissed = onDialogDismissed,
             negativeButtonResId = negativeButtonResId,
             windowType = windowType
         )
