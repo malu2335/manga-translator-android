@@ -544,8 +544,8 @@ internal class TranslationPipeline(
             val ocrSettings = settingsStore.loadOcrApiSettings()
             when (language) {
                 TranslationLanguage.JA_TO_ZH -> when (ocrSettings.japaneseLocalOcrEngine) {
-                    JapaneseLocalOcrEngine.PP_OCR -> "local_ja_ppocr"
                     JapaneseLocalOcrEngine.MANGA_OCR -> "local_ja_mangaocr"
+                    JapaneseLocalOcrEngine.PLACEHOLDER -> "local_ja_placeholder"
                 }
                 TranslationLanguage.EN_TO_ZH -> "local_en"
                 TranslationLanguage.KO_TO_ZH -> "local_ko"

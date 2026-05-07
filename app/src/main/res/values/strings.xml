@@ -188,13 +188,13 @@
     <string name="floating_translate_settings_note">留空某一项则使用主设置中的对应配置。</string>
     <string name="ocr_use_local">使用本地 OCR</string>
     <string name="japanese_local_ocr_engine_hint">日文本地 OCR 引擎</string>
-    <string name="japanese_local_ocr_engine_ppocr">PP-OCR（更快）</string>
     <string name="japanese_local_ocr_engine_manga_ocr">MangaOcr（质量更好）</string>
+    <string name="japanese_local_ocr_engine_placeholder">预留位置（等待接入新模型）</string>
     <string name="ocr_api_url_hint">OCR API 地址</string>
     <string name="ocr_api_key_hint">OCR API Key</string>
     <string name="ocr_model_name_hint">OCR 模型名称</string>
     <string name="ocr_api_timeout_hint">OCR API 超时 (秒, 30–1200)</string>
-    <string name="ocr_settings_note_local">启用后将只使用软件内置 OCR，可为日文切换速度优先或质量优先引擎</string>
+    <string name="ocr_settings_note_local">启用后将只使用软件内置 OCR。当前日文默认使用 MangaOcr，并预留了新的轻量本地模型接入口。</string>
     <string name="ocr_settings_note_api">关闭本地 OCR 后可配置 OpenAI 兼容 OCR</string>
     <string name="missing_ocr_api_settings">请先在 OCR 设置中填写 API 地址、Key 与模型名称</string>
     <string name="llm_params_clear">全部留空</string>
@@ -339,10 +339,10 @@
     <string name="folder_vl_model_required">当前直翻需要 VL 模型。请在主设置中改用支持图像输入的模型，或关闭该开关。</string>
     <string name="folder_full_translate">全文速译</string>
     <string name="folder_full_translate_info_title">全文速译说明</string>
-    <string name="folder_full_translate_info">开启后会先识别全部图片文本并提取译名，再按整页翻译气泡内容。开启后第一张图片的翻译速度视图片总数而定。如果翻译出现错误，可以关闭此开关，然后长按错误翻译的图片进行重译</string>
+    <string name="folder_full_translate_info">开启后会先识别全部图片文本并提取译名，再按整页翻译气泡内容。开启后第一张图片的翻译速度视图片总数而定。关闭后大幅提升第一张图片翻译出来的速度</string>
     <string name="folder_full_translate_info_desc">全文速译说明</string>
     <string name="folder_glossary_processing">译名处理</string>
-    <string name="folder_glossary_processing_note">关闭后普通翻译只会把现有译名表作为上下文发送给模型，不再提取和写入新的译名；关闭全文速译后可配合当前并发翻译使用。</string>
+    <string name="folder_glossary_processing_note">关闭译名处理后可并发翻译，速度更快。</string>
 
     <!-- Library / Progress -->
     <string name="translation_preparing">预处理中</string>

@@ -36,12 +36,12 @@ data class OcrApiSettings(
 enum class JapaneseLocalOcrEngine(
     val prefValue: String
 ) {
-    PP_OCR("ppocr"),
-    MANGA_OCR("manga_ocr");
+    MANGA_OCR("manga_ocr"),
+    PLACEHOLDER("placeholder");
 
     companion object {
         fun fromPref(value: String?): JapaneseLocalOcrEngine {
-            return entries.firstOrNull { it.prefValue == value } ?: PP_OCR
+            return entries.firstOrNull { it.prefValue == value } ?: MANGA_OCR
         }
     }
 }

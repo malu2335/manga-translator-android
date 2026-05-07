@@ -136,12 +136,12 @@ class SettingsFragment : Fragment() {
     private fun buildJapaneseLocalOcrEngineOptions(): List<JapaneseLocalOcrEngineOption> {
         return listOf(
             JapaneseLocalOcrEngineOption(
-                JapaneseLocalOcrEngine.PP_OCR,
-                getString(R.string.japanese_local_ocr_engine_ppocr)
-            ),
-            JapaneseLocalOcrEngineOption(
                 JapaneseLocalOcrEngine.MANGA_OCR,
                 getString(R.string.japanese_local_ocr_engine_manga_ocr)
+            ),
+            JapaneseLocalOcrEngineOption(
+                JapaneseLocalOcrEngine.PLACEHOLDER,
+                getString(R.string.japanese_local_ocr_engine_placeholder)
             )
         )
     }
