@@ -35,31 +35,41 @@ internal object BubbleShapePaths {
     ) {
         outPath.reset()
         val contour = bubble.maskContour
-        if (sourceWidth > 0 && sourceHeight > 0 && contour != null && contour.size >= 6) {
+        if (sourceWidth > 0 && sourceHeight > 0 && contour != null &&
+            contour.size >= 6 && contour.size % 2 == 0 && contour.all { it.isFinite() }
+        ) {
+            // Contours are normalized to the source page, not the detection rectangle.
             outPath.moveTo(
                 originX + (contour[0] * sourceWidth + offsetX) * scaleX,
                 originY + (contour[1] * sourceHeight + offsetY) * scaleY
             )
-            var index = 2
-            while (index + 1 < contour.size) {
+            for (index in 2 until contour.size step 2) {
                 outPath.lineTo(
                     originX + (contour[index] * sourceWidth + offsetX) * scaleX,
                     originY + (contour[index + 1] * sourceHeight + offsetY) * scaleY
                 )
-                index += 2
             }
             outPath.close()
-        } else {
-            outPath.addRoundRect(
-                originX + (bubble.rect.left + offsetX) * scaleX,
-                originY + (bubble.rect.top + offsetY) * scaleY,
-                originX + (bubble.rect.right + offsetX) * scaleX,
-                originY + (bubble.rect.bottom + offsetY) * scaleY,
-                fallbackCornerRadius,
-                fallbackCornerRadius,
-                Path.Direction.CW
-            )
+            applyShrink(outPath, shrinkPercent)
+            return
         }
+        val rectLeft = originX + (bubble.rect.left + offsetX) * scaleX
+        val rectTop = originY + (bubble.rect.top + offsetY) * scaleY
+        val rectRight = originX + (bubble.rect.right + offsetX) * scaleX
+        val rectBottom = originY + (bubble.rect.bottom + offsetY) * scaleY
+        val cornerRadius = min(
+            (rectRight - rectLeft).coerceAtLeast(0f),
+            (rectBottom - rectTop).coerceAtLeast(0f)
+        ) * 0.12f
+        outPath.addRoundRect(
+            rectLeft,
+            rectTop,
+            rectRight,
+            rectBottom,
+            max(fallbackCornerRadius, cornerRadius),
+            max(fallbackCornerRadius, cornerRadius),
+            Path.Direction.CW
+        )
         applyShrink(outPath, shrinkPercent)
     }
 
@@ -86,7 +96,9 @@ internal object BubbleShapePaths {
         outRect.set(pathBounds)
         if (pathBounds.width() <= 0f || pathBounds.height() <= 0f) return
 
-        val pad = (minOf(pathBounds.width(), pathBounds.height()) * 0.08f).coerceAtLeast(6f)
+        // Keep padding proportional at reading zoom levels; a fixed pixel minimum
+        // can consume most of a small on-screen bubble.
+        val pad = minOf(pathBounds.width(), pathBounds.height()) * 0.025f
         outRect.inset(pad, pad)
         if (outRect.width() <= 0f || outRect.height() <= 0f) {
             outRect.set(pathBounds)
@@ -159,8 +171,8 @@ internal object BubbleShapePaths {
     }
 
     private fun applyShrink(path: Path, shrinkPercent: Int) {
-        val normalizedPercent = shrinkPercent.coerceIn(0, 95)
-        if (normalizedPercent <= 0) return
+        val normalizedPercent = shrinkPercent.coerceIn(-95, 95)
+        if (normalizedPercent == 0) return
         val tempBounds = RectF()
         path.computeBounds(tempBounds, true)
         if (tempBounds.width() <= 0f || tempBounds.height() <= 0f) return
@@ -210,13 +222,13 @@ internal object BubbleShapePaths {
 
         val widthScale = pathBounds.width() / maskWidth.toFloat()
         val heightScale = pathBounds.height() / maskHeight.toFloat()
-        val extraPadX = min(fallbackPad, pathBounds.width() * 0.12f)
-        val extraPadY = min(fallbackPad, pathBounds.height() * 0.12f)
+        val extraPadX = min(fallbackPad, pathBounds.width() * 0.025f)
+        val extraPadY = min(fallbackPad, pathBounds.height() * 0.025f)
         val safeRect = RectF(
-            pathBounds.left + left * widthScale + extraPadX * 0.35f,
-            pathBounds.top + top * heightScale + extraPadY * 0.35f,
-            pathBounds.left + right * widthScale - extraPadX * 0.35f,
-            pathBounds.top + bottom * heightScale - extraPadY * 0.35f
+            pathBounds.left + left * widthScale + extraPadX,
+            pathBounds.top + top * heightScale + extraPadY,
+            pathBounds.left + right * widthScale - extraPadX,
+            pathBounds.top + bottom * heightScale - extraPadY
         )
         return if (safeRect.width() > pathBounds.width() * 0.18f &&
             safeRect.height() > pathBounds.height() * 0.18f
@@ -267,10 +279,8 @@ internal object BubbleShapePaths {
     }
 
     private fun scoreTextRect(width: Int, height: Int): Float {
-        val minSide = min(width, height).toFloat()
-        val maxSide = max(width, height).toFloat().coerceAtLeast(1f)
-        val balance = (minSide / maxSide).coerceIn(0.35f, 1f)
-        return width * height * balance
+        // A preference for square rectangles wastes the ends of tall comic bubbles.
+        return width.toFloat() * height
     }
 
     private data class MaskRect(

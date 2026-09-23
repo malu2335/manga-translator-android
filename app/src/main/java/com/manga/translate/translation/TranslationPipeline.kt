@@ -6,7 +6,6 @@ import android.graphics.RectF
 import com.manga.translate.R
 import com.manga.translate.detection.PageRegion
 import com.manga.translate.detection.PageRegionDetector
-import com.manga.translate.detection.RegionDetectionSelection
 import com.manga.translate.detection.mapPageLineRectsToCrop
 import com.manga.translate.detection.shouldUseLongImageTiling
 import com.manga.translate.model.BubbleSource
@@ -79,7 +78,6 @@ internal class TranslationPipeline(
         glossary: MutableMap<String, String>,
         forceOcr: Boolean,
         language: TranslationLanguage = TranslationLanguage.JA_TO_ZH,
-        detectionSelection: RegionDetectionSelection = RegionDetectionSelection.BUBBLES_AND_TEXT,
         onProgress: (String) -> Unit
     ): TranslationResult? = withContext(Dispatchers.Default) {
         val resolvedApiSettings = settingsStore.load()
@@ -92,7 +90,6 @@ internal class TranslationPipeline(
             imageFile,
             forceOcr,
             language,
-            detectionSelection,
             onProgress
         ) ?: return@withContext null
         translateStandardPage(
@@ -216,7 +213,6 @@ internal class TranslationPipeline(
         imageFile: File,
         forceOcr: Boolean,
         language: TranslationLanguage = TranslationLanguage.JA_TO_ZH,
-        detectionSelection: RegionDetectionSelection = RegionDetectionSelection.BUBBLES_AND_TEXT,
         onProgress: (String) -> Unit
     ): PageOcrResult? = withContext(Dispatchers.Default) {
         val trace = PerformanceTrace(
@@ -231,8 +227,7 @@ internal class TranslationPipeline(
         val cacheMode = buildOcrCacheMode(
             imageFile,
             effectiveUseLocalOcr,
-            resolvedLanguage,
-            detectionSelection
+            resolvedLanguage
         )
         val expectedMetadata = buildOcrMetadata(imageFile, language, ocrSettings, cacheMode)
         if (!forceOcr) {
@@ -262,15 +257,14 @@ internal class TranslationPipeline(
             trace.attribute("size", "${cropSource.width}x${cropSource.height}")
             trace.attribute("longImage", shouldUseLongImageTiling(cropSource.width, cropSource.height))
             trace.attribute("ocrMode", if (useLocalOcr) "local" else "api")
-            trace.attribute("detection", detectionSelection.prefValue)
+            trace.attribute("detection", "bubbles_and_text")
             onProgress(appContext.getString(R.string.detecting_bubbles))
             val pageRegions = trace.measure("detection") {
                 pageRegionDetector.detect(
                     cropSource = cropSource,
                     pageWidth = cropSource.width,
                     pageHeight = cropSource.height,
-                    logTag = "Pipeline",
-                    detectionSelection = detectionSelection
+                    logTag = "Pipeline"
                 )
             } ?: return@withContext null
             val regions = pageRegions.regions
@@ -324,6 +318,73 @@ internal class TranslationPipeline(
         }
         } finally {
             trace.logSummary()
+        }
+    }
+
+    suspend fun translatePagesWithGlossary(
+        pages: List<PageOcrResult>,
+        glossary: Map<String, String>,
+        promptAsset: String,
+        language: TranslationLanguage,
+        mode: String
+    ): List<PipelinePageTranslationOutcome>? = withContext(Dispatchers.Default) {
+        if (pages.isEmpty()) return@withContext emptyList()
+        val apiSettings = settingsStore.load()
+        val pageMetadata = pages.map { page ->
+            buildTranslationMetadata(
+                imageFile = page.imageFile,
+                language = language,
+                mode = mode,
+                promptAsset = promptAsset,
+                ocrCacheMode = page.cacheMode
+            )
+        }
+        val recognizedPages = pages.map { it.withRecognizedTextBubblesOnly("Pipeline") }
+        var nextId = 0
+        val pageBubbles = recognizedPages.map { page ->
+            page.bubbles.sortedWith(compareBy({ it.rect.top }, { it.rect.left }, { it.id })).map { bubble ->
+                val original = BubbleTranslation.pending(
+                    id = bubble.id,
+                    rect = bubble.rect,
+                    originalText = bubble.text,
+                    source = bubble.source,
+                    maskContour = bubble.maskContour
+                )
+                original to original.copy(id = nextId++)
+            }
+        }
+        val requestBubbles = pageBubbles.flatMap { bubbles -> bubbles.map { it.second } }
+        val requestPages = pageBubbles.count { it.isNotEmpty() }.coerceAtLeast(1)
+        val translated = try {
+            executeWithModelResponseRetries("Pipeline") {
+                textBubbleTranslationCoordinator.translateBubbles(
+                    bubbles = requestBubbles,
+                    glossary = glossary,
+                    promptAsset = promptAsset,
+                    requestTimeoutMs = settingsStore.loadApiTimeoutMs() * requestPages,
+                    retryCount = settingsStore.loadApiRetryCount(),
+                    apiSettings = apiSettings,
+                    language = language,
+                    logTag = "Pipeline",
+                    translationMode = mode,
+                    preserveInputOrder = true
+                )
+            }
+        } catch (error: LlmResponseException) {
+            throw error.withPageName(pages.joinToString { it.imageFile.name })
+        } ?: return@withContext null
+        val translationById = translated.bubbles.associateBy { it.id }
+        recognizedPages.mapIndexed { index, page ->
+            val bubbles = pageBubbles[index].mapNotNull { (original, request) ->
+                if (request.id in translated.removedBubbleIds) null else
+                    requireNotNull(translationById[request.id]).copy(id = original.id)
+            }
+            val metadata = pageMetadata[index]
+            val result = TranslationResult(page.imageFile.name, page.width, page.height, bubbles, metadata)
+            PipelinePageTranslationOutcome(
+                result.copy(metadata = metadata.copy(status = result.deriveStatus())),
+                translated.glossaryUsed
+            )
         }
     }
 
@@ -415,8 +476,7 @@ internal class TranslationPipeline(
 
     suspend fun translateImageWithVl(
         imageFile: File,
-        language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection = RegionDetectionSelection.BUBBLES_AND_TEXT
+        language: TranslationLanguage
     ): FolderVlTranslateOutcome =
         withContext(Dispatchers.Default) {
             if (!llmClient.isConfigured()) {
@@ -434,8 +494,7 @@ internal class TranslationPipeline(
             try {
                 val page = detectImageBubbles(
                     imageFile,
-                    bitmap,
-                    detectionSelection
+                    bitmap
                 ) ?: return@withContext FolderVlTranslateOutcome()
                 if (page.bubbles.isEmpty()) {
                     return@withContext FolderVlTranslateOutcome(
@@ -511,7 +570,6 @@ internal class TranslationPipeline(
         fullTranslate: Boolean,
         useVlDirectTranslate: Boolean,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection = RegionDetectionSelection.BUBBLES_AND_TEXT,
         readingMode: FolderReadingMode = FolderReadingMode.STANDARD
     ): Boolean {
         val translation = loadValidTranslation(
@@ -519,7 +577,6 @@ internal class TranslationPipeline(
             fullTranslate = fullTranslate,
             useVlDirectTranslate = useVlDirectTranslate,
             language = language,
-            detectionSelection = detectionSelection,
             readingMode = readingMode
         ) ?: return false
         if (translation.metadata.isManual()) return true
@@ -531,15 +588,13 @@ internal class TranslationPipeline(
         fullTranslate: Boolean,
         useVlDirectTranslate: Boolean,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection = RegionDetectionSelection.BUBBLES_AND_TEXT,
         readingMode: FolderReadingMode = FolderReadingMode.STANDARD
     ): TranslationResult? {
         val expected = buildExpectedTranslationMetadata(
             imageFile = imageFile,
             fullTranslate = fullTranslate,
             useVlDirectTranslate = useVlDirectTranslate,
-            language = language,
-            detectionSelection = detectionSelection
+            language = language
         )
         val result = store.load(imageFile, expectedMetadata = expected) ?: return null
         // 条漫模式翻译产生的跨页合并坐标在普通模式下无法正确渲染，必须视为缓存未命中重新翻译。
@@ -578,10 +633,9 @@ internal class TranslationPipeline(
     suspend fun buildBlankTranslationResult(
         imageFile: File,
         forceOcr: Boolean,
-        language: TranslationLanguage = TranslationLanguage.JA_TO_ZH,
-        detectionSelection: RegionDetectionSelection = RegionDetectionSelection.BUBBLES_AND_TEXT
+        language: TranslationLanguage = TranslationLanguage.JA_TO_ZH
     ): TranslationResult? = withContext(Dispatchers.Default) {
-        val page = ocrImage(imageFile, forceOcr, language, detectionSelection) { }
+        val page = ocrImage(imageFile, forceOcr, language) { }
             ?: return@withContext null
         buildBlankTranslationResult(
             page = page,
@@ -627,8 +681,7 @@ internal class TranslationPipeline(
 
     private suspend fun detectImageBubbles(
         imageFile: File,
-        sourceBitmap: Bitmap,
-        detectionSelection: RegionDetectionSelection
+        sourceBitmap: Bitmap
     ): PageOcrResult? =
         withContext(Dispatchers.Default) {
             PipelineBitmapDecoder.openCropSource(sourceBitmap).use { cropSource ->
@@ -636,8 +689,7 @@ internal class TranslationPipeline(
                     cropSource = cropSource,
                     pageWidth = sourceBitmap.width,
                     pageHeight = sourceBitmap.height,
-                    logTag = "Pipeline",
-                    detectionSelection = detectionSelection
+                    logTag = "Pipeline"
                 ) ?: return@withContext null
                 val bubbles = pageRegions.regions.map { region ->
                     OcrBubble(
@@ -786,8 +838,7 @@ internal class TranslationPipeline(
         imageFile: File,
         fullTranslate: Boolean,
         useVlDirectTranslate: Boolean,
-        language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection
+        language: TranslationLanguage
     ): TranslationMetadata {
         val baseMetadata = when {
             useVlDirectTranslate -> buildTranslationMetadata(
@@ -805,8 +856,7 @@ internal class TranslationPipeline(
                 ocrCacheMode = buildOcrCacheMode(
                     imageFile,
                     settingsStore.loadOcrApiSettings().useLocalOcr,
-                    language,
-                    detectionSelection
+                    language
                 )
             )
             else -> buildTranslationMetadata(
@@ -817,8 +867,7 @@ internal class TranslationPipeline(
                 ocrCacheMode = buildOcrCacheMode(
                     imageFile,
                     settingsStore.loadOcrApiSettings().useLocalOcr,
-                    language,
-                    detectionSelection
+                    language
                 )
             )
         }
@@ -868,9 +917,10 @@ internal class TranslationPipeline(
     private fun buildOcrCacheMode(
         imageFile: File,
         useLocalOcr: Boolean,
-        language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection = RegionDetectionSelection.BUBBLES_AND_TEXT
+        language: TranslationLanguage
     ): String {
+        // Keep the historical local OCR cache tag across v5/v6 backend selection.
+        // Changing it would also invalidate persisted translations through ocrCacheMode.
         val baseMode = if (!useLocalOcr) {
             "api"
         } else {
@@ -892,7 +942,7 @@ internal class TranslationPipeline(
         val strategyTag = PipelineBitmapDecoder.readImageSize(imageFile)?.let { size ->
             buildDetectionStrategyTag(size.width, size.height)
         } ?: "det_full_yolo26nseg1472_paddle_blocks_v3"
-        return "$baseMode|$strategyTag|${detectionSelection.prefValue}"
+        return "$baseMode|$strategyTag|bubbles_and_text"
     }
 
     private suspend fun <T> executeWithModelResponseRetries(

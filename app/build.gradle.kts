@@ -21,8 +21,8 @@ android {
         applicationId = "com.manga.translate.v3"
         minSdk = 24
         targetSdk = 36
-        versionCode = 93
-        versionName = "3.4.8"
+        versionCode = 102
+        versionName = "3.5.5"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
@@ -93,6 +93,8 @@ android {
         }
     }
 
+    androidResources { noCompress += "tflite" }
+
     sourceSets["main"].assets.srcDirs("src/main/assets", "../assets")
 }
 
@@ -116,6 +118,7 @@ dependencies {
     implementation("androidx.viewpager2:viewpager2:1.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("com.squareup.okhttp3:okhttp:5.4.0")
+    implementation("com.google.ai.edge.litert:litert:2.2.0")
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.28.0")
     implementation("net.lingala.zip4j:zip4j:2.11.6")
     implementation("io.github.awxkee:avif-coder:2.2.1")

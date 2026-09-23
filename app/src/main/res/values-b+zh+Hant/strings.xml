@@ -1,4 +1,10 @@
 <resources>
+    <string name="translation_request_settings_button">AI 請求設定</string>
+    <string name="translation_request_settings_button_format">AI 請求設定：並行 %1$d，合併 %2$d 頁</string>
+    <string name="translation_request_settings_title">AI 請求設定</string>
+    <string name="translation_batch_pages_title">每次請求合併頁數</string>
+    <string name="translation_batch_pages_hint">每次請求合併頁數（1–200）</string>
+    <string name="translation_batch_pages_note">1 表示不合併。僅資料夾、合集與批次任務中的一般翻譯及全文速譯會合併頁面，譯文仍逐頁儲存。頁數過多可能超出模型輸出限制。</string>
     <string name="exclamation_mark" translatable="false">!</string>
     <!-- Global / Pipeline -->
     <string name="app_name">MT 閱讀器</string>
@@ -163,10 +169,10 @@
     <string name="floating_translate_settings_title">懸浮窗翻譯設定</string>
     <string name="normal_bubble_render_settings_button">普通氣泡框設定</string>
     <string name="normal_bubble_render_settings_title">普通氣泡框設定</string>
-    <string name="normal_bubble_render_settings_note">用於閱讀頁、條漫頁與匯出圖片的普通氣泡框繪製。可分別設定普通氣泡與游離氣泡的回縮與不透明度。文字會根據氣泡大小自動適配字號；文字會盡量填滿氣泡，不改變氣泡大小。游離氣泡僅指普通模式下由文字檢測補出的框，不包含使用者手動新增氣泡。字型請在單獨的「字型設定」中統一調整。</string>
-    <string name="normal_bubble_shrink_percent_hint">氣泡框回縮 (0–30)</string>
+    <string name="normal_bubble_render_settings_note" formatted="false">用於閱讀頁、條漫頁與匯出圖片。普通氣泡統一回縮，預設 0%；游離氣泡正數外擴、負數回縮，預設 10%。可分別設定不透明度與自適應背景色。文字自動適配氣泡大小。游離氣泡僅指文字偵測產生的框，不包含手動新增氣泡。字型請在「字型設定」中調整。</string>
+    <string name="normal_bubble_shrink_percent_hint">氣泡回縮 (0–30%)</string>
     <string name="normal_bubble_opacity_percent_hint">普通氣泡不透明度 (0–100)</string>
-    <string name="normal_bubble_free_shrink_percent_hint">游離氣泡回縮 (0–30)</string>
+    <string name="normal_bubble_free_shrink_percent_hint">游離氣泡大小調整 (−30–30%)</string>
     <string name="normal_bubble_free_opacity_percent_hint">游離氣泡不透明度 (0–100)</string>
     <string name="normal_bubble_auto_adapt_color">普通氣泡自適應背景色</string>
     <string name="normal_bubble_free_auto_adapt_color">游離氣泡自適應背景色</string>
@@ -227,8 +233,6 @@
     <string name="floating_ai_api_concurrency_hint">懸浮窗 AI API 並行上限 (1–50)</string>
     <string name="floating_translate_settings_note">留空某一項則使用主設定中的對應配置。</string>
     <string name="ocr_use_local">使用本地 OCR</string>
-    <string name="ocr_use_xnnpack">啟用 XNNPACK 本地推論加速（實驗性）</string>
-    <string name="ocr_use_xnnpack_note">僅影響本地 ONNX 模型。已載入的模型需重新啟動軟體後生效；部分裝置可能不相容、變慢或在載入模型時崩潰，遇到異常請關閉後重新啟動。</string>
     <string name="ocr_api_format_openai_compatible">OpenAI 相容</string>
     <string name="ocr_api_format_hint">OCR API 格式</string>
     <string name="ocr_api_url_hint">OCR API 位址</string>
@@ -237,7 +241,7 @@
     <string name="ocr_api_timeout_hint">OCR API 逾時 (秒, 30–1200)</string>
     <string name="ocr_api_concurrency_hint">API OCR 並行數 (1–50)</string>
     <string name="local_ocr_concurrency_hint">本地 OCR 並行數 (0=自動, 1–8)</string>
-    <string name="ocr_settings_note_local">啟用後將只使用軟體內建 OCR。</string>
+    <string name="ocr_settings_note_local">啟用後僅使用內建 OCR，自動選擇模型，並在支援時使用 GPU 加速。</string>
     <string name="ocr_settings_note_api">關閉本地 OCR 後可配置 OpenAI 相容 OCR</string>
     <string name="missing_ocr_api_settings">請先在 OCR 設定中填寫 API 位址、Key 與模型名稱</string>
     <string name="llm_params_clear">全部留空</string>
@@ -425,12 +429,6 @@
     <string name="folder_glossary_processing_info_title">譯名處理說明</string>
     <string name="folder_glossary_processing_info_desc">譯名處理說明</string>
     <string name="folder_glossary_processing_note">關閉譯名處理後可並發翻譯，速度更快。</string>
-    <string name="folder_bubble_detection_info_title">區域檢測模式說明</string>
-    <string name="folder_bubble_detection_info_desc">區域檢測模式說明</string>
-    <string name="folder_bubble_detection_info">僅氣泡只使用氣泡分割模型；僅文字只使用 Paddle OCR 檢測並合併全部文字塊，識別速度最快；氣泡和游離文字會同時檢測普通氣泡，並用 Paddle OCR 補充和合併氣泡外文字，識別速度最慢。如果出現氣泡亂飛、位置明顯偏移等情況，建議切換為「僅氣泡」模式識別。</string>
-    <string name="folder_detection_mode_bubbles">僅氣泡</string>
-    <string name="folder_detection_mode_text">僅文字</string>
-    <string name="folder_detection_mode_bubbles_and_text">氣泡和游離文字</string>
 
     <!-- Library / Progress -->
     <string name="translation_preparing">預處理中</string>
@@ -481,6 +479,7 @@
     <string name="import_failed">匯入失敗，請重試</string>
     <string name="import_images_failed">匯入失敗：無法讀取所選圖片，請確認檔案未損壞且格式受支援。</string>
     <string name="import_done">已匯入 %1$d 張圖片</string>
+    <string name="import_progress">正在匯入，請稍候…</string>
     <string name="avif_conversion_progress">正在將 AVIF 圖片轉換為 PNG…</string>
 
     <!-- Import / CBZ -->
@@ -630,4 +629,7 @@
     <string name="global_progress_done">%1$s 完成</string>
     <string name="global_progress_in_progress">%1$s中</string>
     <string name="global_progress_count">%1$s %2$d/%3$d</string>
+    <string name="floating_region_full_screen">全螢幕</string>
+    <string name="floating_region_margin_value">%1$s：%2$d</string>
+    <string name="floating_region_configuration_note">在螢幕上拖曳框選翻譯區域，放開後點選確認，下次翻譯生效。可重新拖曳框選；寬高至少為螢幕的 10%。</string>
 </resources>

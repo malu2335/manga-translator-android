@@ -8,7 +8,6 @@ import com.manga.translate.background.TranslationKeepAliveService
 import com.manga.translate.library.LibraryPreferencesGateway
 import com.manga.translate.library.LibraryRepository
 import com.manga.translate.library.LibraryUiCallbacks
-import com.manga.translate.detection.RegionDetectionSelection
 import com.manga.translate.floating.executeWithModelResponseRetries
 import com.manga.translate.model.FolderReadingMode
 import com.manga.translate.model.FolderStatus
@@ -339,7 +338,6 @@ internal class FolderTranslationCoordinator(
                 fullTranslate = task.fullTranslate,
                 useVlDirectTranslate = task.useVlDirectTranslate,
                 language = task.language,
-                detectionSelection = preferencesGateway.getRegionDetectionSelection(task.folder),
                 readingMode = preferencesGateway.getReadingMode(task.folder)
             )
             if (pendingImages.isEmpty()) {
@@ -493,7 +491,6 @@ internal class FolderTranslationCoordinator(
             fullTranslate = false,
             useVlDirectTranslate = useVlDirectTranslate,
             language = language,
-            detectionSelection = preferencesGateway.getRegionDetectionSelection(folder),
             readingMode = preferencesGateway.getReadingMode(folder)
         )
         if (pendingImages.isEmpty()) {
@@ -656,7 +653,6 @@ internal class FolderTranslationCoordinator(
             fullTranslate = true,
             useVlDirectTranslate = false,
             language = language,
-            detectionSelection = preferencesGateway.getRegionDetectionSelection(folder),
             readingMode = preferencesGateway.getReadingMode(folder)
         )
         if (pendingImages.isEmpty()) {
@@ -681,14 +677,12 @@ internal class FolderTranslationCoordinator(
         ) {
             var failed = false
             try {
-                val detectionSelection = preferencesGateway.getRegionDetectionSelection(folder)
                 val glossary = loadScopedGlossary(folder)
                 val extractState = loadScopedExtractState(folder)
                 val preparedOcrResults = prepareFullPagesConcurrent(
                     pages = pendingImages,
                     force = force,
                     language = language,
-                    detectionSelection = detectionSelection,
                     onPrepareProgress = { processed, total, imageName ->
                         reportPreprocessProgress(
                             stage = appContext.getString(R.string.folder_preprocess_stage_ocr),
@@ -722,7 +716,6 @@ internal class FolderTranslationCoordinator(
                         fullTranslate = true,
                         useVlDirectTranslate = false,
                         language = language,
-                        detectionSelection = detectionSelection,
                         readingMode = preferencesGateway.getReadingMode(folder)
                     ) ||
                         extractState.contains(it.imageFile.name)
@@ -785,7 +778,6 @@ internal class FolderTranslationCoordinator(
                     folder = folder,
                     promptAsset = "prompts/llm_prompts_FullTrans.json",
                     language = language,
-                    detectionSelection = detectionSelection,
                     glossary = glossary,
                     glossaryMutex = glossaryMutex,
                     onCountUpdated = { processedCount, failedCount ->
@@ -967,14 +959,12 @@ internal class FolderTranslationCoordinator(
         totalImages: Int
     ): CollectionTaskResult {
         var failed = false
-        val detectionSelection = preferencesGateway.getRegionDetectionSelection(task.folder)
         val glossary = loadScopedGlossary(task.folder)
         val extractState = loadScopedExtractState(task.folder)
         val preparedOcrResults = prepareFullPagesConcurrent(
             pages = task.pendingImages,
             force = task.force,
             language = task.language,
-            detectionSelection = detectionSelection,
             onPrepareProgress = { processed, total, imageName ->
                 reportCollectionProgress(
                     chapterIndex = chapterIndex,
@@ -1010,7 +1000,6 @@ internal class FolderTranslationCoordinator(
                 fullTranslate = true,
                 useVlDirectTranslate = false,
                 language = task.language,
-                detectionSelection = detectionSelection,
                 readingMode = preferencesGateway.getReadingMode(task.folder)
             ) || extractState.contains(it.imageFile.name)
         }
@@ -1084,7 +1073,6 @@ internal class FolderTranslationCoordinator(
                 folder = task.folder,
                 promptAsset = "prompts/llm_prompts_FullTrans.json",
                 language = task.language,
-                detectionSelection = detectionSelection,
                 glossary = glossary,
                 glossaryMutex = glossaryMutex,
                 onCountUpdated = { processedCount, failedCount ->
@@ -1309,11 +1297,10 @@ internal class FolderTranslationCoordinator(
         onPrepareProgress: suspend (processed: Int, total: Int, imageName: String) -> Unit,
         onCountUpdated: suspend (processedCount: Int, failedCount: Int) -> Unit
     ): PageExecutionSummary {
-        val detectionSelection = preferencesGateway.getRegionDetectionSelection(folder)
         val applyCrossPageMerge = !useVlDirectTranslate &&
             shouldApplyCrossPageBubbleMerge(folder)
 
-        if (!useVlDirectTranslate && !applyCrossPageMerge) {
+        if (!useVlDirectTranslate && !applyCrossPageMerge && settingsStore.loadTranslationBatchPages() == 1) {
             // Non-webtoon standard mode can start LLM translation as soon as the first
             // page finishes OCR instead of waiting for the whole folder to be prepared.
             onCountUpdated(0, 0)
@@ -1323,7 +1310,6 @@ internal class FolderTranslationCoordinator(
                 force = force,
                 glossaryProcessingEnabled = glossaryProcessingEnabled,
                 language = language,
-                detectionSelection = detectionSelection,
                 glossary = glossary,
                 glossaryMutex = glossaryMutex,
                 onPrepareProgress = onPrepareProgress,
@@ -1336,7 +1322,6 @@ internal class FolderTranslationCoordinator(
             force = force,
             useVlDirectTranslate = useVlDirectTranslate,
             language = language,
-            detectionSelection = detectionSelection,
             onPrepareProgress = onPrepareProgress
         )
         val mergedPreparedPages = if (applyCrossPageMerge) {
@@ -1353,7 +1338,6 @@ internal class FolderTranslationCoordinator(
             glossaryProcessingEnabled = glossaryProcessingEnabled,
             useVlDirectTranslate = useVlDirectTranslate,
             language = language,
-            detectionSelection = detectionSelection,
             glossary = glossary,
             glossaryMutex = glossaryMutex,
             onCountUpdated = onCountUpdated
@@ -1365,7 +1349,6 @@ internal class FolderTranslationCoordinator(
         force: Boolean,
         useVlDirectTranslate: Boolean,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection,
         onPrepareProgress: suspend (processed: Int, total: Int, imageName: String) -> Unit
     ): List<PreparedStandardPage?> {
         if (useVlDirectTranslate) {
@@ -1395,8 +1378,7 @@ internal class FolderTranslationCoordinator(
                                 image = image,
                                 force = force,
                                 useVlDirectTranslate = false,
-                                language = language,
-                                detectionSelection = detectionSelection
+                                language = language
                             )
                         } catch (e: CancellationException) {
                             throw e
@@ -1431,7 +1413,6 @@ internal class FolderTranslationCoordinator(
         pages: List<File>,
         force: Boolean,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection,
         onPrepareProgress: suspend (processed: Int, total: Int, imageName: String) -> Unit
     ): List<PageOcrResult?> {
         if (pages.isEmpty()) {
@@ -1456,7 +1437,6 @@ internal class FolderTranslationCoordinator(
                                 image,
                                 force,
                                 language,
-                                detectionSelection
                             ) { stage ->
                                 reportImagePreprocessStage(image.name, stage)
                             }
@@ -1521,11 +1501,30 @@ internal class FolderTranslationCoordinator(
         glossaryProcessingEnabled: Boolean,
         useVlDirectTranslate: Boolean,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection,
         glossary: MutableMap<String, String>,
         glossaryMutex: Mutex,
         onCountUpdated: suspend (processedCount: Int, failedCount: Int) -> Unit
     ): PageExecutionSummary {
+        if (!useVlDirectTranslate && settingsStore.loadTranslationBatchPages() > 1) {
+            return executeMergedPages(
+                pages = pages,
+                preparedPages = preparedPages,
+                folder = folder,
+                force = force,
+                glossaryProcessingEnabled = glossaryProcessingEnabled,
+                promptAsset = STANDARD_PROMPT_ASSET,
+                mode = TranslationMetadata.MODE_STANDARD,
+                language = language,
+                glossary = glossary,
+                glossaryMutex = glossaryMutex,
+                onCountUpdated = onCountUpdated
+            ) { image, page, semaphore ->
+                executeStandardPageWithModelErrorResolution(
+                    semaphore, folder, image, page, force, glossaryProcessingEnabled,
+                    language, glossary, glossaryMutex
+                )
+            }
+        }
         val maxConcurrency = settingsStore.loadMaxConcurrency()
         val apiSemaphore = Semaphore(maxConcurrency)
         val processedCount = AtomicInteger(0)
@@ -1575,7 +1574,7 @@ internal class FolderTranslationCoordinator(
                     val execution = try {
                         if (useVlDirectTranslate) {
                             apiSemaphore.withPermit {
-                                executeVlPageTranslation(image, language, detectionSelection)
+                                executeVlPageTranslation(image, language)
                             }
                         } else {
                             executeStandardPageWithModelErrorResolution(
@@ -1586,7 +1585,6 @@ internal class FolderTranslationCoordinator(
                                 force = force,
                                 glossaryProcessingEnabled = glossaryProcessingEnabled,
                                 language = language,
-                                detectionSelection = detectionSelection,
                                 glossary = glossary,
                                 glossaryMutex = glossaryMutex
                             )
@@ -1647,7 +1645,6 @@ internal class FolderTranslationCoordinator(
         force: Boolean,
         glossaryProcessingEnabled: Boolean,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection,
         glossary: MutableMap<String, String>,
         glossaryMutex: Mutex,
         onPrepareProgress: suspend (processed: Int, total: Int, imageName: String) -> Unit,
@@ -1689,8 +1686,7 @@ internal class FolderTranslationCoordinator(
                                     image = image,
                                     force = force,
                                     useVlDirectTranslate = false,
-                                    language = language,
-                                    detectionSelection = detectionSelection
+                                    language = language
                                 )
                             }
                         } catch (e: CancellationException) {
@@ -1752,7 +1748,6 @@ internal class FolderTranslationCoordinator(
                         force = force,
                         glossaryProcessingEnabled = glossaryProcessingEnabled,
                         language = language,
-                        detectionSelection = detectionSelection,
                         glossary = glossary,
                         glossaryMutex = glossaryMutex
                     )
@@ -1818,20 +1813,18 @@ internal class FolderTranslationCoordinator(
         image: File,
         force: Boolean,
         useVlDirectTranslate: Boolean,
-        language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection
+        language: TranslationLanguage
     ): PreparedStandardPage? {
         if (useVlDirectTranslate) {
             return PreparedStandardPage(image = image, ocrResult = null)
         }
-        if (!force && hasRefillablePartialTranslation(image, language, detectionSelection, TranslationMetadata.MODE_STANDARD)) {
+        if (!force && hasRefillablePartialTranslation(image, language, TranslationMetadata.MODE_STANDARD)) {
             return PreparedStandardPage(image = image, ocrResult = null)
         }
         val ocrResult = translationPipeline.ocrImage(
             image,
             force,
             language,
-            detectionSelection
         ) { } ?: return null
         return PreparedStandardPage(image = image, ocrResult = ocrResult)
     }
@@ -1841,11 +1834,30 @@ internal class FolderTranslationCoordinator(
         folder: File,
         promptAsset: String,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection,
         glossary: MutableMap<String, String>,
         glossaryMutex: Mutex,
         onCountUpdated: suspend (processedCount: Int, failedCount: Int) -> Unit
     ): PageExecutionSummary {
+        if (settingsStore.loadTranslationBatchPages() > 1) {
+            return executeMergedPages(
+                pages = pages.map { it.imageFile },
+                preparedPages = pages.map { PreparedStandardPage(it.imageFile, it) },
+                folder = folder,
+                force = false,
+                glossaryProcessingEnabled = true,
+                promptAsset = promptAsset,
+                mode = TranslationMetadata.MODE_FULL_PAGE,
+                language = language,
+                glossary = glossary,
+                glossaryMutex = glossaryMutex,
+                onCountUpdated = onCountUpdated
+            ) { _, page, semaphore ->
+                executeFullPageWithModelErrorResolution(
+                    semaphore, folder, requireNotNull(page), promptAsset, language,
+                    glossary, glossaryMutex
+                )
+            }
+        }
         val maxConcurrency = settingsStore.loadMaxConcurrency()
         val semaphore = Semaphore(maxConcurrency)
         val processedCount = AtomicInteger(0)
@@ -1887,7 +1899,6 @@ internal class FolderTranslationCoordinator(
                             page = page,
                             promptAsset = promptAsset,
                             language = language,
-                            detectionSelection = detectionSelection,
                             glossary = glossary,
                             glossaryMutex = glossaryMutex
                         )
@@ -1939,6 +1950,123 @@ internal class FolderTranslationCoordinator(
             hasFailures = hasFailures.get(),
             failedCount = failedCount.get()
         )
+    }
+
+    private suspend fun executeMergedPages(
+        pages: List<File>,
+        preparedPages: List<PreparedStandardPage?>,
+        folder: File,
+        force: Boolean,
+        glossaryProcessingEnabled: Boolean,
+        promptAsset: String,
+        mode: String,
+        language: TranslationLanguage,
+        glossary: MutableMap<String, String>,
+        glossaryMutex: Mutex,
+        onCountUpdated: suspend (processedCount: Int, failedCount: Int) -> Unit,
+        executeSinglePage: suspend (File, PageOcrResult?, Semaphore) -> PageTranslationExecutionResult
+    ): PageExecutionSummary {
+        val semaphore = Semaphore(settingsStore.loadMaxConcurrency())
+        val requestException = AtomicReference<LlmRequestException?>(null)
+        val progressMutex = Mutex()
+        var processedCount = 0
+        var failedCount = 0
+        val batchSize = settingsStore.loadTranslationBatchPages()
+        val batchable = pages.indices.map { index ->
+            val partial = !force && hasRefillablePartialTranslation(
+                pages[index], language, mode
+            )
+            preparedPages.getOrNull(index)?.ocrResult != null && !partial
+        }
+        val groups = buildPageTranslationBatches(batchable, batchSize)
+        onCountUpdated(0, 0)
+        supervisorScope {
+            groups.map { indices ->
+                async {
+                    var failureMessage: String? = null
+                    val executions = try {
+                        currentCoroutineContext().ensureActive()
+                        requestException.get()?.let { throw it }
+                        indices.forEach { index ->
+                            progressStore.update(folder, pages[index].name, PageProgressStatus.PENDING)
+                        }
+                        if (indices.size == 1) {
+                            val index = indices.single()
+                            val prepared = preparedPages.getOrNull(index)
+                            listOf(
+                                if (prepared == null) PageTranslationExecutionResult() else
+                                    executeSinglePage(pages[index], prepared.ocrResult, semaphore)
+                            )
+                        } else {
+                            val batch = indices.map { requireNotNull(preparedPages[it]?.ocrResult) }
+                            executeGuardedTranslation(
+                                apiSemaphore = semaphore,
+                                execute = {
+                                    requestException.get()?.let { throw it }
+                                    val snapshot = glossaryMutex.withLock { LinkedHashMap(glossary) }
+                                    val outcomes = translationPipeline.translatePagesWithGlossary(
+                                        batch, snapshot, promptAsset, language, mode
+                                    )
+                                    if (outcomes != null && glossaryProcessingEnabled) {
+                                        mergeGlossary(
+                                            glossary, outcomes.first().glossaryUsed, glossaryMutex, folder
+                                        )
+                                    }
+                                    batch.indices.map { index ->
+                                        PageTranslationExecutionResult(result = outcomes?.get(index)?.result)
+                                    }
+                                },
+                                onSkipPage = {
+                                    batch.map { page ->
+                                        if (mode == TranslationMetadata.MODE_STANDARD) {
+                                            skipStandardImage(folder, page, language)
+                                        } else {
+                                            skipFullPageImage(folder, page, promptAsset, language)
+                                        }
+                                        PageTranslationExecutionResult(recoveredFromModelError = true)
+                                    }
+                                }
+                            )
+                        }
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (error: Throwable) {
+                        if (error is LlmRequestException) requestException.compareAndSet(null, error)
+                        failureMessage = error.message
+                        AppLogger.log("Library", "Merged page translation failed", error)
+                        emptyList()
+                    }
+                    indices.forEachIndexed { position, index ->
+                        currentCoroutineContext().ensureActive()
+                        val image = pages[index]
+                        val execution = executions.getOrNull(position)
+                        val result = execution?.result
+                        val failed = result == null && execution?.recoveredFromModelError != true
+                        if (result != null) {
+                            translationPipeline.saveResult(image, result)
+                            progressStore.update(
+                                folder, image.name,
+                                if (result.metadata.status == PageTranslationStatus.SKIPPED) {
+                                    PageProgressStatus.SKIPPED
+                                } else {
+                                    PageProgressStatus.SAVED
+                                }
+                            )
+                        } else if (!failed) {
+                            progressStore.update(folder, image.name, PageProgressStatus.SKIPPED)
+                        } else {
+                            recordPageFailure(folder, image, failureMessage)
+                        }
+                        progressMutex.withLock {
+                            if (failed) failedCount++
+                            onCountUpdated(++processedCount, failedCount)
+                        }
+                    }
+                }
+            }.awaitAll()
+        }
+        requestException.get()?.let { throw it }
+        return PageExecutionSummary(hasFailures = failedCount > 0, failedCount = failedCount)
     }
 
     private suspend fun recordPageFailure(folder: File, image: File, errorMessage: String?) {
@@ -2005,7 +2133,6 @@ internal class FolderTranslationCoordinator(
         force: Boolean,
         glossaryProcessingEnabled: Boolean,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection,
         glossary: MutableMap<String, String>,
         glossaryMutex: Mutex
     ): PageTranslationExecutionResult {
@@ -2019,7 +2146,6 @@ internal class FolderTranslationCoordinator(
                 language = language,
                 promptAsset = STANDARD_PROMPT_ASSET,
                 translationMode = "standard",
-                detectionSelection = detectionSelection,
                 glossary = glossary,
                 glossaryMutex = glossaryMutex,
                 glossaryProcessingEnabled = glossaryProcessingEnabled
@@ -2029,7 +2155,6 @@ internal class FolderTranslationCoordinator(
             image,
             force,
             language,
-            detectionSelection
         ) { }
             ?: return PageTranslationExecutionResult()
         var lastResponseException: LlmResponseException? = null
@@ -2079,7 +2204,6 @@ internal class FolderTranslationCoordinator(
     private fun hasRefillablePartialTranslation(
         image: File,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection,
         translationMode: String
     ): Boolean {
         if (pendingBubbleRetranslator == null) return false
@@ -2090,8 +2214,7 @@ internal class FolderTranslationCoordinator(
                 metadata = existing.metadata,
                 image = image,
                 language = language,
-                translationMode = translationMode,
-                detectionSelection = detectionSelection
+                translationMode = translationMode
             )
     }
 
@@ -2109,8 +2232,7 @@ internal class FolderTranslationCoordinator(
         metadata: TranslationMetadata,
         image: File,
         language: TranslationLanguage,
-        translationMode: String,
-        detectionSelection: RegionDetectionSelection
+        translationMode: String
     ): Boolean {
         if (metadata.mode != translationMode || metadata.language != language.name) {
             return false
@@ -2119,8 +2241,7 @@ internal class FolderTranslationCoordinator(
             imageFile = image,
             fullTranslate = translationMode == TranslationMetadata.MODE_FULL_PAGE,
             useVlDirectTranslate = translationMode == TranslationMetadata.MODE_VL_DIRECT,
-            language = language,
-            detectionSelection = detectionSelection
+            language = language
         )
         return translationStore.matchesTranslationRequest(image, metadata, expectedMetadata)
     }
@@ -2130,7 +2251,6 @@ internal class FolderTranslationCoordinator(
         page: PageOcrResult,
         promptAsset: String,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection,
         glossary: MutableMap<String, String>,
         glossaryMutex: Mutex
     ): PageTranslationExecutionResult {
@@ -2143,7 +2263,6 @@ internal class FolderTranslationCoordinator(
             language = language,
             promptAsset = promptAsset,
             translationMode = "full_page",
-            detectionSelection = detectionSelection,
             glossary = glossary,
             glossaryMutex = glossaryMutex,
             glossaryProcessingEnabled = true
@@ -2188,13 +2307,11 @@ internal class FolderTranslationCoordinator(
 
     private suspend fun executeVlPageTranslation(
         image: File,
-        language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection
+        language: TranslationLanguage
     ): PageTranslationExecutionResult {
         val outcome = translationPipeline.translateImageWithVl(
             imageFile = image,
-            language = language,
-            detectionSelection = detectionSelection
+            language = language
         )
         return when {
             outcome.requiresVlModel -> {
@@ -2218,7 +2335,6 @@ internal class FolderTranslationCoordinator(
         language: TranslationLanguage,
         promptAsset: String,
         translationMode: String,
-        detectionSelection: RegionDetectionSelection,
         glossary: MutableMap<String, String>,
         glossaryMutex: Mutex,
         glossaryProcessingEnabled: Boolean
@@ -2227,7 +2343,7 @@ internal class FolderTranslationCoordinator(
         val existing = translationPipeline.loadAnyTranslation(image) ?: return null
         if (existing.metadata.status != PageTranslationStatus.PARTIAL) return null
         if (!existing.metadata.matchesSource(image)) return null
-        if (!matchesPartialTranslationRequest(existing.metadata, image, language, translationMode, detectionSelection)) {
+        if (!matchesPartialTranslationRequest(existing.metadata, image, language, translationMode)) {
             AppLogger.log("Library", "Partial refill skipped for ${image.name}: request metadata mismatch")
             return null
         }
@@ -2327,11 +2443,11 @@ internal class FolderTranslationCoordinator(
      * retry the page or skip it. SKIP executes [onSkipPage] (which marks the page
      * as skipped) and returns immediately; RETRY loops back into the guarded block.
      */
-    private suspend fun executeGuardedTranslation(
+    private suspend fun <Result> executeGuardedTranslation(
         apiSemaphore: Semaphore,
-        execute: suspend () -> PageTranslationExecutionResult,
-        onSkipPage: suspend () -> PageTranslationExecutionResult
-    ): PageTranslationExecutionResult {
+        execute: suspend () -> Result,
+        onSkipPage: suspend () -> Result
+    ): Result {
         while (true) {
             try {
                 return apiSemaphore.withPermit { execute() }
@@ -2351,7 +2467,6 @@ internal class FolderTranslationCoordinator(
         force: Boolean,
         glossaryProcessingEnabled: Boolean,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection,
         glossary: MutableMap<String, String>,
         glossaryMutex: Mutex
     ): PageTranslationExecutionResult {
@@ -2365,7 +2480,6 @@ internal class FolderTranslationCoordinator(
                     force = force,
                     glossaryProcessingEnabled = glossaryProcessingEnabled,
                     language = language,
-                    detectionSelection = detectionSelection,
                     glossary = glossary,
                     glossaryMutex = glossaryMutex
                 )
@@ -2375,7 +2489,6 @@ internal class FolderTranslationCoordinator(
                     image,
                     force,
                     language,
-                    detectionSelection
                 ) { }
                 if (pageToSkip != null) {
                     skipStandardImage(folder, pageToSkip, language)
@@ -2393,7 +2506,6 @@ internal class FolderTranslationCoordinator(
         page: PageOcrResult,
         promptAsset: String,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection,
         glossary: MutableMap<String, String>,
         glossaryMutex: Mutex
     ): PageTranslationExecutionResult {
@@ -2405,7 +2517,6 @@ internal class FolderTranslationCoordinator(
                     page = page,
                     promptAsset = promptAsset,
                     language = language,
-                    detectionSelection = detectionSelection,
                     glossary = glossary,
                     glossaryMutex = glossaryMutex
                 )
@@ -2460,7 +2571,6 @@ internal class FolderTranslationCoordinator(
         fullTranslate: Boolean,
         useVlDirectTranslate: Boolean,
         language: TranslationLanguage,
-        detectionSelection: RegionDetectionSelection,
         readingMode: FolderReadingMode
     ): List<File> {
         return if (force) {
@@ -2472,7 +2582,6 @@ internal class FolderTranslationCoordinator(
                     fullTranslate = fullTranslate,
                     useVlDirectTranslate = useVlDirectTranslate,
                     language = language,
-                    detectionSelection = detectionSelection,
                     readingMode = readingMode
                 )
             }

@@ -1,6 +1,10 @@
 package com.manga.translate
 
+import android.graphics.Bitmap
 import android.graphics.RectF
+import com.manga.translate.model.TranslationLanguage
+import com.manga.translate.ocr.OcrEngine
+import com.manga.translate.ocr.recognizeLocalCrop
 import com.manga.translate.model.BubbleSource
 import com.manga.translate.ocr.EnglishLine
 import com.manga.translate.ocr.resolveCropOcrText
@@ -117,6 +121,62 @@ class OcrSharedToolsTest {
 
         assertEquals("FIRST\nSECOND", text)
         assertEquals(0, wholeCropCalls)
+    }
+
+    @Test
+    fun `Chinese blocks without page line boxes detect and recognize all lines`() {
+        val crop = Bitmap.createBitmap(100, 60, Bitmap.Config.ARGB_8888)
+        val rects = listOf(RectF(0f, 0f, 100f, 20f), RectF(0f, 30f, 100f, 50f))
+        try {
+            for (language in listOf(TranslationLanguage.ZH_HANS_TO_TARGET,
+                TranslationLanguage.ZH_HANT_TO_TARGET, TranslationLanguage.CHN_ENG_TO_ZH)) {
+                var detections = 0
+                val seen = mutableListOf<RectF?>()
+                val engine = object : OcrEngine {
+                    override fun recognize(bitmap: Bitmap): String = error("Must not recognize a paragraph as one line")
+                    override fun recognizeWithScore(bitmap: Bitmap, rect: RectF?): OcrEngine.OcrEngineResult {
+                        seen.add(rect)
+                        return OcrEngine.OcrEngineResult(if (seen.size == 1) "第一行" else "第二行", .9f)
+                    }
+                }
+                assertEquals("第一行\n第二行", recognizeLocalCrop(crop, language,
+                    BubbleSource.TEXT_DETECTOR, null, engine, "test") { detections++; rects })
+                assertEquals(1, detections)
+                assertEquals(rects, seen)
+            }
+        } finally { crop.recycle() }
+    }
+
+    @Test
+    fun `unavailable line detector fails open and Chinese empty detection keeps whole crop fallback`() {
+        val crop = Bitmap.createBitmap(100, 60, Bitmap.Config.ARGB_8888)
+        val engine = object : OcrEngine { override fun recognize(bitmap: Bitmap) = "whole" }
+        try {
+            for (language in listOf(TranslationLanguage.JA_TO_ZH, TranslationLanguage.EN_TO_ZH,
+                TranslationLanguage.KO_TO_ZH, TranslationLanguage.ZH_HANS_TO_TARGET)) {
+                assertEquals("whole", recognizeLocalCrop(crop, language, BubbleSource.TEXT_DETECTOR,
+                    null, engine, "test") { null })
+                val expected = if (language == TranslationLanguage.ZH_HANS_TO_TARGET) "whole" else ""
+                assertEquals(expected, recognizeLocalCrop(crop, language, BubbleSource.TEXT_DETECTOR,
+                    null, engine, "test") { emptyList() })
+            }
+        } finally { crop.recycle() }
+    }
+
+    @Test
+    fun `explicit lines skip detection and Korean retains its stricter confidence threshold`() {
+        val crop = Bitmap.createBitmap(100, 60, Bitmap.Config.ARGB_8888)
+        val rects = listOf(RectF(0f, 0f, 100f, 20f), RectF(0f, 30f, 100f, 50f))
+        val engine = object : OcrEngine {
+            override fun recognize(bitmap: Bitmap): String = error("No whole crop fallback for multiple lines")
+            override fun recognizeWithScore(bitmap: Bitmap, rect: RectF?) = OcrEngine.OcrEngineResult("text", .6f)
+        }
+        try {
+            assertEquals("text\ntext", recognizeLocalCrop(crop, TranslationLanguage.EN_TO_ZH,
+                BubbleSource.TEXT_DETECTOR, rects, engine, "test") { error("Must reuse lines") })
+            assertEquals("", recognizeLocalCrop(crop, TranslationLanguage.KO_TO_ZH,
+                BubbleSource.TEXT_DETECTOR, rects, engine, "test") { error("Must reuse lines") })
+        } finally { crop.recycle() }
     }
 
     private fun line(text: String) = EnglishLine(RectF(0f, 0f, 10f, 10f), text)

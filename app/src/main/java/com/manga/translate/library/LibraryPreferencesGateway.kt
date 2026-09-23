@@ -7,7 +7,6 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.core.content.edit
 import androidx.documentfile.provider.DocumentFile
-import com.manga.translate.detection.RegionDetectionSelection
 import com.manga.translate.model.FolderReadingMode
 import com.manga.translate.model.FolderStatus
 import com.manga.translate.model.TranslationLanguage
@@ -33,15 +32,6 @@ internal class LibraryPreferencesGateway(
         )
     }
 
-    fun getRegionDetectionSelection(folder: File): RegionDetectionSelection {
-        return RegionDetectionSelection.fromPref(
-            prefs.getString(
-                regionDetectionModeKeyPrefix + settingsFolder(folder).absolutePath,
-                RegionDetectionSelection.BUBBLES_AND_TEXT.prefValue
-            )
-        )
-    }
-
     fun setFullTranslateEnabled(folder: File, enabled: Boolean) {
         prefs.edit() {
             putBoolean(fullTranslateKeyPrefix + settingsFolder(folder).absolutePath, enabled)
@@ -51,12 +41,6 @@ internal class LibraryPreferencesGateway(
     fun setGlossaryProcessingEnabled(folder: File, enabled: Boolean) {
         prefs.edit() {
             putBoolean(glossaryProcessingKeyPrefix + settingsFolder(folder).absolutePath, enabled)
-        }
-    }
-
-    fun setRegionDetectionSelection(folder: File, selection: RegionDetectionSelection) {
-        prefs.edit() {
-            putString(regionDetectionModeKeyPrefix + settingsFolder(folder).absolutePath, selection.prefValue)
         }
     }
 
@@ -389,7 +373,6 @@ internal class LibraryPreferencesGateway(
         private const val librarySortAscendingKey = "library_sort_ascending"
         private const val fullTranslateKeyPrefix = "full_translate_enabled_"
         private const val glossaryProcessingKeyPrefix = "glossary_processing_enabled_"
-        private const val regionDetectionModeKeyPrefix = "region_detection_mode_"
         private const val languageKeyPrefix = "translation_language_"
         private const val vlDirectTranslateKeyPrefix = "vl_direct_translate_enabled_"
         private const val readingModeKeyPrefix = "reading_mode_"
@@ -400,7 +383,6 @@ internal class LibraryPreferencesGateway(
         private val settingsKeyPrefixes = listOf(
             fullTranslateKeyPrefix,
             glossaryProcessingKeyPrefix,
-            regionDetectionModeKeyPrefix,
             languageKeyPrefix,
             vlDirectTranslateKeyPrefix,
             readingModeKeyPrefix,

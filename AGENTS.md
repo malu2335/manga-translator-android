@@ -113,14 +113,16 @@ export PATH=$PATH:$ANDROID_HOME/platform-tools
 - 翻译固定使用主供应商，不得再引入附加供应商池或调度。
 - 自定义请求参数作用于主供应商，参数键不可重复。
 - 并发逐页翻译使用 glossary 快照，成功后串行合并。关闭译名处理时仍可读取已有 `glossary.json` 作为上下文，但不得提取、合并或写入新译名。
+- 多页气泡合并仅合并 AI 请求，不拼接图片或改写页内坐标；由 `TranslationPipeline.translatePagesWithGlossary()` 分配请求级唯一 ID 并拆回逐页结果。合并后的请求受 AI 并发数限制，超时按实际含文字页数扩展；已有部分译文仍走补填流程，已有缓存不因合并页数变化而失效。
 - 全文速译固定启用译名处理；`CrossPageBubbleMerger` 只用于 `WEBTOON_SCROLL`，普通横向阅读不得执行跨页气泡合并。
 
 ### 检测与 OCR
 
-- `PageRegionDetector` 是主翻译与悬浮窗共享的页面区域入口，支持仅气泡、仅文字、气泡加游离文字三种模式。
-- 普通气泡来自 `BubbleDetector`，标记为 `BubbleSource.BUBBLE_DETECTOR` 并保留可用的 `maskContour`；Paddle 文字块由 `TextBlockMerger` 合并，标记为 `BubbleSource.TEXT_DETECTOR`。
+- `PageRegionDetector` 是主翻译与悬浮窗共享的页面区域入口，固定使用双标签模型同时检测普通气泡和游离文字，不提供检测模式切换。
+- 普通气泡来自 `BubbleDetector`，标记为 `BubbleSource.BUBBLE_DETECTOR`；当前双标签分割模型类别 0 为气泡、类别 1 为文字，气泡提供 `maskContour`。文字类别覆盖气泡内外，页面层过滤归属于气泡的文字块后，其余文字块标记为 `BubbleSource.TEXT_DETECTOR`，不得作为 OCR 行框复用。页面检测统一使用 TFLite，Paddle 仅保留 OCR 阶段按需行检测；`TextBlockMerger` 保留为行框工具。
+- `BubbleDetector` 持有共享 LiteRT GPU / CPU 会话，推理与关闭必须串行；`PageRegionDetector.releaseLoadedDetectors()` 负责释放。模型 assets 使用不压缩的 `.tflite` 以支持映射加载。 GPU CompiledModel 的创建、推理和释放必须在同一专用线程执行；不支持 GPU 或 GPU 初始化、推理失败时回退 CPU，并重试当前图片。
 - 长图分块、坐标映射、去重阈值和模型输入细节属于检测模块，不得复制到 Pipeline 或悬浮窗 Service。
-- 本地 OCR 的语言路由、裁剪、行识别和 API fallback 统一在 `OcrSharedTools.kt` 调整。
+- 本地 OCR 的语言路由、裁剪、行识别和 API fallback 统一在 `OcrSharedTools.kt` 调整。除韩语专用模型和俄语 API OCR 外，本地文字识别统一使用 PP-OCRv6 CPU 推理，不调用 PP-OCRv5 LiteRT。识别引擎由 `OcrEngineRegistry` 共享。日文行检测比较原方向与旋转方向，选中的行框必须映射回原裁剪坐标。
 
 ### 阅读与渲染
 

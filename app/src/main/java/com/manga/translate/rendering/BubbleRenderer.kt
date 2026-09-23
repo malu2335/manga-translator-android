@@ -133,7 +133,11 @@ class BubbleRenderer(context: Context) {
                     val sampleRight = bubble.rect.right * scaleX
                     val sampleBottom = bubble.rect.bottom * scaleY
                     BubbleColorSampler.sampleBackgroundColor(
-                        samplingBitmap, sampleLeft, sampleTop, sampleRight, sampleBottom
+                        samplingBitmap, sampleLeft, sampleTop, sampleRight, sampleBottom,
+                        outside = bubble.source == BubbleSource.TEXT_DETECTOR,
+                        contour = bubble.maskContour?.let { points -> FloatArray(points.size) { i ->
+                            points[i] * if (i % 2 == 0) output.width else output.height
+                        } }
                     ) ?: Color.WHITE
                 } else {
                     Color.WHITE
@@ -189,7 +193,7 @@ class BubbleRenderer(context: Context) {
 
     private fun resolveBubbleShrinkPercent(bubble: BubbleTranslation): Int {
         return if (bubble.source.usesFreeBubbleShrink) {
-            bubbleRenderSettings.freeBubbleShrinkPercent
+            -bubbleRenderSettings.freeBubbleSizeAdjustPercent
         } else if (bubble.source == BubbleSource.MANUAL) {
             0
         } else {
@@ -229,11 +233,12 @@ class BubbleRenderer(context: Context) {
 
     private fun drawTextInRect(
         canvas: Canvas,
-        text: String,
+        rawText: String,
         rect: RectF,
         verticalLayoutEnabled: Boolean,
         startFromTop: Boolean
     ) {
+        val text = BubbleTextScaling.prepareTextForLayout(rawText)
         if (verticalLayoutEnabled) {
             canvas.withClip(rect) {
                 drawVerticalTextInRect(

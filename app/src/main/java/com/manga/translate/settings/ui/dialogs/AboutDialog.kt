@@ -107,16 +107,8 @@ internal class AboutDialog(
         }
     }
 
-    private fun resolveVersionName(): String {
-        val context = fragment.requireContext()
-        return try {
-            @Suppress("DEPRECATION")
-            val info = context.packageManager.getPackageInfo(context.packageName, 0)
-            info.versionName ?: VersionInfo.VERSION_NAME
-        } catch (e: Exception) {
-            VersionInfo.VERSION_NAME
-        }
-    }
+    private fun resolveVersionName(): String =
+        VersionInfo.versionName(fragment.requireContext())
 
     private fun openUrl(url: String) {
         val intent = Intent(Intent.ACTION_VIEW, url.toUri())

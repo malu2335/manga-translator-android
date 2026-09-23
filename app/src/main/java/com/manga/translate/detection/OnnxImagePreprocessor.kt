@@ -33,6 +33,7 @@ internal object OnnxImagePreprocessor {
      *   高度分别拉伸到输入尺寸，整张画布被图像填满（pad 为 0）。短图中的气泡在
      *   模型输入里因此被放大，更易识别。
      *
+     * 分割模型传入 stretchShortImages=false，所有宽高比均等比缩放并居中补边。
      * 两条路径都通过 [LetterboxResult] 的分轴 gain/pad 记录变换，检测结果的坐标
      * 还原不依赖具体路径。
      */
@@ -41,6 +42,7 @@ internal object OnnxImagePreprocessor {
         inputWidth: Int,
         inputHeight: Int,
         padColor: Int = Color.rgb(114, 114, 114),
+        stretchShortImages: Boolean = true,
         afterDraw: ((Canvas, Float, Float, Float) -> Unit)? = null
     ): LetterboxResult {
         val srcW = bitmap.width
@@ -48,7 +50,7 @@ internal object OnnxImagePreprocessor {
         val fitX = (inputWidth.toFloat() / srcW).coerceAtLeast(1e-6f)
         val fitY = (inputHeight.toFloat() / srcH).coerceAtLeast(1e-6f)
 
-        if (fitY > fitX) {
+        if (stretchShortImages && fitY > fitX) {
             // 高度不足的短图：垂直拉伸填满输入，不再上下留灰边。
             val stretched = bitmap.scale(inputWidth, inputHeight)
             val filled = createBitmap(inputWidth, inputHeight)
@@ -72,7 +74,7 @@ internal object OnnxImagePreprocessor {
         }
 
         // 高度充足：等比 letterbox，宽度方向留灰边（保持既有行为）。
-        val gain = fitY
+        val gain = minOf(fitX, fitY)
         val newW = (srcW * gain).toInt().coerceAtLeast(1)
         val newH = (srcH * gain).toInt().coerceAtLeast(1)
 

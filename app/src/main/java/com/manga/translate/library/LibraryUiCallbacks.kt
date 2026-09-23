@@ -9,8 +9,8 @@ internal interface LibraryUiCallbacks {
     fun setFolderExportEnabled(folder: File, enabled: Boolean) = Unit
     fun showToast(resId: Int)
     fun showToastMessage(message: String)
-    fun showImageConversionProgress() = Unit
-    fun hideImageConversionProgress() = Unit
+    fun showImportProgress(messageRes: Int) = Unit
+    fun hideImportProgress() = Unit
     fun showApiError(code: String, detail: String? = null)
     fun showModelError(
         content: String,

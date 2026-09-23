@@ -7,158 +7,73 @@ import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Build
-import androidx.core.graphics.get
 import com.manga.translate.platform.ImageFileSupport
 import java.io.File
-import kotlin.math.max
-import kotlin.math.roundToInt
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.hypot
 
 internal object BubbleColorSampler {
-
-    private const val SAMPLE_STEP = 4
-    private const val FILE_SAMPLE_MAX_EDGE = 96
-    private const val DARK_BACKGROUND_MAX_CHANNEL = 72
-    private const val INK_VALUE_GAP = 32
-    private const val MAX_INK_VALUE = 160
+    private const val FILE_SAMPLE_MAX_EDGE = 192
 
     fun sampleBackgroundColor(
-        bitmap: Bitmap?,
-        left: Float,
-        top: Float,
-        right: Float,
-        bottom: Float
-    ): Int? {
-        val src = bitmap ?: return null
-        val bitmapWidth = src.width
-        val bitmapHeight = src.height
-        if (bitmapWidth <= 0 || bitmapHeight <= 0) return null
+        bitmap: Bitmap?, left: Float, top: Float, right: Float, bottom: Float,
+        outside: Boolean = false, contour: FloatArray? = null
+    ): Int? = sampleBackgroundColor(
+        bitmap, null, bitmap?.width ?: 0, bitmap?.height ?: 0,
+        left, top, right, bottom, outside, contour
+    )
 
-        val leftPx = left.toInt().coerceIn(0, bitmapWidth - 1)
-        val topPx = top.toInt().coerceIn(0, bitmapHeight - 1)
-        val rightPx = right.toInt().coerceIn(leftPx + 1, bitmapWidth)
-        val bottomPx = bottom.toInt().coerceIn(topPx + 1, bitmapHeight)
+    fun sampleBackgroundColor(bitmap: Bitmap?, rect: RectF): Int? =
+        sampleBackgroundColor(bitmap, rect.left, rect.top, rect.right, rect.bottom)
 
-        val regionWidth = rightPx - leftPx
-        val regionHeight = bottomPx - topPx
-        if (regionWidth <= 0 || regionHeight <= 0) return null
-
-        val stepX = SAMPLE_STEP.coerceAtLeast(1)
-        val stepY = SAMPLE_STEP.coerceAtLeast(1)
-
-        val tempBitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            src.config == Bitmap.Config.HARDWARE
-        ) {
-            src.copy(Bitmap.Config.ARGB_8888, false)
-        } else {
-            null
-        }
-        val samplingBitmap = tempBitmap ?: src
-        try {
-            return averagePixels(
-                samplingBitmap = samplingBitmap,
-                leftPx = leftPx,
-                topPx = topPx,
-                rightPx = rightPx,
-                bottomPx = bottomPx,
-                stepX = stepX,
-                stepY = stepY
-            )
-        } finally {
-            tempBitmap?.recycle()
-        }
-    }
-
-    fun sampleBackgroundColor(bitmap: Bitmap?, rect: RectF): Int? {
-        return sampleBackgroundColor(bitmap, rect.left, rect.top, rect.right, rect.bottom)
-    }
-
-    /**
-     * Samples bubble background from a full in-memory bitmap when available,
-     * otherwise decodes only the target region from [imageFile] (tiled / long pages).
-     *
-     * Coordinates are in source-image space (same as bubble rects).
-     */
+    /** Coordinates (including optional contour points) are in source-image pixels. */
     fun sampleBackgroundColor(
-        bitmap: Bitmap?,
-        imageFile: File?,
-        sourceWidth: Int,
-        sourceHeight: Int,
-        left: Float,
-        top: Float,
-        right: Float,
-        bottom: Float
+        bitmap: Bitmap?, imageFile: File?, sourceWidth: Int, sourceHeight: Int,
+        left: Float, top: Float, right: Float, bottom: Float,
+        outside: Boolean = false, contour: FloatArray? = null
     ): Int? {
-        if (bitmap != null && sourceWidth > 0 && sourceHeight > 0) {
-            val sampleScaleX = bitmap.width.toFloat() / sourceWidth.toFloat()
-            val sampleScaleY = bitmap.height.toFloat() / sourceHeight.toFloat()
-            sampleBackgroundColor(
-                bitmap,
-                left * sampleScaleX,
-                top * sampleScaleY,
-                right * sampleScaleX,
-                bottom * sampleScaleY
-            )?.let { return it }
-        } else if (bitmap != null) {
-            sampleBackgroundColor(bitmap, left, top, right, bottom)?.let { return it }
-        }
-        return sampleBackgroundColorFromFile(imageFile, sourceWidth, sourceHeight, left, top, right, bottom)
+        if (bitmap == null) return sampleBackgroundColorFromFile(
+            imageFile, sourceWidth, sourceHeight, left, top, right, bottom, outside, contour
+        )
+        val width = sourceWidth.takeIf { it > 0 } ?: bitmap.width
+        val height = sourceHeight.takeIf { it > 0 } ?: bitmap.height
+        val points = ringPoints(left, top, right, bottom, outside, contour)
+            .filter { (x, y) -> x >= 0 && y >= 0 && x < width && y < height }
+        return average(bitmap, points, 0f, 0f, bitmap.width.toFloat() / width, bitmap.height.toFloat() / height)
     }
 
     fun sampleBackgroundColorFromFile(
-        imageFile: File?,
-        sourceWidth: Int,
-        sourceHeight: Int,
-        left: Float,
-        top: Float,
-        right: Float,
-        bottom: Float
+        imageFile: File?, sourceWidth: Int, sourceHeight: Int,
+        left: Float, top: Float, right: Float, bottom: Float,
+        outside: Boolean = false, contour: FloatArray? = null
     ): Int? {
-        val file = imageFile ?: return null
-        if (!file.isFile) return null
-        if (ImageFileSupport.isAvifFile(file.name)) return null
-
-        val boundsWidth: Int
-        val boundsHeight: Int
-        if (sourceWidth > 0 && sourceHeight > 0) {
-            boundsWidth = sourceWidth
-            boundsHeight = sourceHeight
-        } else {
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(file.absolutePath, bounds)
-            boundsWidth = bounds.outWidth
-            boundsHeight = bounds.outHeight
-        }
-        if (boundsWidth <= 0 || boundsHeight <= 0) return null
-
-        val leftPx = left.roundToInt().coerceIn(0, boundsWidth - 1)
-        val topPx = top.roundToInt().coerceIn(0, boundsHeight - 1)
-        val rightPx = right.roundToInt().coerceIn(leftPx + 1, boundsWidth)
-        val bottomPx = bottom.roundToInt().coerceIn(topPx + 1, boundsHeight)
-        if (rightPx <= leftPx || bottomPx <= topPx) return null
-
-        val region = Rect(leftPx, topPx, rightPx, bottomPx)
-        val regionWidth = region.width()
-        val regionHeight = region.height()
-        val maxEdge = max(regionWidth, regionHeight)
-        val sampleSize = if (maxEdge <= FILE_SAMPLE_MAX_EDGE) {
-            1
-        } else {
-            var sample = 1
-            while (maxEdge / (sample * 2) >= FILE_SAMPLE_MAX_EDGE) {
-                sample *= 2
-            }
-            sample
-        }
-
+        val file = imageFile?.takeIf { it.isFile && !ImageFileSupport.isAvifFile(it.name) } ?: return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        if (sourceWidth <= 0 || sourceHeight <= 0) BitmapFactory.decodeFile(file.absolutePath, bounds)
+        val width = sourceWidth.takeIf { it > 0 } ?: bounds.outWidth
+        val height = sourceHeight.takeIf { it > 0 } ?: bounds.outHeight
+        if (width <= 0 || height <= 0) return null
+        val points = ringPoints(left, top, right, bottom, outside, contour)
+            .filter { (x, y) -> x >= 0 && y >= 0 && x < width && y < height }
+        if (points.isEmpty()) return null
+        // Include the outer ring in the decoded region; do not clamp it onto the text box.
+        val region = Rect(
+            floor(points.minOf { it.first }).toInt(), floor(points.minOf { it.second }).toInt(),
+            (floor(points.maxOf { it.first }).toInt() + 1).coerceAtMost(width),
+            (floor(points.maxOf { it.second }).toInt() + 1).coerceAtMost(height)
+        )
+        var sampleSize = 1
+        while (maxOf(region.width(), region.height()) / (sampleSize * 2) >= FILE_SAMPLE_MAX_EDGE) sampleSize *= 2
         val decoder = runCatching { createBitmapRegionDecoder(file) }.getOrNull() ?: return null
         return try {
-            val options = BitmapFactory.Options().apply {
+            val cropped = decoder.decodeRegion(region, BitmapFactory.Options().apply {
                 inSampleSize = sampleSize
                 inPreferredConfig = Bitmap.Config.ARGB_8888
-            }
-            val cropped = decoder.decodeRegion(region, options) ?: return null
+            }) ?: return null
             try {
-                sampleBackgroundColor(cropped, 0f, 0f, cropped.width.toFloat(), cropped.height.toFloat())
+                average(cropped, points, region.left.toFloat(), region.top.toFloat(),
+                    cropped.width.toFloat() / region.width(), cropped.height.toFloat() / region.height())
             } finally {
                 cropped.recycle()
             }
@@ -167,96 +82,102 @@ internal object BubbleColorSampler {
         }
     }
 
-    private fun averagePixels(
-        samplingBitmap: Bitmap,
-        leftPx: Int,
-        topPx: Int,
-        rightPx: Int,
-        bottomPx: Int,
-        stepX: Int,
-        stepY: Int
-    ): Int? {
-        val valueHistogram = IntArray(256)
-        val redSums = LongArray(256)
-        val greenSums = LongArray(256)
-        val blueSums = LongArray(256)
-        var sampleCount = 0
-        var darkSampleCount = 0
-
-        val yEnd = bottomPx - 1
-        val xEnd = rightPx - 1
-        var y = topPx
-        while (y <= yEnd) {
-            var x = leftPx
-            while (x <= xEnd) {
-                val pixel = samplingBitmap[x, y]
-                val red = Color.red(pixel)
-                val green = Color.green(pixel)
-                val blue = Color.blue(pixel)
-                val value = maxOf(red, green, blue)
-                valueHistogram[value]++
-                redSums[value] += red.toLong()
-                greenSums[value] += green.toLong()
-                blueSums[value] += blue.toLong()
-                sampleCount++
-                if (value <= DARK_BACKGROUND_MAX_CHANNEL) darkSampleCount++
-                x += stepX
+    private fun ringPoints(
+        left: Float, top: Float, right: Float, bottom: Float,
+        outside: Boolean, contour: FloatArray?
+    ): List<Pair<Float, Float>> {
+        if (!listOf(left, top, right, bottom).all { it.isFinite() } || right <= left || bottom <= top) return emptyList()
+        val validContour = contour?.takeIf { !outside && it.size >= 6 && it.size % 2 == 0 && it.all(Float::isFinite) }
+        val distance = (minOf(right - left, bottom - top) * 0.06f).coerceAtLeast(0.5f)
+        val points = ArrayList<Pair<Float, Float>>()
+        if (validContour == null) {
+            val inset = if (outside) -distance else distance.coerceAtMost(minOf(right - left, bottom - top) / 2f)
+            val l = left + inset
+            val t = top + inset
+            val r = right - inset
+            val b = bottom - inset
+            val horizontalCount = ceil((r - l) / 4f).toInt().coerceIn(1, 512)
+            val verticalCount = ceil((b - t) / 4f).toInt().coerceIn(1, 512)
+            for (i in 0 until horizontalCount) {
+                val x = l + (r - l) * (i + 0.5f) / horizontalCount
+                points.add(x to t)
+                points.add(x to b)
             }
-            y += stepY
-        }
-
-        if (sampleCount == 0) return null
-
-        // A genuinely dark background must win over light lettering or highlights. Otherwise,
-        // remove dark pixels that sit well below the region's median value; these are usually
-        // the original text and should not turn a white or colored background gray.
-        val darkBackground = darkSampleCount * 2 >= sampleCount
-        val inkCutoff = if (darkBackground) {
-            DARK_BACKGROUND_MAX_CHANNEL
-        } else {
-            (medianValue(valueHistogram, sampleCount) - INK_VALUE_GAP)
-                .coerceIn(0, MAX_INK_VALUE)
-        }
-
-        var r = 0L
-        var g = 0L
-        var b = 0L
-        var count = 0
-        for (value in valueHistogram.indices) {
-            val include = if (darkBackground) {
-                value <= inkCutoff
-            } else {
-                value > inkCutoff
+            for (i in 0 until verticalCount) {
+                val y = t + (b - t) * (i + 0.5f) / verticalCount
+                points.add(l to y)
+                points.add(r to y)
             }
-            if (include) {
-                r += redSums[value]
-                g += greenSums[value]
-                b += blueSums[value]
-                count += valueHistogram[value]
+            return points
+        }
+        val polygon = validContour
+        for (i in polygon.indices step 2) {
+            val j = (i + 2) % polygon.size
+            val dx = polygon[j] - polygon[i]
+            val dy = polygon[j + 1] - polygon[i + 1]
+            val length = hypot(dx, dy)
+            if (length <= 0f) continue
+            val count = ceil(length / 4f).toInt().coerceIn(1, 512)
+            for (s in 0 until count) {
+                val t = (s + 0.5f) / count
+                val x = polygon[i] + dx * t
+                val y = polygon[i + 1] + dy * t
+                // Test both normals so clockwise, reversed and concave contours work alike.
+                for (sign in listOf(-1f, 1f)) {
+                    val px = x - dy / length * distance * sign
+                    val py = y + dx / length * distance * sign
+                    if (contains(polygon, px, py) != outside) points.add(px to py)
+                }
             }
         }
-
-        if (count == 0) return null
-        return Color.rgb((r / count).toInt(), (g / count).toInt(), (b / count).toInt())
+        return points
     }
 
-    private fun medianValue(histogram: IntArray, sampleCount: Int): Int {
-        val middle = (sampleCount - 1) / 2
-        var seen = 0
-        for (value in histogram.indices) {
-            seen += histogram[value]
-            if (seen > middle) return value
+    private fun contains(polygon: FloatArray, x: Float, y: Float): Boolean {
+        var inside = false
+        var j = polygon.size - 2
+        for (i in polygon.indices step 2) {
+            val xi = polygon[i]
+            val yi = polygon[i + 1]
+            val xj = polygon[j]
+            val yj = polygon[j + 1]
+            if ((yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside
+            j = i
         }
-        return 0
+        return inside
+    }
+
+    private fun average(
+        bitmap: Bitmap, points: List<Pair<Float, Float>>, originX: Float, originY: Float,
+        scaleX: Float, scaleY: Float
+    ): Int? {
+        if (points.isEmpty()) return null
+        val copy = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && bitmap.config == Bitmap.Config.HARDWARE)
+            bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: return null else null
+        val src = copy ?: bitmap
+        try {
+            var red = 0L
+            var green = 0L
+            var blue = 0L
+            for ((x, y) in points) {
+                val pixel = src.getPixel(((x - originX) * scaleX).toInt().coerceIn(0, src.width - 1),
+                    ((y - originY) * scaleY).toInt().coerceIn(0, src.height - 1))
+                red += Color.red(pixel)
+                green += Color.green(pixel)
+                blue += Color.blue(pixel)
+            }
+            return Color.rgb((red / points.size).toInt(), (green / points.size).toInt(), (blue / points.size).toInt())
+        } finally {
+            copy?.recycle()
+        }
     }
 
     private fun createBitmapRegionDecoder(imageFile: File): BitmapRegionDecoder {
-        val path = imageFile.absolutePath
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            BitmapRegionDecoder.newInstance(path)
+            BitmapRegionDecoder.newInstance(imageFile.absolutePath)
         } else {
             @Suppress("DEPRECATION")
-            BitmapRegionDecoder.newInstance(path, false)
+            BitmapRegionDecoder.newInstance(imageFile.absolutePath, false)
         }
     }
 }

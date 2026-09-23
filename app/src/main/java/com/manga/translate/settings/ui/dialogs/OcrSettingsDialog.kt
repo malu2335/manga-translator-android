@@ -26,7 +26,6 @@ internal class OcrSettingsDialog(
         val currentSettings = settingsStore.loadOcrApiSettings()
         val dialogBinding = DialogOcrSettingsBinding.inflate(fragment.layoutInflater)
         dialogBinding.useLocalOcrSwitch.isChecked = currentSettings.useLocalOcr
-        dialogBinding.useXnnpackSwitch.isChecked = settingsStore.loadUseXnnpack()
         dialogBinding.ocrApiUrlInput.setText(currentSettings.apiUrl)
         dialogBinding.ocrApiKeyInput.setText(currentSettings.apiKey)
         dialogBinding.ocrModelNameInput.setText(currentSettings.modelName)
@@ -122,19 +121,15 @@ internal class OcrSettingsDialog(
                     localOcrConcurrencyLimit = localOcrConcurrencyLimit,
                     ocrApiFormat = format
                 )
-                saveOcrSettingsWithResourceCheck(
-                    settings = settings,
-                    useXnnpack = dialogBinding.useXnnpackSwitch.isChecked
-                )
+                saveOcrSettingsWithResourceCheck(settings)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
-    private fun saveOcrSettingsWithResourceCheck(settings: OcrApiSettings, useXnnpack: Boolean) {
+    private fun saveOcrSettingsWithResourceCheck(settings: OcrApiSettings) {
         fun save() {
             settingsStore.saveOcrApiSettings(settings)
-            settingsStore.saveUseXnnpack(useXnnpack)
             AppLogger.log(
                 "Settings",
                 "OCR mode set to ${

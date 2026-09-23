@@ -6,7 +6,6 @@ import com.manga.translate.detection.BubbleDetection
 import com.manga.translate.detection.BubblePriorityCandidate
 import com.manga.translate.detection.DetectionTile
 import com.manga.translate.detection.RectGeometryDeduplicator
-import com.manga.translate.detection.RegionDetectionSelection
 import com.manga.translate.detection.TextBlockMerger
 import com.manga.translate.detection.TextLineOrientation
 import com.manga.translate.detection.adaptiveNextTileTop
@@ -30,7 +29,6 @@ import com.manga.translate.detection.remapTileMaskContourToPage
 import com.manga.translate.detection.shouldDeduplicateTileCandidates
 import com.manga.translate.detection.shouldFilterLongImageRegion
 import com.manga.translate.detection.shouldFilterTextRectByBubble
-import com.manga.translate.detection.shouldKeepBubblesWhenTextDetectionFails
 import com.manga.translate.detection.shouldDiscardReplayTileTopFragments
 import com.manga.translate.detection.shouldTreatRectsAsSameBubbleForDedup
 import com.manga.translate.detection.shouldUnionTileBubbleCandidates
@@ -73,42 +71,6 @@ class PageRegionDetectorTest {
         assertTrue(lineBelongsToRegion(RectF(120f, 140f, 220f, 180f), region))
         assertTrue(lineBelongsToRegion(RectF(80f, 140f, 180f, 180f), region))
         assertFalse(lineBelongsToRegion(RectF(20f, 140f, 140f, 180f), region))
-    }
-
-    @Test
-    fun `region detection selections map to expected detectors`() {
-        assertTrue(RegionDetectionSelection.BUBBLES_ONLY.detectBubbles)
-        assertFalse(RegionDetectionSelection.BUBBLES_ONLY.detectText)
-        assertFalse(RegionDetectionSelection.TEXT_ONLY.detectBubbles)
-        assertTrue(RegionDetectionSelection.TEXT_ONLY.detectText)
-        assertTrue(RegionDetectionSelection.BUBBLES_AND_TEXT.detectBubbles)
-        assertTrue(RegionDetectionSelection.BUBBLES_AND_TEXT.detectText)
-        assertEquals(
-            RegionDetectionSelection.BUBBLES_AND_TEXT,
-            RegionDetectionSelection.fromPref(null)
-        )
-    }
-
-    @Test
-    fun `failed text detection keeps completed bubbles only when bubbles are enabled`() {
-        assertTrue(
-            shouldKeepBubblesWhenTextDetectionFails(
-                RegionDetectionSelection.BUBBLES_AND_TEXT,
-                bubbleDetectionSucceeded = true
-            )
-        )
-        assertFalse(
-            shouldKeepBubblesWhenTextDetectionFails(
-                RegionDetectionSelection.BUBBLES_AND_TEXT,
-                bubbleDetectionSucceeded = false
-            )
-        )
-        assertFalse(
-            shouldKeepBubblesWhenTextDetectionFails(
-                RegionDetectionSelection.TEXT_ONLY,
-                bubbleDetectionSucceeded = true
-            )
-        )
     }
 
     @Test

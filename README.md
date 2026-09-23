@@ -76,14 +76,14 @@
 
 ### 模型与资源
 将以下模型文件放入 `assets/` 对应子目录：
-- `models/detection/manga-bubble-seg-yolo26n-1472.onnx`（普通气泡检测，YOLO26n-seg，1472×1472 ONNX，输出气泡轮廓）
-- `models/detection/PP-OCRv6_det_mobile_infer.onnx`（Paddle OCR 文字行检测与文字块合并）
+- `models/detection/mixed-dual-s-e5_float16.tflite`（气泡/文字双标签分割，YOLO26s-seg，1472×1472 TFLite FP16）
+- `models/detection/PP-OCRv6_det_mobile_infer.onnx`（OCR 区域内部的 Paddle 文字行检测）
 - `models/ocr/PP-OCRv6_small_rec.onnx`（日文、英文、中文及中英混合 OCR）
 - `models/ocr/korean_PP-OCRv5_mobile_rec.onnx`、`models/ocr/korean_PP-OCRv5_mobile_rec_dict.txt`（韩文 OCR 与字符表）
 - `models/detection/PP-OCRv6_det_mobile_infer.onnx`（英文行检测）
 
 模型下载链接：
-- 普通气泡检测模型：YOLO26n-seg 气泡分割模型（随应用 assets 提供）
+- 普通气泡与游离文字检测模型：YOLO26s 双标签文本块检测模型（随应用 assets 提供）
 - 文字检测模型：PaddleOCR PP-OCRv6 mobile det
 - 通用识别模型：https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx
 - 英文检测模型：https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx

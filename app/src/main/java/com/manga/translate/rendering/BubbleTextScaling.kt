@@ -8,6 +8,24 @@ internal object BubbleTextScaling {
     private const val MIN_TEXT_SIZE_PX = 0.5f
     private const val TEXT_SIZE_PRECISION_PX = 0.25f
 
+    // Translation/OCR line wrapping describes the source, not the resized bubble.
+    // Reflow single line breaks while retaining explicit paragraph boundaries.
+    fun prepareTextForLayout(text: String): String {
+        return text.replace("\r\n", "\n").replace('\r', '\n').trim()
+            .split(Regex("\\n[ \t]*\\n+"))
+            .joinToString("\n\n") { paragraph ->
+                paragraph.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+                    .reduceOrNull { left, right ->
+                        val separator = if (isCjk(left.last()) && isCjk(right.first())) "" else " "
+                        left + separator + right
+                    }.orEmpty()
+            }
+    }
+
+    private fun isCjk(char: Char): Boolean =
+        char in '\u2E80'..'\u9FFF' || char in '\uAC00'..'\uD7AF' ||
+            char in '\uF900'..'\uFAFF' || char in '\uFF00'..'\uFFEF'
+
     fun layoutFits(layout: StaticLayout, maxWidth: Int, maxHeight: Int): Boolean {
         if (layout.height > maxHeight) return false
         for (line in 0 until layout.lineCount) {

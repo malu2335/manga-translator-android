@@ -6,7 +6,6 @@ import com.manga.translate.detection.BubbleDetection
 import com.manga.translate.detection.BubbleDetector
 import com.manga.translate.detection.YoloClassScore
 import com.manga.translate.detection.bestYoloClassScore
-import com.manga.translate.detection.decodeEndToEndBubbleRow
 import com.manga.translate.detection.deduplicateBubbleDetections
 import com.manga.translate.detection.effectiveDetectionConfidenceThreshold
 import com.manga.translate.detection.retainLargestConnectedMaskComponent
@@ -28,17 +27,27 @@ class BubbleDetectorTest {
             1e-6f
         )
         assertEquals(
-            0.25f,
+            TranslationCoreDefaults.MinBalloonConfidence,
             effectiveDetectionConfidenceThreshold(BubbleDetector.CLASS_BALLOON, 0.25f),
+            1e-6f
+        )
+        assertEquals(
+            0.45f,
+            effectiveDetectionConfidenceThreshold(BubbleDetector.CLASS_BALLOON, 0.45f),
             1e-6f
         )
     }
 
     @Test
-    fun `non-balloon classes keep configured confidence`() {
+    fun `text detections use a separate false-positive floor`() {
         assertEquals(
-            0.10f,
+            TranslationCoreDefaults.MinTextConfidence,
             effectiveDetectionConfidenceThreshold(BubbleDetector.CLASS_TEXT, 0.10f),
+            1e-6f
+        )
+        assertEquals(
+            0.40f,
+            effectiveDetectionConfidenceThreshold(BubbleDetector.CLASS_TEXT, 0.40f),
             1e-6f
         )
     }
@@ -57,31 +66,6 @@ class BubbleDetectorTest {
             YoloClassScore(classId = 0, confidence = 0.73f),
             bestYoloClassScore(floatArrayOf(320f, 320f, 100f, 80f, 0.73f))
         )
-    }
-
-    @Test
-    fun `end to end segmentation row decodes xyxy and all mask coefficients`() {
-        val row = floatArrayOf(
-            100f, 200f, 420f, 560f, 0.91f, 0f,
-            *FloatArray(32) { index -> index + 0.25f }
-        )
-
-        val decoded = requireNotNull(decodeEndToEndBubbleRow(row))
-
-        assertEquals(100f, decoded.left, 1e-6f)
-        assertEquals(200f, decoded.top, 1e-6f)
-        assertEquals(420f, decoded.right, 1e-6f)
-        assertEquals(560f, decoded.bottom, 1e-6f)
-        assertEquals(0.91f, decoded.confidence, 1e-6f)
-        assertEquals(BubbleDetector.CLASS_BALLOON, decoded.classId)
-        assertEquals(32, decoded.maskCoefficients.size)
-        assertEquals(0.25f, decoded.maskCoefficients.first(), 1e-6f)
-        assertEquals(31.25f, decoded.maskCoefficients.last(), 1e-6f)
-    }
-
-    @Test
-    fun `end to end segmentation row rejects old xywh layout length`() {
-        assertEquals(null, decodeEndToEndBubbleRow(FloatArray(37)))
     }
 
     @Test

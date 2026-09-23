@@ -23,7 +23,8 @@ internal class TextBubbleTranslationCoordinator(
         apiSettings: ApiSettings? = null,
         language: TranslationLanguage = TranslationLanguage.JA_TO_ZH,
         logTag: String,
-        translationMode: String
+        translationMode: String,
+        preserveInputOrder: Boolean = false
     ): TextBubbleTranslationBatchResult? {
         if (bubbles.isEmpty()) {
             return TextBubbleTranslationBatchResult(bubbles = bubbles, glossaryUsed = emptyMap())
@@ -44,14 +45,17 @@ internal class TextBubbleTranslationCoordinator(
         val removedBubbleIds = LinkedHashSet<Int>()
 
         AppLogger.log(logTag, "Translate request segments=${translatable.size}")
-        val requestItems = translatable
-            .sortedWith(compareBy({ it.rect.top }, { it.rect.left }, { it.id }))
-            .map {
-                LlmBubbleTranslationRequestItem(
-                    id = it.id,
-                    text = normalizeOcrText(it.sourceText, language)
-                )
-            }
+        val ordered = if (preserveInputOrder) {
+            translatable
+        } else {
+            translatable.sortedWith(compareBy({ it.rect.top }, { it.rect.left }, { it.id }))
+        }
+        val requestItems = ordered.map {
+            LlmBubbleTranslationRequestItem(
+                id = it.id,
+                text = normalizeOcrText(it.sourceText, language)
+            )
+        }
         val translated = llmClient.translateBubbleItems(
             items = requestItems,
             glossary = glossary,

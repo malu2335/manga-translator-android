@@ -6,6 +6,21 @@ import com.manga.translate.model.FloatingBallGestureAction
 internal class ApiSettingsStore(
     private val storage: SettingsStoreStorage
 ) {
+    // Screen geometry is device-wide, independent of AI provider profiles.
+    fun loadFloatingDetectionHorizontalInsets(): Pair<Int, Int> {
+        val left = storage.prefs.getInt("floating_detection_left_inset_percent", 0).coerceIn(0, 90)
+        val right = storage.prefs.getInt("floating_detection_right_inset_percent", 0).coerceIn(0, 90 - left)
+        return left to right
+    }
+
+    fun saveFloatingDetectionHorizontalInsets(left: Int, right: Int) {
+        val normalizedLeft = left.coerceIn(0, 90)
+        storage.editSettings(setOf("floating_detection_left_inset_percent", "floating_detection_right_inset_percent")) {
+            putInt("floating_detection_left_inset_percent", normalizedLeft)
+            putInt("floating_detection_right_inset_percent", right.coerceIn(0, 90 - normalizedLeft))
+        }
+    }
+
     fun load(): ApiSettings {
         val url = storage.prefs.getString(SettingsStore.KEY_API_URL, SettingsStore.DEFAULT_API_URL)
             ?: SettingsStore.DEFAULT_API_URL
@@ -275,6 +290,20 @@ internal class ApiSettingsStore(
             SettingsStore.MIN_MAX_CONCURRENCY,
             SettingsStore.MAX_MAX_CONCURRENCY
         )
+    }
+
+    fun loadTranslationBatchPages(): Int = storage.prefs.getInt(
+        SettingsStore.KEY_TRANSLATION_BATCH_PAGES,
+        1
+    ).coerceIn(1, SettingsStore.MAX_TRANSLATION_BATCH_PAGES)
+
+    fun saveTranslationBatchPages(value: Int) {
+        storage.editSettings(setOf(SettingsStore.KEY_TRANSLATION_BATCH_PAGES)) {
+            putInt(
+                SettingsStore.KEY_TRANSLATION_BATCH_PAGES,
+                value.coerceIn(1, SettingsStore.MAX_TRANSLATION_BATCH_PAGES)
+            )
+        }
     }
 
     fun saveMaxConcurrency(value: Int) {

@@ -16,6 +16,7 @@ import com.manga.translate.platform.PipelineBitmapDecoder
 import com.manga.translate.platform.recycleSafely
 import com.manga.translate.settings.SettingsStore
 import java.nio.FloatBuffer
+import kotlin.math.ceil
 
 abstract class PaddleOcrBase(
     private val context: Context,
@@ -23,14 +24,13 @@ abstract class PaddleOcrBase(
     private val logTag: String,
     private val threadProfile: OnnxThreadProfile = OnnxThreadProfile.LIGHT,
     private val settingsStore: SettingsStore = SettingsStore(context.applicationContext),
-    private val dictAssetName: String? = null,
-    // No default: every subclass must state its XNNPACK choice explicitly.
-    private val useXnnpack: Boolean
+    private val dictAssetName: String? = null
 ) : OcrEngine {
     private val env = OnnxRuntimeSupport.environment()
     private val session: OrtSession = createSession(modelAssetName)
-    private val charset: List<String> = readCharset()
     private val inputName: String = session.inputInfo.keys.first()
+    private val inputShape: LongArray = (session.inputInfo.getValue(inputName).info as TensorInfo).shape
+    private val charset: List<String> = readCharset()
 
     override fun recognize(bitmap: Bitmap): String {
         return recognizeWithScore(bitmap).text
@@ -63,14 +63,14 @@ abstract class PaddleOcrBase(
     }
 
     private fun preprocess(bitmap: Bitmap): OnnxTensor {
-        val imgH = 48
-        val imgW = 320
-
-        val h = bitmap.height
-        val w = bitmap.width
-        val ratio = w.toFloat() / h.toFloat()
-        var targetW = (imgH * ratio).toInt()
-        targetW = targetW.coerceAtMost(imgW)
+        val inputSize = resolvePaddleOcrInputSize(
+            sourceWidth = bitmap.width.toFloat(),
+            sourceHeight = bitmap.height.toFloat(),
+            modelInputShape = inputShape
+        )
+        val imgH = inputSize.height
+        val imgW = inputSize.width
+        val targetW = inputSize.contentWidth
 
         val resized = bitmap.scale(targetW, imgH)
         return try {
@@ -104,14 +104,25 @@ abstract class PaddleOcrBase(
     }
 
     private fun preprocess(source: Bitmap, rect: RectF): OnnxTensor {
-        val imgH = 48
-        val imgW = 320
-        val clamped = PipelineBitmapDecoder.clampRect(rect, source.width, source.height)
+        val rawClamped = PipelineBitmapDecoder.clampRect(rect, source.width, source.height)
             ?: return preprocess(source)
+        // Keep the allocation-free path consistent with Bitmap.createBitmap crop coordinates.
+        val clamped = RectF(
+            rawClamped.left.toInt().toFloat(),
+            rawClamped.top.toInt().toFloat(),
+            rawClamped.right.toInt().toFloat(),
+            rawClamped.bottom.toInt().toFloat()
+        ).takeIf { it.width() >= 1f && it.height() >= 1f } ?: rawClamped
         val cropWidth = clamped.width().coerceAtLeast(1f)
         val cropHeight = clamped.height().coerceAtLeast(1f)
-        val ratio = cropWidth / cropHeight
-        val targetW = (imgH * ratio).toInt().coerceIn(1, imgW)
+        val inputSize = resolvePaddleOcrInputSize(
+            sourceWidth = cropWidth,
+            sourceHeight = cropHeight,
+            modelInputShape = inputShape
+        )
+        val imgH = inputSize.height
+        val imgW = inputSize.width
+        val targetW = inputSize.contentWidth
 
         val input = FloatArray(3 * imgH * imgW)
         for (y in 0 until imgH) {
@@ -344,8 +355,7 @@ abstract class PaddleOcrBase(
             cacheDir = context.cacheDir,
             assetProvider = context.assets::open,
             assetName = assetName,
-            threadProfile = threadProfile,
-            useXnnpack = useXnnpack
+            threadProfile = threadProfile
         )
     }
 
@@ -354,3 +364,57 @@ abstract class PaddleOcrBase(
         val score: Float
     )
 }
+
+internal data class PaddleOcrInputSize(
+    val height: Int,
+    val width: Int,
+    val contentWidth: Int
+)
+
+internal fun resolvePaddleOcrInputSize(
+    sourceWidth: Float,
+    sourceHeight: Float,
+    modelInputShape: LongArray
+): PaddleOcrInputSize {
+    val inputHeight = modelInputShape.getOrNull(2)
+        ?.takeIf { it > 0L && it <= Int.MAX_VALUE }
+        ?.toInt()
+        ?: DEFAULT_PADDLE_OCR_INPUT_HEIGHT
+    val requiredWidth = ceil(
+        inputHeight * sourceWidth.coerceAtLeast(1f) / sourceHeight.coerceAtLeast(1f)
+    ).toInt().coerceAtLeast(1)
+    val fixedModelWidth = modelInputShape.getOrNull(3)
+        ?.takeIf { it > 0L && it <= Int.MAX_VALUE }
+        ?.toInt()
+
+    if (fixedModelWidth != null) {
+        return PaddleOcrInputSize(
+            height = inputHeight,
+            width = fixedModelWidth,
+            contentWidth = requiredWidth.coerceAtMost(fixedModelWidth)
+        )
+    }
+
+    val inputWidth = if (requiredWidth <= DEFAULT_PADDLE_OCR_INPUT_WIDTH) {
+        DEFAULT_PADDLE_OCR_INPUT_WIDTH
+    } else if (requiredWidth >= MAX_DYNAMIC_PADDLE_OCR_INPUT_WIDTH) {
+        MAX_DYNAMIC_PADDLE_OCR_INPUT_WIDTH
+    } else {
+        alignUp(requiredWidth, PADDLE_OCR_INPUT_WIDTH_ALIGNMENT)
+    }
+    return PaddleOcrInputSize(
+        height = inputHeight,
+        width = inputWidth,
+        contentWidth = requiredWidth.coerceAtMost(inputWidth)
+    )
+}
+
+private fun alignUp(value: Int, alignment: Int): Int {
+    val remainder = value % alignment
+    return if (remainder == 0) value else value + alignment - remainder
+}
+
+private const val DEFAULT_PADDLE_OCR_INPUT_HEIGHT = 48
+private const val DEFAULT_PADDLE_OCR_INPUT_WIDTH = 320
+private const val PADDLE_OCR_INPUT_WIDTH_ALIGNMENT = 32
+private const val MAX_DYNAMIC_PADDLE_OCR_INPUT_WIDTH = 2048

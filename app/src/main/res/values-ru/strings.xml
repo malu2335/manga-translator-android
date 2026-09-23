@@ -1,4 +1,10 @@
 <resources>
+    <string name="translation_request_settings_button">Настройки запросов ИИ</string>
+    <string name="translation_request_settings_button_format">Запросы ИИ: одновременно %1$d, страниц на запрос: %2$d</string>
+    <string name="translation_request_settings_title">Настройки запросов ИИ</string>
+    <string name="translation_batch_pages_title">Страниц на запрос</string>
+    <string name="translation_batch_pages_hint">Страниц в запросе (1–200)</string>
+    <string name="translation_batch_pages_note">1 отключает объединение. Оно действует для обычного и полнотекстового перевода папок, коллекций и пакетных заданий; страницы по-прежнему сохраняются отдельно. Слишком много страниц может превысить лимит вывода модели.</string>
     <string name="exclamation_mark" translatable="false">!</string>
     <string name="app_name">MT Reader</string>
     <string name="preview_image">Предпросмотр распознавания</string>
@@ -151,10 +157,10 @@
     <string name="floating_translate_settings_title">Настройки плавающего перевода</string>
     <string name="normal_bubble_render_settings_button">Обычные пузырьки</string>
     <string name="normal_bubble_render_settings_title">Обычные пузырьки</string>
-    <string name="normal_bubble_render_settings_note">Общий рисунок пузырьковой коробки для страниц чтения, страниц комиксов и экспортированных изображений. Втягивание и непрозрачность обычных и свободных пузырьков можно настроить отдельно. Текст автоматически адаптируется к размеру шрифта в соответствии с размером пузырька; текст старается заполнить пузырёк без изменения его размера. Бесплатные пузырьки относятся только к полям, заполненным при обнаружении текста в обычном режиме, и не включают пузырьки, добавленные пользователями вручную. Пожалуйста, настройте шрифты одинаково в отдельных «Настройках шрифтов».</string>
-    <string name="normal_bubble_shrink_percent_hint">Втягивание пузыря (0–30)</string>
+    <string name="normal_bubble_render_settings_note" formatted="false">Применяется при чтении страниц и вебтунов, а также при экспорте изображений. Обычные пузыри сжимаются равномерно; по умолчанию — 0%. Для свободных пузырей положительные значения означают расширение, отрицательные — сжатие; по умолчанию — 10%. Непрозрачность и адаптивный цвет фона настраиваются отдельно. Текст автоматически подстраивается под размер пузыря. Свободные пузыри — это области, найденные детектором текста, без добавленных вручную. Шрифты выбираются в настройках шрифта.</string>
+    <string name="normal_bubble_shrink_percent_hint">Сжатие пузыря (0–30%)</string>
     <string name="normal_bubble_opacity_percent_hint">Нормальная непрозрачность пузырьков (0–100)</string>
-    <string name="normal_bubble_free_shrink_percent_hint">Свободное втягивание пузырька (0–30)</string>
+    <string name="normal_bubble_free_shrink_percent_hint">Размер свободного пузыря (−30–30%)</string>
     <string name="normal_bubble_free_opacity_percent_hint">Непрозрачность свободных пузырьков (0–100)</string>
     <string name="normal_bubble_auto_adapt_color">Адаптивный цвет фона обычных пузырьков</string>
     <string name="normal_bubble_free_auto_adapt_color">Бесплатный адаптивный цвет фона пузырьков</string>
@@ -215,8 +221,6 @@
     <string name="floating_ai_api_concurrency_hint">Плавающее окно AI API Верхний предел параллелизма (1–50)</string>
     <string name="floating_translate_settings_note">Оставьте поле пустым, чтобы использовать соответствующую конфигурацию в основных настройках.</string>
     <string name="ocr_use_local">Используйте локальный OCR</string>
-    <string name="ocr_use_xnnpack">Включить локальное ускорение вывода XNNPACK (экспериментально)</string>
-    <string name="ocr_use_xnnpack_note">Влияет только на локальные модели ONNX. Уже загруженные модели требуют перезапуска приложения; на некоторых устройствах возможна несовместимость, замедление или сбой при загрузке модели — при проблемах отключите и перезапустите.</string>
     <string name="ocr_api_format_openai_compatible">OpenAI совместим</string>
     <string name="ocr_api_format_hint">OCR API формат</string>
     <string name="ocr_api_url_hint">OCR API Адрес</string>
@@ -225,7 +229,7 @@
     <string name="ocr_api_timeout_hint">OCR API таймаут (секунды, 30–1200)</string>
     <string name="ocr_api_concurrency_hint">API OCR Номер параллелизма (1–50)</string>
     <string name="local_ocr_concurrency_hint">Локальный счетчик параллелизма OCR (0=авто, 1–8)</string>
-    <string name="ocr_settings_note_local">Если этот параметр включен, будет использоваться только встроенное программное обеспечение OCR.</string>
+    <string name="ocr_settings_note_local">Используется только встроенное распознавание текста с автоматическим выбором модели и ускорением на GPU, если оно поддерживается.</string>
     <string name="ocr_settings_note_api">После закрытия локального OCR вы можете настроить OpenAI на совместимость с OCR.</string>
     <string name="missing_ocr_api_settings">Сначала введите адрес API, Key и название модели в настройках OCR.</string>
     <string name="llm_params_clear">Оставьте все пустым</string>
@@ -405,12 +409,6 @@
     <string name="folder_glossary_processing_info_title">Об обработке глоссария</string>
     <string name="folder_glossary_processing_info_desc">Об обработке глоссария</string>
     <string name="folder_glossary_processing_note">После отключения обработки перевода параллельный перевод может выполняться быстрее.</string>
-    <string name="folder_bubble_detection_info_title">О режимах обнаружения областей</string>
-    <string name="folder_bubble_detection_info_desc">О режимах обнаружения областей</string>
-    <string name="folder_bubble_detection_info">Только пузыри использует модель сегментации пузырей. Только текст использует Paddle OCR для поиска и объединения всех текстовых блоков и работает быстрее всего. Пузыри и отдельный текст обнаруживает обычные пузыри и дополняет их текстом вне пузырей с помощью Paddle OCR; этот режим работает медленнее всего. Если пузыри начинают заметно смещаться или «разлетаться», переключитесь на режим «Только пузыри».</string>
-    <string name="folder_detection_mode_bubbles">Только пузыри</string>
-    <string name="folder_detection_mode_text">Только текст</string>
-    <string name="folder_detection_mode_bubbles_and_text">Пузыри и отдельный текст</string>
     <string name="translation_preparing">Подготовка</string>
     <string name="folder_preprocess_progress">%1$s（%2$d/%3$d）</string>
     <string name="folder_preprocess_stage_ocr">Предобработка OCR</string>
@@ -455,6 +453,7 @@
     <string name="import_failed">Импорт не удался, попробуйте еще раз</string>
     <string name="import_images_failed">Не удалось импортировать: не удалось прочитать выбранные изображения. Убедитесь, что файлы не повреждены и имеют поддерживаемый формат.</string>
     <string name="import_done">Импортированные изображения %1$d</string>
+    <string name="import_progress">Импорт, пожалуйста, подождите…</string>
     <string name="avif_conversion_progress">Преобразование изображений AVIF в PNG…</string>
     <string name="cbz_import_failed">CBZ/ZIP Не удалось импортировать, повторите попытку.</string>
     <string name="cbz_import_cannot_read">Не удалось прочитать выбранный архив. Убедитесь, что файл существует и доступен.</string>
@@ -593,4 +592,7 @@
     <string name="language_english">Английский</string>
     <string name="language_russian">Русский</string>
     <string name="language_portuguese_brazil">Бразильский португальский</string>
+    <string name="floating_region_full_screen">Весь экран</string>
+    <string name="floating_region_margin_value">%1$s: %2$d</string>
+    <string name="floating_region_configuration_note">Выделите область перевода на экране движением пальца, затем нажмите «Подтвердить». Она будет применена при следующем переводе. Выделение можно нарисовать заново. Ширина и высота должны составлять не менее 10% экрана.</string>
 </resources>

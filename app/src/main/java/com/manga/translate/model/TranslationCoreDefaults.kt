@@ -5,7 +5,10 @@ object TranslationCoreDefaults {
     const val DefaultDetectionInputSize = 640
     const val DefaultLineDetectionInputSize = 960
 
-    const val MinBalloonConfidence = 0.15f
+    const val MinBalloonConfidence = 0.32f
+    // Supplemental text detections are more prone to class confusion than
+    // balloon detections, especially across LiteRT GPU/CPU backends.
+    const val MinTextConfidence = 0.16f
     // Leave a little more room around detected balloons.  The supplement
     // detectors otherwise see the clipped outline/tail at the box edge as a
     // standalone glyph.

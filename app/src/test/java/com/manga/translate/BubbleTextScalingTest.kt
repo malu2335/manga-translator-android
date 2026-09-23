@@ -15,6 +15,43 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class BubbleTextScalingTest {
     @Test
+    fun sourceLineWrappingReflowsButParagraphsRemain() {
+        assertEquals("你好世界\n\n第二段", BubbleTextScaling.prepareTextForLayout("你好\n世界\n\n第二段"))
+        assertEquals("Hello world", BubbleTextScaling.prepareTextForLayout("Hello\r\nworld"))
+    }
+
+    @Test
+    fun reflowedShortLinesUseLargerFontWithoutOverflow() {
+        val paint = TextPaint()
+        val build = { text: String, width: Int, size: Float ->
+            paint.textSize = size
+            StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
+                .setIncludePad(false).build()
+        }
+        val original = "你好\n世界\n今天\n晴天"
+        val reflowed = BubbleTextScaling.prepareTextForLayout(original)
+        fun size(text: String) = BubbleTextScaling.findAutoHorizontalTextSize(
+            text, 160, 80, build, BubbleTextScaling::layoutFits
+        )
+        val before = size(original)
+        val after = size(reflowed)
+        assertTrue("before=$before after=$after", after > before * 1.2f)
+        assertTrue(BubbleTextScaling.layoutFits(build(reflowed, 160, after), 160, 80))
+    }
+
+    @Test
+    fun smallBubbleRetainsMostOfItsTextArea() {
+        val path = android.graphics.Path().apply {
+            addRect(0f, 0f, 20f, 60f, android.graphics.Path.Direction.CW)
+        }
+        val rect = BubbleTextScaling.resolveTextRect(path)
+        assertTrue("$rect", rect.width() > 17f)
+        assertTrue("$rect", rect.height() > 54f)
+        assertTrue(rect.left >= 0f && rect.right <= 20f)
+        assertTrue(rect.top >= 0f && rect.bottom <= 60f)
+    }
+
+    @Test
     fun autoSizeCanShrinkBelowRemovedUserMinimum() {
         val textSize = BubbleTextScaling.findLargestFittingTextSize(
             maxWidth = 100,

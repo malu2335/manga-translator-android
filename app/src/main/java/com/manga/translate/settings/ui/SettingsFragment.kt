@@ -49,6 +49,7 @@ import com.manga.translate.settings.ui.dialogs.ReadingDisplayDialog
 import com.manga.translate.settings.ui.dialogs.ReadingPageAnimationDialog
 import com.manga.translate.settings.ui.dialogs.ThemeDialog
 import com.manga.translate.settings.ui.dialogs.ThinkingLengthDialog
+import com.manga.translate.settings.ui.dialogs.TranslationRequestSettingsDialog
 import com.manga.translate.settings.ui.dialogs.TranslationStyleDialog
 import java.text.NumberFormat
 import java.util.Locale
@@ -302,6 +303,10 @@ class SettingsFragment : Fragment(), BackupOperationCancelHost {
             fetchModelList()
         }
 
+        binding.translationRequestSettingsButton.setOnClickListener {
+            showTranslationRequestSettingsDialog()
+        }
+
         binding.aiProviderProfilesButton.setOnClickListener {
             persistSettings()
             showAiProviderProfilesDialog()
@@ -388,8 +393,6 @@ class SettingsFragment : Fragment(), BackupOperationCancelHost {
         val timeoutSeconds = parseIntInput(timeoutInput) ?: settingsStore.loadApiTimeoutSeconds()
         val retryCountInput = binding.apiRetryCountInput.text?.toString()?.trim()
         val apiRetryCount = parseIntInput(retryCountInput) ?: settingsStore.loadApiRetryCount()
-        val concurrencyInput = binding.maxConcurrencyInput.text?.toString()?.trim()
-        val maxConcurrency = parseIntInput(concurrencyInput) ?: settingsStore.loadMaxConcurrency()
         val persisted = settingsStore.persistMainSettings(
             SettingsMainForm(
                 apiUrl = url,
@@ -398,7 +401,7 @@ class SettingsFragment : Fragment(), BackupOperationCancelHost {
                 apiFormat = currentApiFormat(),
                 apiTimeoutSeconds = timeoutSeconds,
                 apiRetryCount = apiRetryCount,
-                maxConcurrency = maxConcurrency
+                maxConcurrency = settingsStore.loadMaxConcurrency()
             )
         )
         val normalizedTimeoutText = formatNumber(persisted.apiTimeoutSeconds)
@@ -408,10 +411,6 @@ class SettingsFragment : Fragment(), BackupOperationCancelHost {
         val normalizedRetryCountText = formatNumber(persisted.apiRetryCount)
         if (normalizedRetryCountText != retryCountInput) {
             binding.apiRetryCountInput.setText(normalizedRetryCountText)
-        }
-        val normalizedConcurrencyText = formatNumber(persisted.maxConcurrency)
-        if (normalizedConcurrencyText != concurrencyInput) {
-            binding.maxConcurrencyInput.setText(normalizedConcurrencyText)
         }
         AppLogger.log("Settings", "API settings saved")
     }
@@ -476,6 +475,14 @@ class SettingsFragment : Fragment(), BackupOperationCancelHost {
         )
     }
 
+    internal fun updateTranslationRequestSettingsButton() {
+        binding.translationRequestSettingsButton.text = getString(
+            R.string.translation_request_settings_button_format,
+            settingsStore.loadMaxConcurrency(),
+            settingsStore.loadTranslationBatchPages()
+        )
+    }
+
     internal fun reloadSettingsUiFromStore() {
         val settings = settingsStore.load()
         binding.apiUrlInput.setText(settings.apiUrl)
@@ -485,7 +492,7 @@ class SettingsFragment : Fragment(), BackupOperationCancelHost {
         updateApiSettingsNote(settings.apiFormat)
         binding.apiTimeoutInput.setText(formatNumber(settingsStore.loadApiTimeoutSeconds()))
         binding.apiRetryCountInput.setText(formatNumber(settingsStore.loadApiRetryCount()))
-        binding.maxConcurrencyInput.setText(formatNumber(settingsStore.loadMaxConcurrency()))
+        updateTranslationRequestSettingsButton()
         binding.modelIoLoggingSwitch.isChecked = settingsStore.loadModelIoLogging()
         binding.enableThinkingSwitch.isChecked = settingsStore.loadLlmParameters().enableThinking
         updateThinkingLengthButton()
@@ -580,6 +587,9 @@ class SettingsFragment : Fragment(), BackupOperationCancelHost {
     private fun showCustomRequestParamsDialog() = CustomRequestParamsDialog(this, settingsStore).show()
 
     private fun showTranslationStyleDialog() = TranslationStyleDialog(this, settingsStore).show()
+
+    private fun showTranslationRequestSettingsDialog() =
+        TranslationRequestSettingsDialog(this, settingsStore).show()
 
     private fun showOcrSettingsDialog() = OcrSettingsDialog(this, settingsStore).show()
 

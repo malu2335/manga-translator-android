@@ -34,7 +34,7 @@ internal class ImportCoordinator(
     private val pendingPdfPlans = ConcurrentHashMap<String, PdfImageCodec.PdfImportPlan>()
 
     suspend fun addImages(folder: File, uris: List<Uri>): List<File> =
-        withAvifConversionProgress { onConversionStarted ->
+        withImportProgress { onConversionStarted ->
             repository.addImages(folder, uris, onConversionStarted)
         }.also { added ->
             if (added.isNotEmpty()) {
@@ -88,7 +88,7 @@ internal class ImportCoordinator(
                 }
             }.getOrNull().orEmpty()
             val isPdf = displayName.substringAfterLast('.', "").lowercase() == "pdf"
-            val result = withAvifConversionProgress { onConversionStarted ->
+            val result = withImportProgress { onConversionStarted ->
                 if (isPdf) {
                     repository.importPdf(uri, pendingPdfPlans.remove(uri.toString()))
                 } else {
@@ -230,7 +230,7 @@ internal class ImportCoordinator(
             var added = emptyList<File>()
             var importedFolder: File? = null
             try {
-                added = withAvifConversionProgress { onConversionStarted ->
+                added = withImportProgress { onConversionStarted ->
                     repository.addImages(stagedImport.folder, images.map { it.uri }, onConversionStarted)
                 }
                 if (added.isNotEmpty()) {
@@ -290,7 +290,7 @@ internal class ImportCoordinator(
             var collection: File? = null
 
             try {
-                withAvifConversionProgress { onConversionStarted ->
+                withImportProgress { onConversionStarted ->
                     val sourceNames = sources.mapNotNull { it.name.trim().takeIf(String::isNotEmpty) }
                     val chapterSources = buildList {
                         addAll(sources)
@@ -466,7 +466,7 @@ internal class ImportCoordinator(
             var committedChapters: List<File>? = null
 
             try {
-                withAvifConversionProgress { onConversionStarted ->
+                withImportProgress { onConversionStarted ->
                     for (source in sources) {
                         val sourceName = source.name.trim()
                         if (sourceName.isEmpty() || !repository.canCreateChildFolder(parentFolder, sourceName)) {
@@ -584,24 +584,25 @@ internal class ImportCoordinator(
         return ImageFileSupport.isSupportedImportImageFileName(name)
     }
 
-    private suspend fun <T> withAvifConversionProgress(
+    private suspend fun <T> withImportProgress(
         block: suspend (onConversionStarted: suspend () -> Unit) -> T
     ): T {
         var progressShown = false
         return try {
+            withContext(Dispatchers.Main.immediate) {
+                ui.showImportProgress(R.string.import_progress)
+            }
             block {
                 if (!progressShown) {
                     progressShown = true
                     withContext(Dispatchers.Main.immediate) {
-                        ui.showImageConversionProgress()
+                        ui.showImportProgress(R.string.avif_conversion_progress)
                     }
                 }
             }
         } finally {
-            if (progressShown) {
-                withContext(NonCancellable + Dispatchers.Main.immediate) {
-                    ui.hideImageConversionProgress()
-                }
+            withContext(NonCancellable + Dispatchers.Main.immediate) {
+                ui.hideImportProgress()
             }
         }
     }

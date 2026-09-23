@@ -10,16 +10,6 @@ import com.manga.translate.platform.PromptAssetResolver
 internal class AppSettingsStore(
     private val storage: SettingsStoreStorage
 ) {
-    fun loadUseXnnpack(): Boolean {
-        return storage.prefs.getBoolean(SettingsStore.KEY_USE_XNNPACK, false)
-    }
-
-    fun saveUseXnnpack(enabled: Boolean) {
-        storage.editSettings(setOf(SettingsStore.KEY_USE_XNNPACK)) {
-            putBoolean(SettingsStore.KEY_USE_XNNPACK, enabled)
-        }
-    }
-
     fun loadThemeMode(): ThemeMode {
         val saved = storage.prefs.getString(
             SettingsStore.KEY_THEME_MODE,

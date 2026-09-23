@@ -39,6 +39,7 @@ import androidx.core.content.getSystemService
 import androidx.core.view.isVisible
 import com.manga.translate.R
 import com.manga.translate.detection.PageRegion
+import com.manga.translate.detection.detectWithinInsets
 import com.manga.translate.detection.PageRegionDetector
 import com.manga.translate.detection.mapPageLineRectsToCrop
 import com.manga.translate.di.appContainer
@@ -56,6 +57,7 @@ import com.manga.translate.platform.ErrorDialogFormatter
 import com.manga.translate.platform.createAlertDialogBuilder
 import com.manga.translate.platform.createWithScrollableMessage
 import com.manga.translate.platform.showModelErrorDialog
+import kotlin.math.roundToInt
 import kotlin.math.abs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -161,6 +163,7 @@ class FloatingBallOverlayService : Service() {
     }
     private var autoCloseCheckJob: Job? = null
     private var blankBubbleErrorDialog: AlertDialog? = null
+    private var translationRegionDialog: android.app.Dialog? = null
     private var localModelReleaseCallback: AutoCloseable? = null
     private var activeTranslationLanguage: TranslationLanguage? = null
     private val hideProgressStatusRunnable = Runnable {
@@ -254,6 +257,8 @@ class FloatingBallOverlayService : Service() {
     }
 
     override fun onDestroy() {
+        translationRegionDialog?.dismiss()
+        translationRegionDialog = null
         displayManager.unregisterDisplayListener(displayListener)
         detectJob?.cancel()
         autoCloseCheckJob?.cancel()
@@ -470,12 +475,38 @@ class FloatingBallOverlayService : Service() {
             createMenuButtonLayoutParams(menuButtonWidth, topMargin = 6f * density)
         )
         menuPanel.addView(
+            createMenuButton().apply {
+                text = getString(R.string.floating_detection_region_title)
+                setOnClickListener {
+                    setMenuVisibility(menuPanel, false)
+                    showTranslationRegionDialog()
+                }
+            },
+            createMenuButtonLayoutParams(menuButtonWidth, topMargin = 6f * density)
+        )
+        menuPanel.addView(
             exitButton,
             createMenuButtonLayoutParams(menuButtonWidth, topMargin = 6f * density)
         )
 
+        val menuScroll = object : android.widget.ScrollView(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val limit = (resources.displayMetrics.heightPixels * 0.6f).toInt()
+                val available = if (View.MeasureSpec.getMode(heightMeasureSpec) == View.MeasureSpec.UNSPECIFIED) {
+                    limit
+                } else {
+                    minOf(limit, View.MeasureSpec.getSize(heightMeasureSpec))
+                }
+                super.onMeasure(widthMeasureSpec,
+                    View.MeasureSpec.makeMeasureSpec(available, View.MeasureSpec.AT_MOST))
+            }
+        }.apply {
+            isVerticalScrollBarEnabled = false
+            clipToPadding = false
+            addView(menuPanel)
+        }
         root.addView(
-            menuPanel,
+            menuScroll,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -1049,18 +1080,72 @@ class FloatingBallOverlayService : Service() {
         if (visible) updateEditButtons()
     }
 
-    private fun filterDetectionRegions(
-        regions: List<PageRegion>,
-        height: Int,
-        settings: com.manga.translate.settings.FloatingTranslateApiSettings
-    ): List<PageRegion> {
-        val top = height * settings.detectionTopInsetPercent / 100f
-        val bottom = height * (100 - settings.detectionBottomInsetPercent) / 100f
-        if (top <= 0f && bottom >= height) return regions
-        return regions.filter { region ->
-            val centerY = region.rect.centerY()
-            centerY >= top && centerY <= bottom
+    private fun showTranslationRegionDialog() {
+        translationRegionDialog?.dismiss()
+        // Stop any capture/retry before showing controls over the reader.
+        clearCurrentSession()
+        stopAutoCloseDetection()
+        val metrics = currentDisplayMetrics() ?: return
+        val themedContext = createAlertDialogBuilder(this).context
+        val settings = settingsStore.loadFloatingTranslateApiSettings()
+        val (left, right) = settingsStore.loadFloatingDetectionHorizontalInsets()
+        val selector = FloatingRegionSelectionView(
+            themedContext, metrics.widthPixels, metrics.heightPixels,
+            RectF(left / 100f, settings.detectionTopInsetPercent / 100f,
+                1f - right / 100f, 1f - settings.detectionBottomInsetPercent / 100f)
+        )
+        val root = android.widget.FrameLayout(themedContext)
+        root.addView(selector, android.widget.FrameLayout.LayoutParams(-1, -1))
+        val controls = android.view.LayoutInflater.from(themedContext)
+            .inflate(R.layout.dialog_floating_translation_region, root, false)
+        // Keep some screen available for starting a drag even with large fonts or in landscape.
+        controls.measure(
+            View.MeasureSpec.makeMeasureSpec(metrics.widthPixels, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec((metrics.heightPixels * 0.45f).toInt(), View.MeasureSpec.AT_MOST)
+        )
+        root.addView(controls, android.widget.FrameLayout.LayoutParams(-1, controls.measuredHeight, Gravity.BOTTOM))
+        val dialog = android.app.Dialog(themedContext)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        dialog.setContentView(root)
+        val confirm = controls.findViewById<View>(R.id.region_confirm)
+        selector.onSelectionChanged = { ready ->
+            confirm.isEnabled = ready
+            controls.visibility = if (ready) View.VISIBLE else View.INVISIBLE
         }
+        confirm.setOnClickListener {
+            val region = selector.selectedRegion()
+            settingsStore.saveFloatingTranslateApiSettings(
+                settingsStore.loadFloatingTranslateApiSettings().copy(
+                    detectionTopInsetPercent = (region.top * 100).roundToInt(),
+                    detectionBottomInsetPercent = ((1f - region.bottom) * 100).roundToInt()
+                )
+            )
+            settingsStore.saveFloatingDetectionHorizontalInsets(
+                (region.left * 100).roundToInt(), ((1f - region.right) * 100).roundToInt()
+            )
+            dialog.dismiss()
+        }
+        controls.findViewById<View>(R.id.region_cancel).setOnClickListener { dialog.dismiss() }
+        controls.findViewById<View>(R.id.region_full_screen).setOnClickListener { selector.selectFullScreen() }
+        dialog.window?.apply {
+            setType(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            })
+            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
+        }
+        dialog.setOnDismissListener {
+            translationRegionDialog = null
+            setFloatingBallHidden(false)
+        }
+        translationRegionDialog = dialog
+        setFloatingBallHidden(true)
+        dialog.show()
+        dialog.window?.setLayout(-1, -1)
     }
 
     private fun performFloatingBallGestureAction(
@@ -1118,6 +1203,7 @@ class FloatingBallOverlayService : Service() {
         ) {
             return
         }
+        translationRegionDialog?.dismiss()
         lastKnownDisplayMetrics = metrics
         if (!screenCaptureSession.isReady()) {
             return
@@ -1184,9 +1270,16 @@ class FloatingBallOverlayService : Service() {
                             applicationContext,
                             settingsStore = settingsStore
                         ).also { pageRegionDetector = it }
-                        val pageRegions = detector.detect(capturedBitmap, logTag = "FloatingOCR")
+                        val floatingSettings = settingsStore.loadFloatingTranslateApiSettings()
+                        val (leftInset, rightInset) = settingsStore.loadFloatingDetectionHorizontalInsets()
+                        val regions = detectWithinInsets(
+                            capturedBitmap,
+                            floatingSettings.detectionTopInsetPercent,
+                            floatingSettings.detectionBottomInsetPercent,
+                            leftInset, rightInset
+                        ) { input -> detector.detect(input, logTag = "FloatingOCR")?.regions }
                         if (!isDetectionGenerationCurrent(generation)) return@launch
-                        if (pageRegions == null) {
+                        if (regions == null) {
                             AppLogger.log("FloatingOCR", "Page region detection returned null")
                             runOnMainForDetectionGeneration(generation) {
                                 showProgressStatus(R.string.floating_detect_failed, autoHide = true)
@@ -1198,12 +1291,6 @@ class FloatingBallOverlayService : Service() {
                             }
                             return@launch
                         }
-                        val floatingSettings = settingsStore.loadFloatingTranslateApiSettings()
-                        val regions = filterDetectionRegions(
-                            pageRegions.regions,
-                            capturedBitmap.height,
-                            floatingSettings
-                        )
                         val balloonCount = regions.count { it.source == BubbleSource.BUBBLE_DETECTOR }
                         val freeTextCount = regions.count { it.source == BubbleSource.TEXT_DETECTOR }
                         AppLogger.log(

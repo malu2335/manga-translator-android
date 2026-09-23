@@ -1,4 +1,10 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="PluralsCandidate">
+    <string name="translation_request_settings_button">AI request settings</string>
+    <string name="translation_request_settings_button_format">AI request settings: %1$d concurrent, %2$d pages/request</string>
+    <string name="translation_request_settings_title">AI request settings</string>
+    <string name="translation_batch_pages_title">Pages per request</string>
+    <string name="translation_batch_pages_hint">Pages per request (1–200)</string>
+    <string name="translation_batch_pages_note">1 disables batching. Batching applies to standard and full-text translation in folder, collection, and batch tasks; pages are still saved separately. Too many pages may exceed the model output limit.</string>
     <string name="exclamation_mark" translatable="false">!</string>
     <string name="app_name">MT Reader</string>
     <string name="preview_image">Detection Preview</string>
@@ -151,10 +157,10 @@
     <string name="floating_translate_settings_title">Floating Translation Settings</string>
     <string name="normal_bubble_render_settings_button">Normal Bubble Settings</string>
     <string name="normal_bubble_render_settings_title">Normal Bubble Settings</string>
-    <string name="normal_bubble_render_settings_note">Common bubble box drawing for reading pages, comic pages and exported pictures. The retraction and opacity of ordinary bubbles and free bubbles can be set separately. The text will automatically adapt to the font size according to the size of the bubble; text fills the bubble as much as possible without changing its size. Free bubbles only refer to the boxes filled in by text detection in normal mode, and do not include bubbles manually added by users. Please adjust the fonts uniformly in the separate "Font Settings".</string>
-    <string name="normal_bubble_shrink_percent_hint">Bubble retraction (0–30)</string>
+    <string name="normal_bubble_render_settings_note" formatted="false">Applies to reading pages, webtoons and exported images. Ordinary bubbles shrink uniformly, with a default of 0%. For free bubbles, positive values expand and negative values shrink; the default is 10%. Opacity and adaptive background color can be set separately. Text fits the bubble automatically. Free bubbles are text detection boxes, excluding manually added bubbles. Choose fonts in Font Settings.</string>
+    <string name="normal_bubble_shrink_percent_hint">Bubble inset (0–30%)</string>
     <string name="normal_bubble_opacity_percent_hint">Normal bubble opacity (0–100)</string>
-    <string name="normal_bubble_free_shrink_percent_hint">Free bubble retraction (0–30)</string>
+    <string name="normal_bubble_free_shrink_percent_hint">Free bubble size adjustment (−30–30%)</string>
     <string name="normal_bubble_free_opacity_percent_hint">Free bubble opacity (0–100)</string>
     <string name="normal_bubble_auto_adapt_color">Normal bubble adaptive background color</string>
     <string name="normal_bubble_free_auto_adapt_color">Free bubble adaptive background color</string>
@@ -215,8 +221,6 @@
     <string name="floating_ai_api_concurrency_hint">Floating window AI API Concurrency upper limit (1–50)</string>
     <string name="floating_translate_settings_note">Leave an item blank to use the corresponding configuration in the main settings.</string>
     <string name="ocr_use_local">Use local OCR</string>
-    <string name="ocr_use_xnnpack">Enable XNNPACK local inference acceleration (experimental)</string>
-    <string name="ocr_use_xnnpack_note">Affects local ONNX models only. Already loaded models require an app restart to take effect; on some devices it may be unsupported, slower, or crash while loading a model — turn it off and restart if you hit problems.</string>
     <string name="ocr_api_format_openai_compatible">OpenAI compatible</string>
     <string name="ocr_api_format_hint">OCR API format</string>
     <string name="ocr_api_url_hint">OCR API Address</string>
@@ -225,7 +229,7 @@
     <string name="ocr_api_timeout_hint">OCR API timeout (seconds, 30–1200)</string>
     <string name="ocr_api_concurrency_hint">API OCR Concurrency number (1–50)</string>
     <string name="local_ocr_concurrency_hint">Local OCR concurrency count (0=auto, 1–8)</string>
-    <string name="ocr_settings_note_local">When enabled, only the software built-in OCR will be used.</string>
+    <string name="ocr_settings_note_local">Uses built-in OCR only, with automatic model selection and GPU acceleration when supported.</string>
     <string name="ocr_settings_note_api">After closing local OCR, you can configure OpenAI to be compatible with OCR</string>
     <string name="missing_ocr_api_settings">Please fill in the API address, Key and model name in the OCR settings first</string>
     <string name="llm_params_clear">Leave all blank</string>
@@ -405,12 +409,6 @@
     <string name="folder_glossary_processing_info_title">About Glossary Processing</string>
     <string name="folder_glossary_processing_info_desc">About glossary processing</string>
     <string name="folder_glossary_processing_note">After turning off translation processing, concurrent translation can be performed faster.</string>
-    <string name="folder_bubble_detection_info_title">About Region Detection Modes</string>
-    <string name="folder_bubble_detection_info_desc">About region detection modes</string>
-    <string name="folder_bubble_detection_info">Bubbles only uses the bubble segmentation model. Text only uses Paddle OCR to detect and group every text block, and is the fastest mode. Bubbles + free text detects regular bubbles and uses Paddle OCR to supplement and group text outside them, and is the slowest mode. If bubbles appear to fly around or shift noticeably, switch to Bubbles only mode.</string>
-    <string name="folder_detection_mode_bubbles">Bubbles only</string>
-    <string name="folder_detection_mode_text">Text only</string>
-    <string name="folder_detection_mode_bubbles_and_text">Bubbles + free text</string>
     <string name="translation_preparing">Preparing</string>
     <string name="folder_preprocess_progress">%1$s（%2$d/%3$d）</string>
     <string name="folder_preprocess_stage_ocr">OCR Preprocessing</string>
@@ -455,6 +453,7 @@
     <string name="import_failed">Import failed, please try again</string>
     <string name="import_images_failed">Import failed: unable to read the selected images. Make sure the files are not corrupted and use a supported format.</string>
     <string name="import_done">Imported %1$d pictures</string>
+    <string name="import_progress">Importing, please wait…</string>
     <string name="avif_conversion_progress">Converting AVIF images to PNG…</string>
     <string name="cbz_import_failed">CBZ/ZIP Import failed, please try again</string>
     <string name="cbz_import_cannot_read">Unable to read the selected archive. Make sure the file exists and is accessible.</string>
@@ -593,4 +592,7 @@ Communication and feedback group: %2$s</string>
     <string name="language_english">English</string>
     <string name="language_russian">Russian</string>
     <string name="language_portuguese_brazil">Brazilian Portuguese</string>
+    <string name="floating_region_full_screen">Full screen</string>
+    <string name="floating_region_margin_value">%1$s: %2$d</string>
+    <string name="floating_region_configuration_note">Drag on the screen to select the translation region, then tap Confirm to apply it to the next translation. Drag again to redraw. Width and height must each cover at least 10% of the screen.</string>
 </resources>

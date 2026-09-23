@@ -26,7 +26,6 @@ internal object VerticalTextLayoutCalculator {
         val fontMetrics = textPaint.fontMetrics
         val lineHeight = (fontMetrics.descent - fontMetrics.ascent).coerceAtLeast(1f)
         val maxRows = (maxHeight / lineHeight).toInt().coerceAtLeast(1)
-        val charCount = text.count { it != '\n' }.coerceAtLeast(1)
         var maxCharWidth = 0f
         for (ch in text) {
             if (ch == '\n') continue
@@ -39,11 +38,25 @@ internal object VerticalTextLayoutCalculator {
             maxCharWidth = textPaint.measureText("国")
         }
         maxCharWidth = maxCharWidth.coerceAtLeast(1f)
-        val columns = ((charCount + maxRows - 1) / maxRows).coerceAtLeast(1)
+        // Match the renderer: explicit breaks start a new column, automatic
+        // wrapping only starts another column when the next glyph arrives.
+        var columns = 1
+        var row = 0
+        var usedRows = 0
+        for (ch in text) {
+            if (ch == '\n') {
+                columns += 1
+                row = 0
+            } else {
+                if (row >= maxRows) {
+                    columns += 1
+                    row = 0
+                }
+                row += 1
+                usedRows = maxOf(usedRows, row)
+            }
+        }
         val totalWidth = columns * maxCharWidth
-        // Center only the rows occupied by this string. Using maxRows makes a short
-        // string look top-aligned inside a tall bubble.
-        val usedRows = charCount.coerceAtMost(maxRows)
         val totalHeight = usedRows * lineHeight
         val fits = totalWidth <= maxWidth && totalHeight <= maxHeight
         return VerticalTextLayout(

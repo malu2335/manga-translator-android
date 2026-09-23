@@ -16,6 +16,7 @@ import com.manga.translate.platform.cropBitmap
 import com.manga.translate.platform.recycleSafely
 import com.manga.translate.settings.SettingsStore
 import java.text.Normalizer
+import kotlinx.coroutines.CancellationException
 
 class OcrEngineRegistry(
     context: Context,
@@ -112,37 +113,6 @@ class BubbleTextRecognizer(
         }
     }
 
-    fun detectRecognizedLines(
-        source: Bitmap,
-        language: TranslationLanguage,
-        logTag: String
-    ): List<EnglishLine> {
-        val lineDetector = engineRegistry.getEnglishLineDetector(logTag) ?: return emptyList()
-        val lineRects = lineDetector.detectLines(source)
-        return when (language) {
-            TranslationLanguage.EN_TO_ZH,
-            TranslationLanguage.FR_TO_ZH,
-            TranslationLanguage.ES_TO_ZH,
-            TranslationLanguage.PT_TO_ZH,
-            TranslationLanguage.DE_TO_ZH,
-            TranslationLanguage.IT_TO_ZH -> {
-                val engine = engineRegistry.getPpOcrV6SmallRec(logTag) ?: return emptyList()
-                recognizeEnglishLines(source, lineRects, engine)
-            }
-
-            TranslationLanguage.KO_TO_ZH -> {
-                val engine = engineRegistry.getKoreanOcr(logTag) ?: return emptyList()
-                recognizeKoreanLines(source, lineRects, engine)
-            }
-
-            TranslationLanguage.JA_TO_ZH,
-            TranslationLanguage.ZH_HANS_TO_TARGET,
-            TranslationLanguage.ZH_HANT_TO_TARGET,
-            TranslationLanguage.CHN_ENG_TO_ZH,
-            TranslationLanguage.RU_TO_ZH -> emptyList()
-        }
-    }
-
     suspend fun recognizeRegion(
         source: Bitmap,
         rect: RectF,
@@ -151,12 +121,8 @@ class BubbleTextRecognizer(
         logTag: String,
         bubbleSource: BubbleSource = BubbleSource.UNKNOWN
     ): OcrRecognitionResult {
-        val crop = cropBitmap(source, rect)?.let { PipelineBitmapDecoder.scaleDownIfNeeded(it) }
-            ?: return OcrRecognitionResult.Success("")
-        return try {
-            recognizeCrop(crop, language, useLocalOcr, logTag, bubbleSource)
-        } finally {
-            crop.recycleSafely()
+        return PipelineBitmapDecoder.openCropSource(source).use { cropSource ->
+            recognizeRegion(cropSource, rect, language, useLocalOcr, logTag, bubbleSource)
         }
     }
 
@@ -193,145 +159,98 @@ class BubbleTextRecognizer(
         val rawText = if (!resolvedUseLocalOcr) {
             try {
                 llmClient.recognizeImageText(crop, language)?.trim().orEmpty()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 AppLogger.log(logTag, "API OCR failed", e)
                 return OcrRecognitionResult.Failure(e)
             }
-        } else when (language) {
-            TranslationLanguage.JA_TO_ZH -> {
-                val engine = engineRegistry.getPpOcrV6SmallRec(logTag)
-                    ?: return OcrRecognitionResult.Failure(
-                        IllegalStateException("PP-OCRv6_small_rec engine unavailable")
-                    )
-                recognizeLineTextWithFallback(
-                    crop = crop,
-                    engineRegistry = engineRegistry,
-                    bubbleSource = bubbleSource,
-                    reusableLineRects = reusableLineRects,
-                    logTag = logTag,
-                    recognizeLines = { lineRects ->
-                        recognizeJapaneseLines(crop, lineRects, engine)
-                    },
-                    recognizeWhole = { engine.recognize(crop).trim() }
+        } else {
+            val engine = getLocalOcrEngine(language, logTag)
+                ?: return OcrRecognitionResult.Failure(
+                    IllegalStateException("Local OCR engine unavailable for ${language.name}")
                 )
-            }
-
-            TranslationLanguage.EN_TO_ZH,
-            TranslationLanguage.FR_TO_ZH,
-            TranslationLanguage.ES_TO_ZH,
-            TranslationLanguage.PT_TO_ZH,
-            TranslationLanguage.DE_TO_ZH,
-            TranslationLanguage.IT_TO_ZH -> {
-                val engine = engineRegistry.getPpOcrV6SmallRec(logTag)
-                    ?: return OcrRecognitionResult.Failure(
-                        IllegalStateException("PP-OCRv6_small_rec engine unavailable")
-                    )
-                recognizeLineTextWithFallback(
-                    crop = crop,
-                    engineRegistry = engineRegistry,
-                    bubbleSource = bubbleSource,
-                    reusableLineRects = reusableLineRects,
-                    logTag = logTag,
-                    recognizeLines = { lineRects ->
-                        recognizeEnglishLines(crop, lineRects, engine)
-                    },
-                    recognizeWhole = { engine.recognize(crop).trim() }
-                )
-            }
-
-            TranslationLanguage.ZH_HANS_TO_TARGET,
-            TranslationLanguage.ZH_HANT_TO_TARGET,
-            TranslationLanguage.CHN_ENG_TO_ZH -> {
-                // ZH 分支有意不做无行框拒绝（不走 shouldRejectFreeTextWithoutLines），并非遗漏
-                val engine = engineRegistry.getPpOcrV6SmallRec(logTag)
-                    ?: return OcrRecognitionResult.Failure(
-                        IllegalStateException("PP-OCRv6_small_rec engine unavailable")
-                    )
-                val lineRects = reusableLineRects
-                if (lineRects == null || lineRects.isEmpty()) {
-                    engine.recognize(crop).trim()
-                } else {
-                    resolveCropOcrText(
-                        recognizedLines = recognizeJapaneseLines(crop, lineRects, engine),
-                        lineRectCount = lineRects.size,
-                        logTag = logTag
-                    ) { engine.recognize(crop).trim() }
-                }
-            }
-
-            TranslationLanguage.KO_TO_ZH -> {
-                val engine = engineRegistry.getKoreanOcr(logTag)
-                    ?: return OcrRecognitionResult.Failure(
-                        IllegalStateException("Korean OCR engine unavailable")
-                    )
-                recognizeLineTextWithFallback(
-                    crop = crop,
-                    engineRegistry = engineRegistry,
-                    bubbleSource = bubbleSource,
-                    reusableLineRects = reusableLineRects,
-                    logTag = logTag,
-                    recognizeLines = { lineRects ->
-                        recognizeKoreanLines(crop, lineRects, engine)
-                    },
-                    recognizeWhole = {
-                        val decoded = engine.recognizeWithScore(crop)
-                        decoded.text.trim()
-                            .takeIf { decoded.score >= DEFAULT_KO_MIN_LINE_SCORE }
-                            .orEmpty()
+            recognizeLocalCrop(
+                crop, language, bubbleSource, reusableLineRects, engine, logTag,
+                detectLines = {
+                    val detector = engineRegistry.getEnglishLineDetector(logTag)
+                    if (language == TranslationLanguage.JA_TO_ZH) {
+                        detectJapaneseTextLines(crop) { detector?.detectLines(it) }
+                    } else {
+                        detector?.detectLines(crop)
                     }
-                )
-            }
-
-            TranslationLanguage.RU_TO_ZH -> return OcrRecognitionResult.Failure(
-                IllegalStateException("Local OCR unsupported for ${language.name}")
+                }
             )
         }
         return OcrRecognitionResult.Success(OcrTextSanitizer.sanitize(rawText, language, logTag))
     }
+}
 
-    /**
-     * Shared line-rect OCR flow for the languages that reject free-text regions without
-     * detected lines: requests the line detector only when no reusable rects exist, drops
-     * detector-only free-text regions with no lines, then resolves per-line text with the
-     * whole-crop fallback. Returns "" when the region is rejected.
-     */
-    private inline fun recognizeLineTextWithFallback(
-        crop: Bitmap,
-        engineRegistry: OcrEngineRegistry,
-        bubbleSource: BubbleSource,
-        reusableLineRects: List<RectF>?,
-        logTag: String,
-        recognizeLines: (List<RectF>) -> List<EnglishLine>,
-        recognizeWhole: () -> String
-    ): String {
-        val lineDetector = if (reusableLineRects == null) {
-            engineRegistry.getEnglishLineDetector(logTag)
-        } else {
-            null
+/** Detect both writing directions before recognition; map columns back to crop coordinates. */
+internal fun detectJapaneseTextLines(
+    crop: Bitmap,
+    detect: (Bitmap) -> List<RectF>?
+): List<RectF>? {
+    val original = detect(crop) ?: return null
+    // Preserve already resolved columns, including mixed small annotations. Redetecting
+    // them changes crop padding and can degrade otherwise good recognition.
+    if (original.count(::isVerticalTextLine) * 2 > original.size) return original
+    val rotated = Bitmap.createBitmap(crop, 0, 0, crop.width, crop.height,
+        Matrix().apply { setRotate(-90f) }, false)
+    try {
+        val alternative = detect(rotated) ?: return original
+        // Cross-column detections are usually short horizontal fragments. Prefer the
+        // direction with more evidence of complete horizontal lines, not more boxes.
+        fun horizontalExtent(rects: List<RectF>): Float = rects.sumOf {
+            if (it.width() >= it.height() * VERTICAL_LINE_RATIO) it.width().toDouble() else 0.0
+        }.toFloat()
+        if (horizontalExtent(alternative) <= horizontalExtent(original)) return original
+        return alternative.map { rect ->
+            RectF(crop.width - rect.bottom, rect.left, crop.width - rect.top, rect.right)
         }
-        val lineRects = reusableLineRects
-            ?: lineDetector?.detectLines(crop).orEmpty()
-        if (shouldRejectFreeTextWithoutLines(
-                bubbleSource,
-                reusableLineRects != null || lineDetector != null,
-                lineRects.size
-            )
-        ) {
-            AppLogger.log(logTag, "Rejected free-text region without detected OCR lines")
-            return ""
-        }
-        return resolveCropOcrText(
-            recognizedLines = recognizeLines(lineRects),
-            lineRectCount = lineRects.size,
-            logTag = logTag
-        ) { recognizeWhole() }
+    } finally {
+        if (rotated !== crop) rotated.recycleSafely()
     }
+}
 
+/** A page detector produces blocks; obtain OCR lines from the crop for every local language. */
+internal fun recognizeLocalCrop(
+    crop: Bitmap,
+    language: TranslationLanguage,
+    bubbleSource: BubbleSource,
+    reusableLineRects: List<RectF>?,
+    engine: OcrEngine,
+    logTag: String,
+    detectLines: () -> List<RectF>?
+): String {
+    // null means unavailable, whereas an empty list means detection succeeded without lines.
+    val detected = reusableLineRects ?: detectLines()
+    val lineRects = detected.orEmpty()
+    val chinese = language == TranslationLanguage.ZH_HANS_TO_TARGET ||
+        language == TranslationLanguage.ZH_HANT_TO_TARGET ||
+        language == TranslationLanguage.CHN_ENG_TO_ZH
+    if (!chinese && shouldRejectFreeTextWithoutLines(bubbleSource, detected != null, lineRects.size)) {
+        AppLogger.log(logTag, "Rejected free-text region without detected OCR lines")
+        return ""
+    }
+    val recognized = when {
+        language == TranslationLanguage.JA_TO_ZH || chinese -> recognizeJapaneseLines(crop, lineRects, engine, bubbleSource = bubbleSource)
+        language == TranslationLanguage.KO_TO_ZH -> recognizeKoreanLines(crop, lineRects, engine, bubbleSource = bubbleSource)
+        else -> recognizeEnglishLines(crop, lineRects, engine, bubbleSource = bubbleSource)
+    }
+    return resolveCropOcrText(recognized, lineRects.size, logTag) {
+        if (language == TranslationLanguage.KO_TO_ZH) {
+            val decoded = engine.recognizeWithScore(crop)
+            decoded.text.trim().takeIf { decoded.score >= DEFAULT_KO_MIN_LINE_SCORE }.orEmpty()
+        } else {
+            engine.recognize(crop).trim()
+        }
+    }
 }
 
 internal fun shouldReuseDetectedLineRectsForOcr(source: BubbleSource): Boolean {
-    // Page-level Paddle lines define TEXT_DETECTOR blocks, but can be incomplete
-    // inside a normal bubble. Re-detect normal bubble lines from their own crop.
+    // Only explicit OCR line boxes may be reused; dual-model text blocks never supply them.
+    // Re-detect normal bubble lines from their own crop.
     return source == BubbleSource.TEXT_DETECTOR
 }
 
@@ -392,6 +311,16 @@ internal fun shouldRejectFreeTextWithoutLines(
 }
 
 const val DEFAULT_EN_MIN_LINE_SCORE = 0.5f
+const val DEFAULT_FREE_TEXT_MIN_LINE_SCORE = 0.55f
+const val DEFAULT_SHORT_TEXT_MIN_LINE_SCORE = 0.65f
+
+private fun passesOcrLineScore(text: String, score: Float, base: Float, source: BubbleSource): Boolean {
+    val required = if (source == BubbleSource.TEXT_DETECTOR) {
+        if (text.codePointCount(0, text.length) <= 2) DEFAULT_SHORT_TEXT_MIN_LINE_SCORE
+        else maxOf(base, DEFAULT_FREE_TEXT_MIN_LINE_SCORE)
+    } else base
+    return score >= required && text.isNotBlank()
+}
 
 data class EnglishLine(
     val rect: RectF,
@@ -489,7 +418,8 @@ inline fun <T> withBitmapCrop(
     return try {
         block(crop)
     } finally {
-        crop.recycleSafely()
+        // A full-bounds crop of an immutable bitmap may alias the caller's source.
+        if (crop !== source) crop.recycleSafely()
     }
 }
 
@@ -497,14 +427,15 @@ fun recognizeEnglishLines(
     source: Bitmap,
     lineRects: List<RectF>,
     ocrEngine: OcrEngine,
-    minLineScore: Float = DEFAULT_EN_MIN_LINE_SCORE
+    minLineScore: Float = DEFAULT_EN_MIN_LINE_SCORE,
+    bubbleSource: BubbleSource = BubbleSource.BUBBLE_DETECTOR
 ): List<EnglishLine> {
     if (lineRects.isEmpty()) return emptyList()
     val results = ArrayList<EnglishLine>(lineRects.size)
     for (rect in lineRects) {
         val decoded = ocrEngine.recognizeWithScore(source, rect)
         val text = decoded.text.trim()
-        if (decoded.score >= minLineScore && text.isNotBlank()) {
+        if (passesOcrLineScore(text, decoded.score, minLineScore, bubbleSource)) {
             results.add(EnglishLine(rect, text))
         }
     }
@@ -515,7 +446,8 @@ fun recognizeJapaneseLines(
     source: Bitmap,
     lineRects: List<RectF>,
     ocrEngine: OcrEngine,
-    minLineScore: Float = DEFAULT_EN_MIN_LINE_SCORE
+    minLineScore: Float = DEFAULT_EN_MIN_LINE_SCORE,
+    bubbleSource: BubbleSource = BubbleSource.BUBBLE_DETECTOR
 ): List<EnglishLine> {
     if (lineRects.isEmpty()) return emptyList()
     val verticalCount = lineRects.count(::isVerticalTextLine)
@@ -549,7 +481,7 @@ fun recognizeJapaneseLines(
             ocrEngine.recognizeWithScore(source, rect)
         }
         val text = decoded.text.trim()
-        if (decoded.score >= minLineScore && text.isNotBlank()) {
+        if (passesOcrLineScore(text, decoded.score, minLineScore, bubbleSource)) {
             results.add(EnglishLine(rect, text))
         }
     }
@@ -560,18 +492,10 @@ fun recognizeKoreanLines(
     source: Bitmap,
     lineRects: List<RectF>,
     ocrEngine: OcrEngine,
-    minLineScore: Float = DEFAULT_KO_MIN_LINE_SCORE
+    minLineScore: Float = DEFAULT_KO_MIN_LINE_SCORE,
+    bubbleSource: BubbleSource = BubbleSource.BUBBLE_DETECTOR
 ): List<EnglishLine> {
-    if (lineRects.isEmpty()) return emptyList()
-    val results = ArrayList<EnglishLine>(lineRects.size)
-    for (rect in lineRects) {
-        val decoded = ocrEngine.recognizeWithScore(source, rect)
-        val text = decoded.text.trim()
-        if (decoded.score >= minLineScore && text.isNotBlank()) {
-            results.add(EnglishLine(rect, text))
-        }
-    }
-    return results
+    return recognizeEnglishLines(source, lineRects, ocrEngine, minLineScore, bubbleSource)
 }
 
 const val DEFAULT_KO_MIN_LINE_SCORE = 0.65f

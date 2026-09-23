@@ -75,14 +75,14 @@ Join the QQ group for questions and discussion: `1080302768`
 
 ### Models and Assets
 Place the following model files into the corresponding subdirectories under `assets/`:
-- `models/detection/manga-bubble-seg-yolo26n-1472.onnx` (YOLO26n-seg speech-bubble detector at 1472x1472; also provides bubble contours)
-- `models/detection/PP-OCRv6_det_mobile_infer.onnx` (Paddle OCR text-line detection and text-block grouping)
+- `models/detection/mixed-dual-s-e5_float16.tflite` (YOLO26s-seg bubble/text segmenter at 1472x1472, TFLite FP16)
+- `models/detection/PP-OCRv6_det_mobile_infer.onnx` (Paddle text-line detection inside OCR regions)
 - `models/ocr/PP-OCRv6_small_rec.onnx` (Japanese, English, Chinese, and mixed OCR)
 - `models/ocr/korean_PP-OCRv5_mobile_rec.onnx` and `models/ocr/korean_PP-OCRv5_mobile_rec_dict.txt` (Korean OCR and character dictionary)
 - `models/detection/PP-OCRv6_det_mobile_infer.onnx` (English line detection)
 
 Model download links:
-- Speech-bubble detection model: YOLO26n-seg bubble segmentation model (bundled in app assets)
+- Speech-bubble and free-text detection model: YOLO26s dual-label text block detector (bundled in app assets)
 - Text detection model: PaddleOCR PP-OCRv6 mobile det
 - General recognition model: https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx
 - English detection model: https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx

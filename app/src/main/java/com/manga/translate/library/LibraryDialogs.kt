@@ -382,14 +382,6 @@ internal class LibraryDialogs {
         )
     }
 
-    fun showBubbleDetectionInfo(context: Context) {
-        showMessageDialog(
-            context,
-            R.string.folder_bubble_detection_info_title,
-            context.getString(R.string.folder_bubble_detection_info)
-        )
-    }
-
     fun showGlossaryProcessingInfo(context: Context) {
         showMessageDialog(
             context,

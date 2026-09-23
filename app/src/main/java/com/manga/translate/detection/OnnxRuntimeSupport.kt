@@ -36,10 +36,9 @@ object OnnxRuntimeSupport {
         cacheDir: File,
         assetProvider: (String) -> java.io.InputStream,
         assetName: String,
-        threadProfile: OnnxThreadProfile,
-        useXnnpack: Boolean = true
+        threadProfile: OnnxThreadProfile
     ): OrtSession {
-        val cacheKey = "${cacheDir.absolutePath}|$assetName|${threadProfile.name}|xnnpack=$useXnnpack"
+        val cacheKey = "${cacheDir.absolutePath}|$assetName|${threadProfile.name}"
         sessionCache[cacheKey]?.let { return it }
         synchronized(cacheLock) {
             sessionCache[cacheKey]?.let { return it }
@@ -47,8 +46,7 @@ object OnnxRuntimeSupport {
                 cacheDir = cacheDir,
                 assetProvider = assetProvider,
                 assetName = assetName,
-                threadProfile = threadProfile,
-                useXnnpack = useXnnpack
+                threadProfile = threadProfile
             )
             sessionCache[cacheKey] = session
             return session
@@ -59,33 +57,19 @@ object OnnxRuntimeSupport {
         cacheDir: File,
         assetProvider: (String) -> java.io.InputStream,
         assetName: String,
-        threadProfile: OnnxThreadProfile,
-        useXnnpack: Boolean
+        threadProfile: OnnxThreadProfile
     ): OrtSession {
         val modelFile = copyAssetToCacheIfMissing(cacheDir, assetProvider, assetName)
         AppLogger.log(
             "OnnxRuntime",
             "Creating session for $assetName (${modelFile.length()} bytes), " +
-                "threads=${threadProfile.name}, xnnpack=$useXnnpack"
+                "threads=${threadProfile.name}"
         )
         return try {
-            createSession(modelFile, threadProfile, useXnnpack)
+            createSession(modelFile, threadProfile)
         } catch (e: OrtException) {
-            if (useXnnpack) {
-                AppLogger.log(
-                    "OnnxRuntime",
-                    "Session create with XNNPACK failed for $assetName, retrying plain CPU",
-                    e
-                )
-                return try {
-                    createSession(modelFile, threadProfile, useXnnpack = false)
-                } catch (cpuError: OrtException) {
-                    if (!shouldRebuildCache(cpuError) && !shouldRebuildCache(e)) throw cpuError
-                    rebuildAndCreateSession(cacheDir, assetProvider, assetName, threadProfile, useXnnpack = false)
-                }
-            }
             if (!shouldRebuildCache(e)) throw e
-            rebuildAndCreateSession(cacheDir, assetProvider, assetName, threadProfile, useXnnpack = false)
+            rebuildAndCreateSession(cacheDir, assetProvider, assetName, threadProfile)
         }.also {
             AppLogger.log("OnnxRuntime", "Session ready for $assetName")
         }
@@ -95,8 +79,7 @@ object OnnxRuntimeSupport {
         cacheDir: File,
         assetProvider: (String) -> java.io.InputStream,
         assetName: String,
-        threadProfile: OnnxThreadProfile,
-        useXnnpack: Boolean
+        threadProfile: OnnxThreadProfile
     ): OrtSession {
         AppLogger.log(
             "OnnxRuntime",
@@ -104,13 +87,12 @@ object OnnxRuntimeSupport {
         )
         deleteCachedModel(cacheDir, assetName)
         val rebuiltFile = forceCopyAssetToCache(cacheDir, assetProvider, assetName)
-        return createSession(rebuiltFile, threadProfile, useXnnpack)
+        return createSession(rebuiltFile, threadProfile)
     }
 
     private fun createSession(
         modelFile: File,
-        threadProfile: OnnxThreadProfile,
-        useXnnpack: Boolean
+        threadProfile: OnnxThreadProfile
     ): OrtSession {
         val options = OrtSession.SessionOptions().apply {
             setIntraOpNumThreads(threadProfile.intraOpThreads)
@@ -118,13 +100,6 @@ object OnnxRuntimeSupport {
             // Large YOLO-seg graphs can OOM / SIGSEGV under full graph opts + mem pattern.
             setOptimizationLevel(OrtSession.SessionOptions.OptLevel.BASIC_OPT)
             setMemoryPatternOptimization(false)
-            if (useXnnpack) {
-                try {
-                    addXnnpack(emptyMap())
-                } catch (e: OrtException) {
-                    AppLogger.log("OnnxRuntime", "XNNPACK unavailable, using plain CPU", e)
-                }
-            }
         }
         return options.use {
             env.createSession(modelFile.absolutePath, it)

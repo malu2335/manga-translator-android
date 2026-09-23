@@ -52,6 +52,32 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun `floating horizontal region defaults to full width and persists clamped margins`() {
+        val store = SettingsStore(context)
+        assertEquals(0 to 0, store.loadFloatingDetectionHorizontalInsets())
+        store.saveFloatingDetectionHorizontalInsets(20, 30)
+        assertEquals(20 to 30, SettingsStore(context).loadFloatingDetectionHorizontalInsets())
+        store.saveFloatingTranslateApiSettings(store.loadFloatingTranslateApiSettings().copy(modelName = "test"))
+        assertEquals(20 to 30, store.loadFloatingDetectionHorizontalInsets())
+        store.saveFloatingDetectionHorizontalInsets(80, 60)
+        assertEquals(80 to 10, store.loadFloatingDetectionHorizontalInsets())
+    }
+
+    @Test
+    fun `translation page batching defaults off persists and clamps its range`() {
+        val store = SettingsStore(context)
+        assertEquals(1, store.loadTranslationBatchPages())
+        store.saveTranslationBatchPages(5)
+        assertEquals(5, SettingsStore(context).loadTranslationBatchPages())
+        store.saveTranslationBatchPages(0)
+        assertEquals(1, store.loadTranslationBatchPages())
+        store.saveTranslationBatchPages(Int.MAX_VALUE)
+        assertEquals(200, store.loadTranslationBatchPages())
+        assertEquals(SettingsStore.DEFAULT_MAX_CONCURRENCY, store.loadMaxConcurrency())
+        assertEquals(SettingsStore.DEFAULT_API_TIMEOUT_SECONDS, store.loadApiTimeoutSeconds())
+    }
+
+    @Test
     fun `translation language availability follows ocr mode`() {
         val localLanguages = TranslationLanguage.supportedForOcr(useLocalOcr = true)
         assertTrue(localLanguages.contains(TranslationLanguage.JA_TO_ZH))
@@ -80,17 +106,6 @@ class SettingsStoreTest {
         val changedKeys = changeDeferred.await()
         assertTrue(changedKeys.isNotEmpty())
         assertTrue(store.settingsVersion.value > initialVersion)
-    }
-
-    @Test
-    fun `xnnpack setting defaults off and persists`() {
-        val store = SettingsStore(context)
-
-        assertFalse(store.loadUseXnnpack())
-
-        store.saveUseXnnpack(true)
-
-        assertTrue(SettingsStore(context).loadUseXnnpack())
     }
 
     @Test
@@ -220,7 +235,7 @@ class SettingsStoreTest {
 
         val settings = SettingsStore(context).loadNormalBubbleRenderSettings()
 
-        assertEquals(0, settings.freeBubbleShrinkPercent)
+        assertEquals(10, settings.freeBubbleSizeAdjustPercent)
         assertEquals(24, prefs.getInt("normal_free_bubble_shrink_percent", -1))
     }
 

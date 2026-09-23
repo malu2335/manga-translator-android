@@ -13,6 +13,14 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class VerticalTextLayoutTest {
     @Test
+    fun explicitBreaksAreIncludedInMeasuredColumns() {
+        val layout = VerticalTextLayoutCalculator.build(TextPaint(), "甲\n乙\n丙", 200, 500, 24f)
+        assertEquals(3, layout.columns)
+        assertEquals(layout.lineHeight, layout.totalHeight, 0.01f)
+        assertEquals(layout.columnWidth * 3, layout.totalWidth, 0.01f)
+    }
+
+    @Test
     fun shortTextUsesOnlyRowsActuallyOccupied() {
         val paint = TextPaint().apply { textSize = 24f }
         val layout = VerticalTextLayoutCalculator.build(

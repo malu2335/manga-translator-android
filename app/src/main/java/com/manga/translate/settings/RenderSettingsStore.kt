@@ -54,11 +54,11 @@ internal class RenderSettingsStore(
                 SettingsStore.MAX_NORMAL_BUBBLE_SHRINK_PERCENT
             ),
             opacityPercent = loadTranslationBubbleOpacityPercent(),
-            freeBubbleShrinkPercent = storage.prefs.getInt(
-                SettingsStore.KEY_NORMAL_FREE_BUBBLE_SHRINK_PERCENT,
-                SettingsStore.DEFAULT_NORMAL_FREE_BUBBLE_SHRINK_PERCENT
+            freeBubbleSizeAdjustPercent = storage.prefs.getInt(
+                SettingsStore.KEY_NORMAL_FREE_BUBBLE_SIZE_ADJUST_PERCENT,
+                SettingsStore.DEFAULT_NORMAL_FREE_BUBBLE_SIZE_ADJUST_PERCENT
             ).coerceIn(
-                SettingsStore.MIN_NORMAL_BUBBLE_SHRINK_PERCENT,
+                -SettingsStore.MAX_NORMAL_BUBBLE_SHRINK_PERCENT,
                 SettingsStore.MAX_NORMAL_BUBBLE_SHRINK_PERCENT
             ),
             freeBubbleOpacityPercent = storage.prefs.getInt(
@@ -89,7 +89,7 @@ internal class RenderSettingsStore(
             setOf(
                 SettingsStore.KEY_NORMAL_BUBBLE_SHRINK_PERCENT,
                 SettingsStore.KEY_TRANSLATION_BUBBLE_OPACITY_PERCENT,
-                SettingsStore.KEY_NORMAL_FREE_BUBBLE_SHRINK_PERCENT,
+                SettingsStore.KEY_NORMAL_FREE_BUBBLE_SIZE_ADJUST_PERCENT,
                 SettingsStore.KEY_NORMAL_FREE_BUBBLE_OPACITY_PERCENT,
                 SettingsStore.KEY_NORMAL_BUBBLE_AUTO_ADAPT_COLOR,
                 SettingsStore.KEY_NORMAL_FREE_BUBBLE_AUTO_ADAPT_COLOR,
@@ -111,9 +111,9 @@ internal class RenderSettingsStore(
                     )
                 )
                 .putInt(
-                    SettingsStore.KEY_NORMAL_FREE_BUBBLE_SHRINK_PERCENT,
-                    settings.freeBubbleShrinkPercent.coerceIn(
-                        SettingsStore.MIN_NORMAL_BUBBLE_SHRINK_PERCENT,
+                    SettingsStore.KEY_NORMAL_FREE_BUBBLE_SIZE_ADJUST_PERCENT,
+                    settings.freeBubbleSizeAdjustPercent.coerceIn(
+                        -SettingsStore.MAX_NORMAL_BUBBLE_SHRINK_PERCENT,
                         SettingsStore.MAX_NORMAL_BUBBLE_SHRINK_PERCENT
                     )
                 )

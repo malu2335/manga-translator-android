@@ -37,6 +37,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MangaTranslator"
         android:usesCleartextTraffic="true">
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
         <service
             android:name="com.manga.translate.background.TranslationKeepAliveService"
             android:exported="false"

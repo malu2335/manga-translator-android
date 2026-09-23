@@ -1204,7 +1204,7 @@ class FloatingTranslationView @JvmOverloads constructor(
 
     private fun resolveBubbleShrinkPercent(bubble: BubbleTranslation): Int {
         return if (bubble.source.usesFreeBubbleShrink) {
-            bubbleRenderSettings.freeBubbleShrinkPercent
+            -bubbleRenderSettings.freeBubbleSizeAdjustPercent
         } else if (bubble.source == BubbleSource.MANUAL) {
             0
         } else {
@@ -1238,6 +1238,10 @@ class FloatingTranslationView @JvmOverloads constructor(
                 val sampleTop = bubble.rect.top + offset.second
                 val sampleRight = bubble.rect.right + offset.first
                 val sampleBottom = bubble.rect.bottom + offset.second
+                val sampleContour = bubble.maskContour?.let { points -> FloatArray(points.size) { i ->
+                    points[i] * (if (i % 2 == 0) imageWidth else imageHeight) +
+                        (if (i % 2 == 0) offset.first else offset.second)
+                } }
                 // Tiled long pages have no full bitmap; region decoding must stay off onDraw.
                 val sampled = if (sourceBitmap == null && sourceImageFile != null) {
                     scheduleBubbleColorSample(
@@ -1245,7 +1249,9 @@ class FloatingTranslationView @JvmOverloads constructor(
                         left = sampleLeft,
                         top = sampleTop,
                         right = sampleRight,
-                        bottom = sampleBottom
+                        bottom = sampleBottom,
+                        outside = bubble.source == BubbleSource.TEXT_DETECTOR,
+                        contour = sampleContour
                     )
                     null
                 } else {
@@ -1257,7 +1263,9 @@ class FloatingTranslationView @JvmOverloads constructor(
                         left = sampleLeft,
                         top = sampleTop,
                         right = sampleRight,
-                        bottom = sampleBottom
+                        bottom = sampleBottom,
+                        outside = bubble.source == BubbleSource.TEXT_DETECTOR,
+                        contour = sampleContour
                     )
                 }
                 val color = sampled ?: Color.WHITE
@@ -1287,7 +1295,9 @@ class FloatingTranslationView @JvmOverloads constructor(
         left: Float,
         top: Float,
         right: Float,
-        bottom: Float
+        bottom: Float,
+        outside: Boolean,
+        contour: FloatArray?
     ) {
         if (bubbleColorJobs.containsKey(identity)) return
         val imageFile = sourceImageFile ?: return
@@ -1305,7 +1315,9 @@ class FloatingTranslationView @JvmOverloads constructor(
                             left = left,
                             top = top,
                             right = right,
-                            bottom = bottom
+                            bottom = bottom,
+                            outside = outside,
+                            contour = contour
                         )
                     }.getOrNull()
                 }
@@ -1376,10 +1388,11 @@ class FloatingTranslationView @JvmOverloads constructor(
 
     private fun drawTextInRect(
         canvas: Canvas,
-        text: String,
+        rawText: String,
         rect: RectF,
         startFromTop: Boolean
     ) {
+        val text = BubbleTextScaling.prepareTextForLayout(rawText)
         if (verticalLayoutEnabled) {
             canvas.withClip(rect) {
                 drawVerticalTextInRect(

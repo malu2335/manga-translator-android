@@ -3,9 +3,8 @@ package com.manga.translate
 import android.app.Application
 import android.graphics.BitmapFactory
 import android.graphics.RectF
-import com.manga.translate.detection.OnnxRuntimeSupport
+import org.tensorflow.lite.TensorFlowLite
 import com.manga.translate.detection.PageRegionDetector
-import com.manga.translate.detection.RegionDetectionSelection
 import com.manga.translate.model.BubbleSource
 import com.manga.translate.settings.SettingsStore
 import kotlinx.coroutines.runBlocking
@@ -37,7 +36,7 @@ class RealImageDetectionRegressionTest {
             ?.getResourceAsStream("real_images/bubble_overlap_case.jpg")
             ?.use(BitmapFactory::decodeStream)
         // real_images/ is gitignored, so a fresh clone has no fixture. Skip instead of
-        // failing, matching how an unavailable ONNX Runtime backend is handled below.
+        // failing, matching how an unavailable TFLite backend is handled below.
         assumeTrue(
             "Missing real image fixture: real_images/bubble_overlap_case.jpg; " +
                 "drop the fixture into app/src/test/resources/real_images/ to run this test",
@@ -47,17 +46,16 @@ class RealImageDetectionRegressionTest {
 
         try {
             assertTrue("Fixture dimensions changed", bitmap.width == 940 && bitmap.height == 1830)
-            assumeJvmOnnxRuntimeAvailable()
+            assumeJvmTfliteRuntimeAvailable()
             val result = PageRegionDetector(
                 context = context,
                 settingsStore = SettingsStore(context)
             ).detect(
                 bitmap = bitmap,
-                logTag = "RealImageRegression",
-                detectionSelection = RegionDetectionSelection.BUBBLES_AND_TEXT
+                logTag = "RealImageRegression"
             )
             val detection = requireNotNull(result) {
-                "Detector returned no result after ONNX Runtime initialization"
+                "Detector returned no result after TFLite initialization"
             }
             RealImageDetectionVisualizer.write(
                 source = bitmap,
@@ -81,12 +79,12 @@ class RealImageDetectionRegressionTest {
                 overlappingPair == null
             )
 
-            // The lower paragraph is one balloon spanning all three of its text lines, which run
+            // The lower paragraph is free-standing text spanning three lines, which run
             // from x=59 to x=877 between y=899 and y=1030.
             val paragraph = regions.filter { it.rect.top > 700f }
             assertEquals("Lower paragraph must be a single region", 1, paragraph.size)
             val paragraphRect = paragraph.single().rect
-            assertEquals(BubbleSource.BUBBLE_DETECTOR, paragraph.single().source)
+            assertEquals(BubbleSource.TEXT_DETECTOR, paragraph.single().source)
             assertTrue(
                 "Paragraph region must cover every text line, got $paragraphRect",
                 paragraphRect.left <= 59f && paragraphRect.right >= 877f &&
@@ -105,13 +103,13 @@ class RealImageDetectionRegressionTest {
         return if (smaller <= 0f) 0f else intersection / smaller
     }
 
-    private fun assumeJvmOnnxRuntimeAvailable() {
+    private fun assumeJvmTfliteRuntimeAvailable() {
         val available = runCatching {
-            OnnxRuntimeSupport.environment()
+            TensorFlowLite.init()
         }.isSuccess
         assumeTrue(
-            "JVM ONNX Runtime native backend is unavailable on this host; run on Linux x64, " +
-                "Windows x64, macOS ARM64, or an Android device",
+            "JVM TFLite native backend is unavailable on this host; run the real-model test with a host JNI library " +
+                "or on an Android device",
             available
         )
     }

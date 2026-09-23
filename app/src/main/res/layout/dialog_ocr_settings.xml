@@ -18,22 +18,6 @@
             android:textColor="?attr/dialogTextColor"
             android:text="@string/ocr_use_local" />
 
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/use_xnnpack_switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:textColor="?attr/dialogTextColor"
-            android:text="@string/ocr_use_xnnpack" />
-
-        <TextView
-            android:id="@+id/xnnpack_settings_note"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="@string/ocr_use_xnnpack_note"
-            android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
-
         <TextView
             android:id="@+id/ocr_settings_note"
             android:layout_width="match_parent"

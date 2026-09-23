@@ -84,6 +84,8 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     private val deleteRect = RectF()
     private val drawingRect = RectF()
     private val bubblePath = Path()
+    private val screenLocation = IntArray(2)
+    private val screenMetrics = android.util.DisplayMetrics()
     private var sourceWidth = 1
     private var sourceHeight = 1
     private var bubbles: List<BubbleTranslation> = emptyList()
@@ -232,8 +234,9 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
     }
 
     private fun handleEditTouch(event: MotionEvent): Boolean {
-        val sourceX = event.x / scaleX()
-        val sourceY = event.y / scaleY()
+        updateScreenGeometry()
+        val sourceX = (event.x + screenLocation[0]) / scaleX()
+        val sourceY = (event.y + screenLocation[1]) / scaleY()
         if (createBubbleMode) {
             return handleCreateTouch(event, sourceX, sourceY)
         }
@@ -418,6 +421,10 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        updateScreenGeometry()
+        val checkpoint = canvas.save()
+        // Detection coordinates refer to the full display, not the inset overlay window.
+        canvas.translate(-screenLocation[0].toFloat(), -screenLocation[1].toFloat())
         if (bubbles.isNotEmpty()) {
             drawBubbles(canvas)
         }
@@ -431,6 +438,7 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                 canvas.drawRoundRect(sourceRect, cornerRadius(), cornerRadius(), previewStrokePaint)
             }
         }
+        canvas.restoreToCount(checkpoint)
     }
 
     private fun drawBubbles(canvas: Canvas) {
@@ -448,7 +456,9 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                 updateDisplayRect(tempRect, tempRect)
                 drawDeleteIcon(canvas, tempRect)
             }
-            val text = bubble.text.ifBlank { context.getString(R.string.floating_bubble_placeholder) }
+            val text = BubbleTextScaling.prepareTextForLayout(
+                bubble.text.ifBlank { context.getString(R.string.floating_bubble_placeholder) }
+            )
             val textRect = BubbleTextScaling.resolveTextRect(bubblePath)
             if (textRect.width() <= 0f || textRect.height() <= 0f) continue
             if (bubbleRenderSettings.useHorizontalText) {
@@ -621,7 +631,11 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
                 bubble.rect.left * sampleScaleX,
                 bubble.rect.top * sampleScaleY,
                 bubble.rect.right * sampleScaleX,
-                bubble.rect.bottom * sampleScaleY
+                bubble.rect.bottom * sampleScaleY,
+                outside = bubble.source == com.manga.translate.model.BubbleSource.TEXT_DETECTOR,
+                contour = bubble.maskContour?.let { points -> FloatArray(points.size) { i ->
+                    points[i] * (if (i % 2 == 0) sourceWidth * sampleScaleX else sourceHeight * sampleScaleY)
+                } }
             ) ?: Color.WHITE
         }
         textPaint.color = BubbleTextColorResolver.resolveContrastingTextColor(
@@ -685,9 +699,18 @@ class FloatingDetectionOverlayView @JvmOverloads constructor(
         onEditDirtyChanged?.invoke(value)
     }
 
-    private fun scaleX(): Float = width.toFloat().coerceAtLeast(1f) / sourceWidth.coerceAtLeast(1)
+    @Suppress("DEPRECATION")
+    private fun updateScreenGeometry() {
+        getLocationOnScreen(screenLocation)
+        val currentDisplay = display
+            ?: context.getSystemService(android.hardware.display.DisplayManager::class.java)
+                .getDisplay(android.view.Display.DEFAULT_DISPLAY)
+        currentDisplay?.getRealMetrics(screenMetrics)
+    }
 
-    private fun scaleY(): Float = height.toFloat().coerceAtLeast(1f) / sourceHeight.coerceAtLeast(1)
+    private fun scaleX(): Float = screenMetrics.widthPixels.toFloat().coerceAtLeast(1f) / sourceWidth.coerceAtLeast(1)
+
+    private fun scaleY(): Float = screenMetrics.heightPixels.toFloat().coerceAtLeast(1f) / sourceHeight.coerceAtLeast(1)
 
     private fun cornerRadius(): Float = resources.displayMetrics.density * 8f
 

@@ -146,9 +146,11 @@ data class FloatingTranslateApiSettings(
 )
 
 data class NormalBubbleRenderSettings(
+    // Positive values shrink both axes around the bubble center.
     val shrinkPercent: Int,
     val opacityPercent: Int,
-    val freeBubbleShrinkPercent: Int,
+    // Positive values expand; negative values shrink.
+    val freeBubbleSizeAdjustPercent: Int,
     val freeBubbleOpacityPercent: Int,
     val useHorizontalText: Boolean,
     val autoAdaptBubbleColor: Boolean = false,
@@ -253,6 +255,12 @@ class SettingsStore(context: Context) {
         apiSettingsStore.save(settings)
     }
 
+    fun loadFloatingDetectionHorizontalInsets(): Pair<Int, Int> =
+        apiSettingsStore.loadFloatingDetectionHorizontalInsets()
+
+    fun saveFloatingDetectionHorizontalInsets(left: Int, right: Int) =
+        apiSettingsStore.saveFloatingDetectionHorizontalInsets(left, right)
+
     fun loadFloatingTranslateApiSettings(): FloatingTranslateApiSettings {
         return apiSettingsStore.loadFloatingTranslateApiSettings()
     }
@@ -307,12 +315,6 @@ class SettingsStore(context: Context) {
         apiSettingsStore.saveModelIoLogging(enabled)
     }
 
-    fun loadUseXnnpack(): Boolean = appSettingsStore.loadUseXnnpack()
-
-    fun saveUseXnnpack(enabled: Boolean) {
-        appSettingsStore.saveUseXnnpack(enabled)
-    }
-
     internal fun persistMainSettings(form: SettingsMainForm): SettingsPersistenceResult {
         return apiSettingsStore.persistMainSettings(form)
     }
@@ -324,6 +326,10 @@ class SettingsStore(context: Context) {
     }
 
     fun loadMaxConcurrency(): Int = apiSettingsStore.loadMaxConcurrency()
+
+    fun loadTranslationBatchPages(): Int = apiSettingsStore.loadTranslationBatchPages()
+
+    fun saveTranslationBatchPages(value: Int) = apiSettingsStore.saveTranslationBatchPages(value)
 
     fun saveMaxConcurrency(value: Int) {
         apiSettingsStore.saveMaxConcurrency(value)
@@ -481,9 +487,10 @@ class SettingsStore(context: Context) {
         internal const val KEY_LOCAL_OCR_CONCURRENCY = "local_ocr_concurrency"
         internal const val KEY_OCR_API_FORMAT = "ocr_api_format"
         internal const val KEY_HORIZONTAL_TEXT = "horizontal_text_layout"
-        internal const val KEY_NORMAL_BUBBLE_SHRINK_PERCENT = "normal_bubble_shrink_percent"
-        internal const val KEY_NORMAL_FREE_BUBBLE_SHRINK_PERCENT =
-            // Versioned intentionally so the old non-zero setting is discarded.
+        // Keep the former outward-only preferences intact; they cannot represent an inset.
+        internal const val KEY_NORMAL_BUBBLE_SHRINK_PERCENT = "normal_bubble_inset_percent"
+        // Retain the stored horizontal adjustment, whose positive values already expanded.
+        internal const val KEY_NORMAL_FREE_BUBBLE_SIZE_ADJUST_PERCENT =
             "normal_free_bubble_shrink_percent_v2"
         internal const val KEY_NORMAL_FREE_BUBBLE_OPACITY_PERCENT =
             "normal_free_bubble_opacity_percent"
@@ -495,9 +502,10 @@ class SettingsStore(context: Context) {
         internal const val KEY_BUBBLE_CUSTOM_FONT_FILE = "bubble_custom_font_file"
         internal const val KEY_BUBBLE_FONT_BOLD = "bubble_font_bold"
         internal const val KEY_MODEL_IO_LOGGING = "model_io_logging"
-        internal const val KEY_USE_XNNPACK = "use_xnnpack"
         internal const val KEY_API_RETRY_COUNT = "api_retry_count"
         internal const val KEY_MAX_CONCURRENCY = "max_concurrency"
+        internal const val KEY_TRANSLATION_BATCH_PAGES = "translation_batch_pages"
+        internal const val MAX_TRANSLATION_BATCH_PAGES = 200
         internal const val KEY_API_TIMEOUT_SECONDS = "api_timeout_seconds"
         internal const val KEY_APP_LANGUAGE = "app_language"
         internal const val KEY_THEME_MODE = "theme_mode"
@@ -575,10 +583,10 @@ class SettingsStore(context: Context) {
         internal const val MIN_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT = -30
         internal const val MAX_FLOATING_BUBBLE_SIZE_ADJUST_PERCENT = 30
         internal const val DEFAULT_FLOATING_BUBBLE_AUTO_ADAPT_COLOR = true
-        internal const val DEFAULT_NORMAL_BUBBLE_SHRINK_PERCENT = 10
+        internal const val DEFAULT_NORMAL_BUBBLE_SHRINK_PERCENT = 0
         internal const val MIN_NORMAL_BUBBLE_SHRINK_PERCENT = 0
         internal const val MAX_NORMAL_BUBBLE_SHRINK_PERCENT = 30
-        internal const val DEFAULT_NORMAL_FREE_BUBBLE_SHRINK_PERCENT = 0
+        internal const val DEFAULT_NORMAL_FREE_BUBBLE_SIZE_ADJUST_PERCENT = 10
         internal const val DEFAULT_NORMAL_FREE_BUBBLE_OPACITY_PERCENT = 90
         internal const val DEFAULT_NORMAL_FREE_BUBBLE_AUTO_ADAPT_COLOR = true
         internal const val DEFAULT_NORMAL_BUBBLE_AUTO_ADAPT_COLOR = false

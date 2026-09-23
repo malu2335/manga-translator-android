@@ -266,8 +266,7 @@ class PaddleTextLineDetector(
             cacheDir = context.cacheDir,
             assetProvider = context.assets::open,
             assetName = modelAssetName,
-            threadProfile = threadProfile,
-            useXnnpack = settingsStore.loadUseXnnpack()
+            threadProfile = threadProfile
         )
     }
 

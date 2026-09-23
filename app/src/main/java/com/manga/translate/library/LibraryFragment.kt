@@ -32,7 +32,6 @@ import com.manga.translate.app.MainPagerAdapter
 import com.manga.translate.background.TranslationKeepAliveService
 import com.manga.translate.databinding.FragmentLibraryBinding
 import com.manga.translate.di.appContainer
-import com.manga.translate.detection.RegionDetectionSelection
 import com.manga.translate.floating.FloatingBallOverlayService
 import com.manga.translate.model.FolderItem
 import com.manga.translate.model.FolderStatus
@@ -82,7 +81,7 @@ class LibraryFragment : Fragment() {
     private lateinit var importExportCoordinator: LibraryImportExportCoordinator
     private lateinit var selectionController: LibrarySelectionController
     private lateinit var selectionManager: LibrarySelectionManager
-    private var imageConversionDialog: AlertDialog? = null
+    private var importProgressDialog: AlertDialog? = null
 
     private val taskFactory by lazy(LazyThreadSafetyMode.NONE) {
         FolderTranslationTaskFactory(repository, preferencesGateway, settingsStore)
@@ -102,8 +101,6 @@ class LibraryFragment : Fragment() {
     private var folderContentLoadJob: Job? = null
     private var folderContentLoadGeneration: Long = 0L
     private var pendingFloatingTranslateLanguage: TranslationLanguage? = null
-    private var regionDetectionModeIndicator: RegionDetectionModeIndicator? = null
-    private var suppressRegionDetectionIndicatorAnimation: Boolean = false
     private val modelErrorController by lazy(LazyThreadSafetyMode.NONE) {
         ModelErrorDialogController(this, dialogs)
     }
@@ -189,18 +186,25 @@ class LibraryFragment : Fragment() {
             Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
         }
 
-        override fun showImageConversionProgress() {
-            if (!isAdded || imageConversionDialog?.isShowing == true) return
-            imageConversionDialog = AlertDialog.Builder(requireContext())
-                .setMessage(R.string.avif_conversion_progress)
+        override fun showImportProgress(messageRes: Int) {
+            if (!isAdded || _binding == null) return
+            importProgressDialog?.takeIf { it.isShowing }?.let {
+                it.setMessage(getString(messageRes))
+                return
+            }
+            importProgressDialog = AlertDialog.Builder(requireContext())
+                .setMessage(messageRes)
                 .setCancelable(false)
                 .create()
-                .also { it.show() }
+                .also {
+                    it.setCanceledOnTouchOutside(false)
+                    it.show()
+                }
         }
 
-        override fun hideImageConversionProgress() {
-            imageConversionDialog?.dismiss()
-            imageConversionDialog = null
+        override fun hideImportProgress() {
+            importProgressDialog?.dismiss()
+            importProgressDialog = null
         }
 
         override fun showApiError(code: String, detail: String?) {
@@ -502,9 +506,6 @@ class LibraryFragment : Fragment() {
             dialogs.showTranslationSettingsInfo(requireContext())
         }
         binding.folderFullTranslateInfo.setOnClickListener { showFullTranslateInfo() }
-        binding.folderBubbleDetectionInfo.setOnClickListener {
-            dialogs.showBubbleDetectionInfo(requireContext())
-        }
         binding.folderGlossaryProcessingInfo.setOnClickListener {
             dialogs.showGlossaryProcessingInfo(requireContext())
         }
@@ -524,17 +525,6 @@ class LibraryFragment : Fragment() {
         }
         binding.folderGlossaryProcessingSwitch.setOnCheckedChangeListener { _, isChecked ->
             currentFolder?.let { preferencesGateway.setGlossaryProcessingEnabled(it, isChecked) }
-        }
-        setupRegionDetectionModeIndicator()
-        binding.folderBubbleDetectionModeGroup.setOnCheckedChangeListener { _, checkedId ->
-            updateRegionDetectionModeIndicator(checkedId)
-            val selection = when (checkedId) {
-                R.id.folder_detection_mode_bubbles -> RegionDetectionSelection.BUBBLES_ONLY
-                R.id.folder_detection_mode_text -> RegionDetectionSelection.TEXT_ONLY
-                R.id.folder_detection_mode_bubbles_and_text -> RegionDetectionSelection.BUBBLES_AND_TEXT
-                else -> return@setOnCheckedChangeListener
-            }
-            currentFolder?.let { preferencesGateway.setRegionDetectionSelection(it, selection) }
         }
         binding.folderVlDirectTranslateSwitch.setOnCheckedChangeListener { _, isChecked ->
             currentFolder?.let { folder ->
@@ -685,11 +675,10 @@ class LibraryFragment : Fragment() {
         folderContentLoadGeneration += 1
         folderContentLoadJob?.cancel()
         folderContentLoadJob = null
-        imageConversionDialog?.dismiss()
-        imageConversionDialog = null
+        importProgressDialog?.dismiss()
+        importProgressDialog = null
         LibraryUiBridge.unregister(uiCallbacks)
         modelErrorController.onDestroy()
-        regionDetectionModeIndicator = null
         super.onDestroyView()
         _binding = null
     }
@@ -699,7 +688,6 @@ class LibraryFragment : Fragment() {
         modelErrorController.onResume()
         currentFolder?.let { folder ->
             syncExportActionState(folder)
-            syncRegionDetectionMode(folder)
         }
     }
 
@@ -731,7 +719,6 @@ class LibraryFragment : Fragment() {
         binding.folderFullTranslateSwitch.isChecked = preferencesGateway.isFullTranslateEnabled(folder)
         binding.folderGlossaryProcessingSwitch.isChecked =
             preferencesGateway.isGlossaryProcessingEnabled(folder)
-        syncRegionDetectionMode(folder)
         binding.folderVlDirectTranslateSwitch.isChecked =
             preferencesGateway.isVlDirectTranslateEnabled(folder)
         updateFolderTranslationSwitchStates(folder)
@@ -750,40 +737,6 @@ class LibraryFragment : Fragment() {
         }
         animateFolderTransition(showDetail = true)
         AppLogger.log("Library", "Opened folder ${folder.name}")
-    }
-
-    private fun syncRegionDetectionMode(folder: File) {
-        val checkedId = when (preferencesGateway.getRegionDetectionSelection(folder)) {
-            RegionDetectionSelection.BUBBLES_ONLY -> R.id.folder_detection_mode_bubbles
-            RegionDetectionSelection.TEXT_ONLY -> R.id.folder_detection_mode_text
-            RegionDetectionSelection.BUBBLES_AND_TEXT -> R.id.folder_detection_mode_bubbles_and_text
-        }
-        // Restoring persisted state should never animate: the control may be
-        // re-attached (returning from the reading tab) with the indicator at its
-        // default position, and sliding it in from the left looks like a glitch.
-        suppressRegionDetectionIndicatorAnimation = true
-        try {
-            if (binding.folderBubbleDetectionModeGroup.checkedRadioButtonId != checkedId) {
-                binding.folderBubbleDetectionModeGroup.check(checkedId)
-            }
-            regionDetectionModeIndicator?.setChecked(checkedId, animate = false)
-        } finally {
-            suppressRegionDetectionIndicatorAnimation = false
-        }
-    }
-
-    private fun setupRegionDetectionModeIndicator() {
-        regionDetectionModeIndicator = RegionDetectionModeIndicator(
-            group = binding.folderBubbleDetectionModeGroup,
-            indicator = binding.folderBubbleDetectionModeIndicator
-        )
-    }
-
-    private fun updateRegionDetectionModeIndicator(checkedId: Int) {
-        regionDetectionModeIndicator?.setChecked(
-            checkedId = checkedId,
-            animate = !suppressRegionDetectionIndicatorAnimation
-        )
     }
 
     private fun animateFolderTransition(showDetail: Boolean) {
@@ -1315,8 +1268,13 @@ class LibraryFragment : Fragment() {
 
     private fun importFromArchiveOrPdf(uri: Uri) {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
-            val assessment = withContext(Dispatchers.IO) {
-                importExportCoordinator.assessImportMemory(requireContext(), uri)
+            uiCallbacks.showImportProgress(R.string.import_progress)
+            val assessment = try {
+                withContext(Dispatchers.IO) {
+                    importExportCoordinator.assessImportMemory(requireContext(), uri)
+                }
+            } finally {
+                uiCallbacks.hideImportProgress()
             }
             if (!assessment.shouldWarn) {
                 startArchiveOrPdfImport(uri, riskAlreadyAccepted = false)
@@ -1871,13 +1829,6 @@ class LibraryFragment : Fragment() {
         binding.folderExportCollection.isEnabled = enabled
         binding.folderTranslateCollection.isEnabled = enabled
         binding.folderCollectionAddChapter.isEnabled = enabled
-        // RadioGroup#isEnabled does not reliably propagate to its children,
-        // so update each mode option explicitly. Otherwise the three-state
-        // selector can remain locked after the service reports completion.
-        binding.folderBubbleDetectionModeGroup.isEnabled = enabled
-        binding.folderDetectionModeBubbles.isEnabled = enabled
-        binding.folderDetectionModeText.isEnabled = enabled
-        binding.folderDetectionModeBubblesAndText.isEnabled = enabled
         if (selectionManager.isLibrarySelectionMode) {
             binding.librarySelectAll.isEnabled = enabled
             binding.libraryTranslateSelected.isEnabled = enabled

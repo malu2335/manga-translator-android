@@ -160,7 +160,8 @@ class MainActivity : AppCompatActivity() {
             latestUpdateInfo = updateInfo
             AppLogger.log(
                 "UpdateChecker",
-                "Local version=${VersionInfo.VERSION_NAME} (${VersionInfo.VERSION_CODE}), " +
+                "Local version=${VersionInfo.versionName(this@MainActivity)} " +
+                    "(${VersionInfo.versionCode(this@MainActivity)}), " +
                     "remote version=${updateInfo.versionName} (${updateInfo.versionCode}, ${updateInfo.releaseChannel})"
             )
             if (!isNewerVersion(updateInfo)) return@launch
@@ -381,7 +382,7 @@ class MainActivity : AppCompatActivity() {
     private fun isNewerVersion(updateInfo: UpdateInfo): Boolean {
         val remoteCode = updateInfo.versionCode
         if (remoteCode <= 0) return false
-        return remoteCode > VersionInfo.VERSION_CODE
+        return remoteCode > VersionInfo.versionCode(this)
     }
 
     private fun buildVersionLabel(updateInfo: UpdateInfo): String {

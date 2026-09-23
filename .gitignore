@@ -45,9 +45,6 @@ lint-reports/
 .DS_Store
 Thumbs.db
 
-# Large model assets are downloaded separately; see README.
-assets/models/
-
 # Internal planning documents live in dev_doc/ (tracked in Gitea,
 # excluded from GitHub release sync by the sync script).
 
@@ -65,6 +62,3 @@ signing.properties
 *.keystore
 *.jks
 keystore.jks
-
-# CodeGraph local index
-.codegraph/

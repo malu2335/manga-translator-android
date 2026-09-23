@@ -24,7 +24,7 @@ internal class NormalBubbleRenderSettingsDialog(
             fragment.formatNumber(currentSettings.opacityPercent)
         )
         dialogBinding.normalBubbleFreeShrinkPercentInput.setText(
-            fragment.formatNumber(currentSettings.freeBubbleShrinkPercent)
+            fragment.formatNumber(currentSettings.freeBubbleSizeAdjustPercent)
         )
         dialogBinding.normalBubbleFreeOpacityPercentInput.setText(
             fragment.formatNumber(currentSettings.freeBubbleOpacityPercent)
@@ -43,9 +43,9 @@ internal class NormalBubbleRenderSettingsDialog(
                     opacityPercent = fragment.parseIntInput(
                         dialogBinding.normalBubbleOpacityPercentInput.text?.toString()
                     ) ?: currentSettings.opacityPercent,
-                    freeBubbleShrinkPercent = fragment.parseIntInput(
+                    freeBubbleSizeAdjustPercent = fragment.parseIntInput(
                         dialogBinding.normalBubbleFreeShrinkPercentInput.text?.toString()
-                    ) ?: currentSettings.freeBubbleShrinkPercent,
+                    ) ?: currentSettings.freeBubbleSizeAdjustPercent,
                     freeBubbleOpacityPercent = fragment.parseIntInput(
                         dialogBinding.normalBubbleFreeOpacityPercentInput.text?.toString()
                     ) ?: currentSettings.freeBubbleOpacityPercent,
