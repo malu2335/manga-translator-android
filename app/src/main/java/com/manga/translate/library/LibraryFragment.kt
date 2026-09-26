@@ -502,15 +502,19 @@ class LibraryFragment : Fragment() {
             val folder = currentFolder
             selectionController.retranslateSelectedImages(folder)
         }
-        binding.folderTranslationSettingsInfo.setOnClickListener {
-            dialogs.showTranslationSettingsInfo(requireContext())
-        }
         binding.folderFullTranslateInfo.setOnClickListener { showFullTranslateInfo() }
         binding.folderGlossaryProcessingInfo.setOnClickListener {
             dialogs.showGlossaryProcessingInfo(requireContext())
         }
         binding.folderVlDirectTranslateInfo.setOnClickListener {
             dialogs.showVlDirectTranslateInfo(requireContext())
+        }
+        binding.folderTranslationStyle.setOnClickListener {
+            currentFolder?.let { folder ->
+                showFolderTranslationStyleDialog(
+                    requireContext(), folder, preferencesGateway, settingsStore.loadTranslationStyle()
+                )
+            }
         }
         binding.folderLanguageSetting.setOnClickListener { showLanguageSettingDialog() }
         binding.folderReadingModeButton.setOnClickListener { showFolderReadingModeDialog() }
@@ -529,6 +533,7 @@ class LibraryFragment : Fragment() {
         binding.folderVlDirectTranslateSwitch.setOnCheckedChangeListener { _, isChecked ->
             currentFolder?.let { folder ->
                 preferencesGateway.setVlDirectTranslateEnabled(folder, isChecked)
+                updateGlossaryProcessingSwitchState(folder)
                 if (isChecked) {
                     Toast.makeText(
                         requireContext(),

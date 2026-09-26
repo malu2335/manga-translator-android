@@ -25,9 +25,7 @@ import com.manga.translate.platform.GlobalTaskProgressStage
 import com.manga.translate.platform.TranslationCancellationRegistry
 import com.manga.translate.storage.TranslationTaskDescriptor
 import com.manga.translate.storage.TranslationTaskPersistence
-import com.manga.translate.storage.parseTranslationTaskDescriptor
 import com.manga.translate.storage.toFolderTasks
-import com.manga.translate.storage.toJsonString
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -73,14 +71,14 @@ class TranslationKeepAliveService : Service() {
             ?: getString(R.string.translation_preparing)
         when (intent?.action) {
             ACTION_START_TRANSLATION_TASK -> {
-                loadDescriptor(intent)?.let { descriptor ->
+                val descriptor = takePendingTranslationTask(intent)
+                descriptor?.let {
                     currentTaskLabel = describeTaskLabel(this, descriptor)
                 }
                 startForeground(
                     NOTIFICATION_ID,
                     buildNotification(this, title, message, content, null, null)
                 )
-                val descriptor = loadDescriptor(intent)
                 if (descriptor == null) {
                     finishIdleTask(
                         clearPersistedTask = true,
@@ -200,13 +198,6 @@ class TranslationKeepAliveService : Service() {
             }
         }
         wakeLock = null
-    }
-
-    private fun loadDescriptor(intent: Intent): TranslationTaskDescriptor? {
-        val raw = intent.getStringExtra(EXTRA_TASK_DESCRIPTOR) ?: return null
-        return runCatching {
-            parseTranslationTaskDescriptor(org.json.JSONObject(raw))
-        }.getOrNull()
     }
 
     private fun finishIdleTask(
@@ -401,7 +392,7 @@ class TranslationKeepAliveService : Service() {
         private const val EXTRA_TITLE = "extra_title"
         private const val EXTRA_MESSAGE = "extra_message"
         private const val EXTRA_CONTENT = "extra_content"
-        private const val EXTRA_TASK_DESCRIPTOR = "extra_task_descriptor"
+        private val pendingTranslationTasks = PendingTranslationTasks()
         private const val EXTRA_TASK_ID = "extra_task_id"
         private const val EXTRA_PROGRESS = "extra_progress"
         private const val EXTRA_TOTAL = "extra_total"
@@ -598,19 +589,32 @@ class TranslationKeepAliveService : Service() {
         ) {
             cancelActionEnabled = true
             GlobalTaskProgressStore.show(title = title, detail = content)
+            val taskId = pendingTranslationTasks.put(descriptor)
             val intent = Intent(context, TranslationKeepAliveService::class.java).apply {
                 action = ACTION_START_TRANSLATION_TASK
                 putExtra(EXTRA_TITLE, title)
                 putExtra(EXTRA_MESSAGE, message)
                 putExtra(EXTRA_CONTENT, content)
-                putExtra(EXTRA_TASK_DESCRIPTOR, descriptor.toJsonString())
+                putExtra(EXTRA_TASK_ID, taskId)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (failure: Exception) {
+                pendingTranslationTasks.take(taskId)
+                cancelActionEnabled = false
+                AppLogger.log("TranslationKeepAlive", "Failed to start translation service", failure)
+                GlobalTaskProgressStore.fail(title, context.getString(R.string.translation_failed))
+                LibraryUiBridge.setTranslationActionsEnabled(true)
+                LibraryUiBridge.setFolderStatus(context.getString(R.string.translation_failed))
             }
         }
+
+        internal fun takePendingTranslationTask(intent: Intent): TranslationTaskDescriptor? =
+            pendingTranslationTasks.take(intent.getStringExtra(EXTRA_TASK_ID))
 
         fun updateStatus(context: Context, status: String, title: String, message: String) {
             GlobalTaskProgressStore.show(title = title, detail = status)

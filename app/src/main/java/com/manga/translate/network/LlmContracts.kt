@@ -72,9 +72,21 @@ interface LlmGateway {
     suspend fun translateImageBubble(
         imageBase64: String,
         promptAsset: String,
+        glossary: Map<String, String> = emptyMap(),
+        glossaryProcessingEnabled: Boolean = false,
         requestTimeoutMs: Int? = null,
         retryCount: Int = 3,
         apiSettings: ApiSettings? = null
-    ): String?
+    ): LlmTranslationResult?
+    suspend fun translateImageItems(
+        imageBase64: String,
+        requestedIds: List<Int>,
+        promptAsset: String,
+        glossary: Map<String, String>,
+        glossaryProcessingEnabled: Boolean,
+        requestTimeoutMs: Int,
+        retryCount: Int,
+        apiSettings: ApiSettings
+    ): LlmBubbleTranslationResult? = throw UnsupportedOperationException("Structured image translation unavailable")
     fun resourceContext(): Context
 }

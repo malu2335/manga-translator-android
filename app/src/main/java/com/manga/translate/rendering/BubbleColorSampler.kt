@@ -40,7 +40,7 @@ internal object BubbleColorSampler {
         val height = sourceHeight.takeIf { it > 0 } ?: bitmap.height
         val points = ringPoints(left, top, right, bottom, outside, contour)
             .filter { (x, y) -> x >= 0 && y >= 0 && x < width && y < height }
-        return average(bitmap, points, 0f, 0f, bitmap.width.toFloat() / width, bitmap.height.toFloat() / height)
+        return sampleColor(bitmap, points, 0f, 0f, bitmap.width.toFloat() / width, bitmap.height.toFloat() / height, outside)
     }
 
     fun sampleBackgroundColorFromFile(
@@ -72,8 +72,8 @@ internal object BubbleColorSampler {
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }) ?: return null
             try {
-                average(cropped, points, region.left.toFloat(), region.top.toFloat(),
-                    cropped.width.toFloat() / region.width(), cropped.height.toFloat() / region.height())
+                sampleColor(cropped, points, region.left.toFloat(), region.top.toFloat(),
+                    cropped.width.toFloat() / region.width(), cropped.height.toFloat() / region.height(), outside)
             } finally {
                 cropped.recycle()
             }
@@ -147,26 +147,43 @@ internal object BubbleColorSampler {
         return inside
     }
 
-    private fun average(
+    private fun sampleColor(
         bitmap: Bitmap, points: List<Pair<Float, Float>>, originX: Float, originY: Float,
-        scaleX: Float, scaleY: Float
+        scaleX: Float, scaleY: Float, outside: Boolean
     ): Int? {
         if (points.isEmpty()) return null
         val copy = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && bitmap.config == Bitmap.Config.HARDWARE)
             bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: return null else null
         val src = copy ?: bitmap
         try {
-            var red = 0L
-            var green = 0L
-            var blue = 0L
+            val red = IntArray(256)
+            val green = IntArray(256)
+            val blue = IntArray(256)
             for ((x, y) in points) {
                 val pixel = src.getPixel(((x - originX) * scaleX).toInt().coerceIn(0, src.width - 1),
                     ((y - originY) * scaleY).toInt().coerceIn(0, src.height - 1))
-                red += Color.red(pixel)
-                green += Color.green(pixel)
-                blue += Color.blue(pixel)
+                red[Color.red(pixel)]++
+                green[Color.green(pixel)]++
+                blue[Color.blue(pixel)]++
             }
-            return Color.rgb((red / points.size).toInt(), (green / points.size).toInt(), (blue / points.size).toInt())
+            // Bubble interiors are usually flat: a minority of border/lettering samples
+            // must not tint the fill. Median channels preserve gray, colored and dark
+            // backgrounds without a brightness threshold or snapping near-white to white.
+            // Free text samples the surrounding artwork, where averaging is intentional.
+            fun channel(histogram: IntArray): Int {
+                if (outside) return (histogram.indices.sumOf { it.toLong() * histogram[it] } / points.size).toInt()
+                val lowerRank = (points.size - 1) / 2
+                val upperRank = points.size / 2
+                var count = 0
+                var lower = -1
+                for (value in histogram.indices) {
+                    count += histogram[value]
+                    if (lower < 0 && count > lowerRank) lower = value
+                    if (count > upperRank) return (lower + value) / 2
+                }
+                error("Missing color samples")
+            }
+            return Color.rgb(channel(red), channel(green), channel(blue))
         } finally {
             copy?.recycle()
         }

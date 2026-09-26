@@ -195,9 +195,9 @@
     <string name="floating_api_url_hint">Трансляция плавающего окна адреса API</string>
     <string name="floating_api_key_hint">Перевод плавающего окна API Key</string>
     <string name="floating_model_name_hint">Название модели перевода плавающего окна</string>
-    <string name="floating_use_vl_direct_translate">Переведите весь пузырь напрямую, используя модель VL.</string>
-    <string name="floating_use_vl_direct_translate_note">Если эта функция включена, обнаруженные пузырьковые сокращения будут отправляться непосредственно в визуальную модель для перевода, пропуская этап распознавания OCR. Убедитесь, что заполняемая вами модель поддерживает ввод изображений.</string>
-    <string name="floating_use_vl_direct_translate_warning">VL прямой перевод включен. Используйте модель VL, поддерживающую ввод изображений, иначе вызов завершится неудачей.</string>
+    <string name="floating_use_vl_direct_translate">Перевод всей страницы через VL</string>
+    <string name="floating_use_vl_direct_translate_note">Области реплик и текста сохраняются и помечаются ID. Размеченная страница отправляется визуальной модели без OCR. Длинные изображения отправляются частями. Используйте модель с поддержкой изображений.</string>
+    <string name="floating_use_vl_direct_translate_warning">Включён перевод всей страницы через VL. Используйте модель с поддержкой изображений.</string>
     <string name="floating_proofreading_mode">режим корректуры</string>
     <string name="floating_proofreading_mode_note">После включения плавающее окно автоматически перейдет в существующий режим редактирования после завершения перевода, что облегчает ручное добавление, удаление и настройку пузырьков.</string>
     <string name="floating_auto_close_on_screen_change">Автоматически очищать пузырьки</string>
@@ -280,8 +280,6 @@
     <string name="library_sort_order_asc">По возрастанию</string>
     <string name="library_sort_order_desc">По убыванию</string>
     <string name="library_action_panel_label">Панель управления</string>
-    <string name="library_translation_settings_hint">Настройте язык перевода и стратегию быстрого полнотекстового перевода отдельно для текущей папки.</string>
-    <string name="library_translation_settings_info_desc">О настройках перевода</string>
     <string name="library_pages_label">Список страниц</string>
     <string name="tutorial_button">Руководство</string>
     <string name="tutorial_open_title">Открыть руководство</string>
@@ -314,7 +312,7 @@
     <string name="floating_progress_capturing">Выполняется плавающий перевод: захват экрана…</string>
     <string name="floating_progress_detecting">Плавающий перевод: обнаружение текстовой области…</string>
     <string name="floating_progress_recognizing">Выполняется плавающий перевод: распознавание текста (области %1$d)…</string>
-    <string name="floating_progress_vl_translating">Выполняется перевод приостановки: использование пузырьков перевода модели VL (области %1$d)…</string>
+    <string name="floating_progress_vl_translating">Перевод размеченной страницы через VL (областей: %1$d)…</string>
     <string name="floating_progress_translating">Выполняется плавающий перевод: Перевод текста…</string>
     <string name="floating_progress_done">Плавающий перевод завершен: всего текстовых областей %1$d</string>
     <string name="floating_detected_count">Обнаружено %1$d текстовых областей</string>
@@ -395,11 +393,11 @@
     <string name="translation_source_german">Немецкий</string>
     <string name="translation_source_italian">Итальянский</string>
     <string name="translation_source_russian">Русский</string>
-    <string name="folder_use_vl_direct_translate">Переведите весь пузырь, используя модель VL.</string>
-    <string name="folder_use_vl_direct_translate_info_title">О прямом переводе VL</string>
-    <string name="folder_use_vl_direct_translate_info_desc">О прямом переводе VL</string>
-    <string name="folder_use_vl_direct_translate_note">При включении обнаруженные пузырьки будут отправляться непосредственно в визуальную модель для перевода, минуя этап распознавания текста. Убедитесь, что заполняемая вами модель поддерживает ввод изображений.</string>
-    <string name="folder_use_vl_direct_translate_warning">Папка VL открыта для прямого просмотра. Пожалуйста, подтвердите, что текущая модель поддерживает ввод изображений.</string>
+    <string name="folder_use_vl_direct_translate">Перевод всей страницы через VL</string>
+    <string name="folder_use_vl_direct_translate_info_title">О переводе всей страницы через VL</string>
+    <string name="folder_use_vl_direct_translate_info_desc">О переводе всей страницы через VL</string>
+    <string name="folder_use_vl_direct_translate_note">Вся страница напрямую передаётся визуальной модели для перевода без локального OCR. Это удобно, когда модель должна одновременно понять изображение и текст. Используйте модель с поддержкой изображений.</string>
+    <string name="folder_use_vl_direct_translate_warning">Включён перевод всей страницы через VL. Используйте модель с поддержкой изображений.</string>
     <string name="folder_vl_model_required">В настоящее время для прямого перевода требуется модель VL. Пожалуйста, переключитесь на модель, поддерживающую ввод изображения в основных настройках, или выключите переключатель.</string>
     <string name="folder_full_translate">Полный перевод</string>
     <string name="folder_full_translate_info_title">О полном переводе</string>
@@ -408,7 +406,7 @@
     <string name="folder_glossary_processing">Обработка глоссария</string>
     <string name="folder_glossary_processing_info_title">Об обработке глоссария</string>
     <string name="folder_glossary_processing_info_desc">Об обработке глоссария</string>
-    <string name="folder_glossary_processing_note">После отключения обработки перевода параллельный перевод может выполняться быстрее.</string>
+    <string name="folder_glossary_processing_note">При включении имена и другие специальные термины извлекаются для единообразного перевода. При отключении существующие термины используются, но новые не извлекаются и не сохраняются. Для быстрого перевода полного текста обработка глоссария всегда включена.</string>
     <string name="translation_preparing">Подготовка</string>
     <string name="folder_preprocess_progress">%1$s（%2$d/%3$d）</string>
     <string name="folder_preprocess_stage_ocr">Предобработка OCR</string>
@@ -595,4 +593,7 @@
     <string name="floating_region_full_screen">Весь экран</string>
     <string name="floating_region_margin_value">%1$s: %2$d</string>
     <string name="floating_region_configuration_note">Выделите область перевода на экране движением пальца, затем нажмите «Подтвердить». Она будет применена при следующем переводе. Выделение можно нарисовать заново. Ширина и высота должны составлять не менее 10% экрана.</string>
+    <string name="folder_style_follow_global">Использовать общий стиль</string>
+    <string name="folder_style_note">Отключите, чтобы задать отдельный стиль для этой папки или сборника. Главы используют настройку сборника. Оставьте поле пустым, чтобы не добавлять требования к стилю.</string>
+    <string name="floating_capture_protected">Экран пуст или снимки экрана могут быть запрещены. Распознавание невозможно. Перейдите на страницу, разрешающую снимки экрана, и повторите попытку.</string>
 </resources>

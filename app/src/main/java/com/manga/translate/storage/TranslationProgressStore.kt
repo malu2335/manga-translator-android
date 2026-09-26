@@ -134,11 +134,14 @@ internal class TranslationProgressStore(
     }
 
     /** Writes the pending snapshot if anything is unflushed. Safe to call repeatedly. */
-    suspend fun flush(folder: File) {
+    suspend fun flush(folder: File, releaseSnapshot: Boolean = false) {
         val state = states[folder.absolutePath] ?: return
         state.mutex.withLock {
             if (state.dirty) {
                 writeLocked(folder, state)
+            }
+            if (releaseSnapshot && !state.dirty) {
+                state.entries = null
             }
         }
     }

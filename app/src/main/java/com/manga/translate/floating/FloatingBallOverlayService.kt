@@ -40,6 +40,7 @@ import androidx.core.view.isVisible
 import com.manga.translate.R
 import com.manga.translate.detection.PageRegion
 import com.manga.translate.detection.detectWithinInsets
+import com.manga.translate.detection.detectVlWithinInsets
 import com.manga.translate.detection.PageRegionDetector
 import com.manga.translate.detection.mapPageLineRectsToCrop
 import com.manga.translate.di.appContainer
@@ -70,6 +71,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -109,6 +113,7 @@ class FloatingBallOverlayService : Service() {
     private var controllerBallView: View? = null
     private var detectionOverlayView: FloatingDetectionOverlayView? = null
     private var detectionLayoutParams: WindowManager.LayoutParams? = null
+    private val recognitionCaptureMutex = Mutex()
     private val screenCaptureSession by lazy {
         ProjectionCaptureSession(applicationContext) {
             scope.launch(Dispatchers.Main) {
@@ -786,6 +791,44 @@ class FloatingBallOverlayService : Service() {
         return true
     }
 
+    /** Hide all of our content, including old translations, before requesting a fresh frame. */
+    private suspend fun captureRecognitionScreen(): Bitmap? =
+        recognitionCaptureMutex.withLock {
+            withContext(Dispatchers.Main) {
+                val views = listOfNotNull(controllerRoot, detectionOverlayView)
+                val visibility = views.map { it.visibility }
+                try {
+                    val bitmap = screenCaptureSession.captureCurrentScreen(
+                        timeoutMs = 1500L,
+                        requireFreshFrame = true,
+                        prepareFreshFrame = {
+                            views.forEach { it.visibility = View.INVISIBLE }
+                            // Let the compositor replace the frame containing our overlays.
+                            delay(150)
+                        }
+                    ) ?: return@withContext null
+                    if (CaptureContentGuard.isProbablyProtected(bitmap)) {
+                        bitmapController.releaseBitmap(bitmap)
+                        throw ProtectedScreenCaptureException()
+                    }
+                    bitmap
+                } finally {
+                    withContext(NonCancellable + Dispatchers.Main) {
+                        views.forEachIndexed { index, view -> view.visibility = visibility[index] }
+                    }
+                }
+            }
+        }
+
+    private class ProtectedScreenCaptureException : Exception()
+
+    private suspend fun showProtectedCaptureMessage(generation: Long) {
+        runOnMainForDetectionGeneration(generation) {
+            showProgressStatus(R.string.floating_capture_protected, autoHide = true)
+            Toast.makeText(this, R.string.floating_capture_protected, Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun startSwipeTranslateMode() {
         if (!screenCaptureSession.isReady()) {
             AppLogger.log("FloatingOCR", "Swipe translate blocked: projection not ready")
@@ -799,7 +842,7 @@ class FloatingBallOverlayService : Service() {
             val runningJob = currentCoroutineContext()[Job]
             var bitmap: Bitmap? = null
             try {
-                bitmap = screenCaptureSession.captureCurrentScreen()
+                bitmap = captureRecognitionScreen()
                 if (bitmap == null) {
                     runOnMainForDetectionGeneration(generation) {
                         showProgressStatus(R.string.floating_capture_not_ready, autoHide = true)
@@ -833,6 +876,8 @@ class FloatingBallOverlayService : Service() {
                     ).show()
                 }
                 AppLogger.log("FloatingOCR", "Swipe translate mode ready")
+            } catch (_: ProtectedScreenCaptureException) {
+                showProtectedCaptureMessage(generation)
             } catch (e: CancellationException) {
                 AppLogger.log("FloatingOCR", "Swipe translate mode cancelled")
                 throw e
@@ -1248,7 +1293,7 @@ class FloatingBallOverlayService : Service() {
                 while (true) {
                     var bitmap: Bitmap? = null
                     try {
-                        bitmap = screenCaptureSession.captureCurrentScreen()
+                        bitmap = captureRecognitionScreen()
                         if (bitmap == null) {
                             AppLogger.log("FloatingOCR", "Capture screen returned null")
                             runOnMainForDetectionGeneration(generation) {
@@ -1272,7 +1317,14 @@ class FloatingBallOverlayService : Service() {
                         ).also { pageRegionDetector = it }
                         val floatingSettings = settingsStore.loadFloatingTranslateApiSettings()
                         val (leftInset, rightInset) = settingsStore.loadFloatingDetectionHorizontalInsets()
-                        val regions = detectWithinInsets(
+                        val floatingApiSettings = settingsStore.loadResolvedFloatingTranslateApiSettings()
+                        val useVlDirectTranslate = floatingSettings.useVlDirectTranslate && llmClient.isConfigured(floatingApiSettings)
+                        val vlLayout = if (useVlDirectTranslate) detectVlWithinInsets(capturedBitmap,
+                            floatingSettings.detectionTopInsetPercent, floatingSettings.detectionBottomInsetPercent,
+                            leftInset, rightInset, detector) else null
+                        val regions = if (useVlDirectTranslate) vlLayout?.targets?.map {
+                            com.manga.translate.detection.PageRegion(it.id, it.rect, it.source, it.maskContour)
+                        } else detectWithinInsets(
                             capturedBitmap,
                             floatingSettings.detectionTopInsetPercent,
                             floatingSettings.detectionBottomInsetPercent,
@@ -1297,11 +1349,7 @@ class FloatingBallOverlayService : Service() {
                             "FloatingOCR",
                             "Detected regions=${regions.size} balloons=$balloonCount freeText=$freeTextCount"
                         )
-                        val floatingApiSettings = settingsStore.loadResolvedFloatingTranslateApiSettings()
                         val floatingTimeoutMs = floatingSettings.timeoutSeconds * 1000
-                        val useVlDirectTranslate =
-                            floatingSettings.useVlDirectTranslate &&
-                                llmClient.isConfigured(floatingApiSettings)
                         val regionBubbles = regions.map { region ->
                             BubbleTranslation.pending(
                                 id = region.id,
@@ -1317,17 +1365,11 @@ class FloatingBallOverlayService : Service() {
                                     getString(R.string.floating_progress_vl_translating, regionBubbles.size)
                                 )
                             }
-                            floatingBubbleTranslationCoordinator.translateImageBubbles(
-                                bitmap = capturedBitmap,
-                                bubbles = regionBubbles,
-                                timeoutMs = floatingTimeoutMs,
-                                retryCount = FLOATING_TRANSLATE_RETRY_COUNT,
-                                promptAsset = FLOAT_VL_PROMPT_ASSET,
-                                apiSettings = floatingApiSettings,
-                                language = currentTranslationLanguage(),
-                                concurrency = floatingSettings.aiApiConcurrencyLimit,
-                                maxConcurrency = MAX_FLOATING_TASK_CONCURRENCY
-                            )
+                            com.manga.translate.platform.PipelineBitmapDecoder.openCropSource(capturedBitmap).use { source ->
+                                appContainer.vlPageTranslationCoordinator.translate(source, requireNotNull(vlLayout),
+                                    floatingApiSettings, currentTranslationLanguage(), floatingTimeoutMs,
+                                    FLOATING_TRANSLATE_RETRY_COUNT, useCache = true)
+                            }
                         } else {
                             null
                         }
@@ -1455,6 +1497,9 @@ class FloatingBallOverlayService : Service() {
                             "Run detection finished bubbles=${resolvedTranslation.bubbles.size}"
                         )
                         break
+                    } catch (_: ProtectedScreenCaptureException) {
+                        showProtectedCaptureMessage(generation)
+                        return@launch
                     } catch (e: LlmResponseException) {
                         AppLogger.log("FloatingOCR", "Floating detection model response invalid", e)
                         if (!awaitModelErrorRetry(generation, e.responseContent)) {
@@ -1883,7 +1928,7 @@ class FloatingBallOverlayService : Service() {
         private const val CHANNEL_ID = "floating_detect_channel"
         private const val NOTIFICATION_ID = 2002
         private const val FLOAT_PROMPT_ASSET = "prompts/float_llm_prompts.json"
-        private const val FLOAT_VL_PROMPT_ASSET = "prompts/vl_bubble_prompts.json"
+        private const val FLOAT_VL_PROMPT_ASSET = "prompts/vl_page_prompts.json"
         private const val FLOATING_TRANSLATE_RETRY_COUNT = 1
         private const val MAX_FLOATING_TASK_CONCURRENCY = 50
         private const val AUTO_CLOSE_SCREEN_CHECK_INTERVAL_MS = 900L

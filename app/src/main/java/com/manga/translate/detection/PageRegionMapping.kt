@@ -16,6 +16,8 @@ internal fun PageRegionDetectionResult.remapToSource(
         bubbleDetections = bubbleDetections.map { detection ->
             detection.copy(rect = detection.rect.scaleBy(scaleX, scaleY))
         },
+        allTextDetections = allTextDetections.map { it.copy(rect = it.rect.scaleBy(scaleX, scaleY)) },
+        tiles = tiles.map { DetectionTile((it.left * scaleX).toInt(), (it.top * scaleY).toInt(), (it.right * scaleX).toInt(), (it.bottom * scaleY).toInt()) },
         textRects = textRects.map { rect -> rect.scaleBy(scaleX, scaleY) },
         regions = regions.map { region ->
             region.copy(

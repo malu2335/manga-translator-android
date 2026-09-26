@@ -1,5 +1,7 @@
 # API Setup Guide
 
+> This guide is maintained for the latest version of the app. Earlier settings screens may differ. Check your provider's dashboard for current URLs and model IDs.
+
 Manga Translator requires your own AI provider API to translate manga pages. This guide covers DeepSeek and OpenAI. It does not promote region-specific third-party providers.
 
 ## What you need
@@ -13,9 +15,10 @@ Before opening the app's **Settings** screen, prepare:
 
 Use the provider's base URL, not a complete request endpoint, unless the provider explicitly gives you one. The app completes its endpoint automatically:
 
-- **OpenAI compatible**: appends `/chat/completions`
-- **OpenAI Responses**: appends `/responses`
-- **Get Model List**: appends `/models` where supported
+- **OpenAI compatible**: appends `/chat/completions` unless the URL already ends with it
+- **OpenAI Responses**: appends `/responses` unless the URL already ends with it
+- **Gemini**: uses its own API endpoint format
+- **Get Model List**: uses `/models` for either OpenAI format and the corresponding Gemini endpoint for Gemini
 
 An API key is a secret credential generated in the provider dashboard. Never share it in screenshots, chat messages, or source code.
 

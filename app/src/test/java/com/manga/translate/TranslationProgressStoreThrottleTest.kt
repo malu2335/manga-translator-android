@@ -123,6 +123,22 @@ class TranslationProgressStoreThrottleTest {
     }
 
     @Test
+    fun `folder completion flushes and releases only that folder snapshot`() = runBlocking {
+        val store = newStore()
+        store.update(folder, "page1.jpg", PageProgressStatus.SAVED)
+        store.update(folder, "page2.jpg", PageProgressStatus.FAILED, "timeout")
+        store.flush(folder, releaseSnapshot = true)
+
+        assertEquals(2, newStore().load(folder).size)
+        // A later restore must be visible without ending the entire batch.
+        store.fileFor(folder).delete()
+        assertTrue(store.load(folder).isEmpty())
+        store.update(folder, "page3.jpg", PageProgressStatus.SAVED)
+        store.flush(folder)
+        assertEquals(setOf("page3.jpg"), readPageNames(store.fileFor(folder)))
+    }
+
+    @Test
     fun `flushAll releases snapshots so later loads see external changes`() = runBlocking {
         val store = newStore()
         store.update(folder, "page1.jpg", PageProgressStatus.SAVED)

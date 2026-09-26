@@ -195,9 +195,9 @@
     <string name="floating_api_url_hint">Endereço da API de tradução da janela flutuante</string>
     <string name="floating_api_key_hint">Chave de API da tradução da janela flutuante</string>
     <string name="floating_model_name_hint">Nome do modelo de tradução da janela flutuante</string>
-    <string name="floating_use_vl_direct_translate">Traduzir o balão inteiro diretamente com o modelo VL</string>
-    <string name="floating_use_vl_direct_translate_note">Quando ativado, os recortes dos balões detectados são enviados diretamente ao modelo visual para tradução, pulando a etapa de reconhecimento OCR. Verifique se o modelo informado aceita entrada de imagem.</string>
-    <string name="floating_use_vl_direct_translate_warning">A tradução direta com VL está ativada. Use um modelo VL que aceite entrada de imagem, caso contrário a chamada falhará.</string>
+    <string name="floating_use_vl_direct_translate">Tradução de página inteira com VL</string>
+    <string name="floating_use_vl_direct_translate_note">Mantém balões e blocos de texto, marca cada região com um ID e envia a página anotada ao modelo visual, sem OCR. Imagens longas são enviadas em partes. Use um modelo que aceite imagens.</string>
+    <string name="floating_use_vl_direct_translate_warning">A tradução de página inteira com VL está ativada. Use um modelo que aceite imagens.</string>
     <string name="floating_proofreading_mode">Modo de revisão</string>
     <string name="floating_proofreading_mode_note">Quando ativado, a janela flutuante entra automaticamente no modo de edição existente após a conclusão da tradução, facilitando adicionar, remover e ajustar balões manualmente.</string>
     <string name="floating_auto_close_on_screen_change">Limpar balões automaticamente</string>
@@ -280,8 +280,6 @@
     <string name="library_sort_order_asc">Crescente</string>
     <string name="library_sort_order_desc">Decrescente</string>
     <string name="library_action_panel_label">Painel de operações</string>
-    <string name="library_translation_settings_hint">Configure separadamente o idioma de tradução e a estratégia de tradução completa para a pasta atual.</string>
-    <string name="library_translation_settings_info_desc">Sobre as configurações de tradução</string>
     <string name="library_pages_label">Lista de páginas</string>
     <string name="tutorial_button">Tutorial</string>
     <string name="tutorial_open_title">Abrir tutorial</string>
@@ -314,7 +312,7 @@
     <string name="floating_progress_capturing">Tradução flutuante em andamento: capturando a tela…</string>
     <string name="floating_progress_detecting">Tradução flutuante: detectando área de texto…</string>
     <string name="floating_progress_recognizing">Tradução flutuante em andamento: reconhecendo texto (%1$d áreas)…</string>
-    <string name="floating_progress_vl_translating">Tradução flutuante em andamento: traduzindo balões com o modelo VL (%1$d áreas)…</string>
+    <string name="floating_progress_vl_translating">Traduzindo a página anotada com VL (%1$d regiões)…</string>
     <string name="floating_progress_translating">Tradução flutuante em andamento: traduzindo texto…</string>
     <string name="floating_progress_done">Tradução flutuante concluída: %1$d áreas de texto no total</string>
     <string name="floating_detected_count">%1$d áreas de texto identificadas</string>
@@ -395,11 +393,11 @@
     <string name="translation_source_german">Alemão</string>
     <string name="translation_source_italian">Italiano</string>
     <string name="translation_source_russian">Russo</string>
-    <string name="folder_use_vl_direct_translate">Traduzir o balão inteiro com o modelo VL</string>
-    <string name="folder_use_vl_direct_translate_info_title">Sobre a tradução direta com VL</string>
-    <string name="folder_use_vl_direct_translate_info_desc">Sobre a tradução direta com VL</string>
-    <string name="folder_use_vl_direct_translate_note">Quando ativado, os balões detectados são enviados diretamente ao modelo visual para tradução, pulando a etapa de reconhecimento de texto. Verifique se o modelo informado aceita entrada de imagem.</string>
-    <string name="folder_use_vl_direct_translate_warning">A tradução direta com VL da pasta está ativada. Confirme se o modelo atual aceita entrada de imagem.</string>
+    <string name="folder_use_vl_direct_translate">Tradução de página inteira com VL</string>
+    <string name="folder_use_vl_direct_translate_info_title">Sobre a tradução de página inteira com VL</string>
+    <string name="folder_use_vl_direct_translate_info_desc">Sobre a tradução de página inteira com VL</string>
+    <string name="folder_use_vl_direct_translate_note">Envia a página inteira diretamente ao modelo visual para tradução, sem OCR local. É útil quando você quer que o modelo compreenda a arte e o texto em conjunto. Use um modelo que aceite imagens.</string>
+    <string name="folder_use_vl_direct_translate_warning">A tradução de página inteira com VL está ativada. Use um modelo que aceite imagens.</string>
     <string name="folder_vl_model_required">Atualmente, a tradução direta exige o modelo VL. Alterne para um modelo que aceite entrada de imagem nas configurações principais ou desative esta opção.</string>
     <string name="folder_full_translate">Tradução completa</string>
     <string name="folder_full_translate_info_title">Sobre a tradução completa</string>
@@ -408,7 +406,7 @@
     <string name="folder_glossary_processing">Processamento de glossário</string>
     <string name="folder_glossary_processing_info_title">Sobre o processamento de glossário</string>
     <string name="folder_glossary_processing_info_desc">Sobre o processamento de glossário</string>
-    <string name="folder_glossary_processing_note">Com o processamento de glossário desativado, a tradução simultânea pode ser executada mais rapidamente.</string>
+    <string name="folder_glossary_processing_note">Quando ativado, extrai nomes e outros termos próprios para manter a tradução consistente. Com o processamento desativado, os termos existentes continuam disponíveis, mas novos termos não são extraídos nem salvos. A tradução rápida de texto completo sempre o mantém ativado.</string>
     <string name="translation_preparing">Preparando</string>
     <string name="folder_preprocess_progress">%1$s (%2$d/%3$d)</string>
     <string name="folder_preprocess_stage_ocr">Pré-processamento do OCR</string>
@@ -595,4 +593,7 @@ Grupo de comunicação e feedback: %2$s</string>
     <string name="floating_region_full_screen">Tela inteira</string>
     <string name="floating_region_margin_value">%1$s: %2$d</string>
     <string name="floating_region_configuration_note">Arraste na tela para selecionar a região de tradução e toque em Confirmar para aplicar na próxima tradução. Arraste novamente para refazer. A largura e a altura devem ocupar pelo menos 10% da tela.</string>
+    <string name="folder_style_follow_global">Usar estilo global</string>
+    <string name="folder_style_note">Desative para usar um estilo exclusivo desta pasta ou coleção. Os capítulos usam a configuração da coleção. Deixe em branco para não adicionar instruções de estilo.</string>
+    <string name="floating_capture_protected">A tela está vazia ou a captura pode estar bloqueada. Não é possível continuar o reconhecimento. Abra uma página que permita capturas de tela e tente novamente.</string>
 </resources>

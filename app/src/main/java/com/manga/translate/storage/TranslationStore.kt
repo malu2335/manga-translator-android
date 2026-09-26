@@ -32,7 +32,7 @@ class TranslationStore {
 
     val updates: SharedFlow<String> = updatesFlow.asSharedFlow()
 
-    fun load(imageFile: File, expectedMetadata: TranslationMetadata? = null): TranslationResult? {
+    fun load(imageFile: File): TranslationResult? {
         val jsonFile = translationFileFor(imageFile)
         if (!jsonFile.exists()) return null
         val cacheKey = jsonFile.absolutePath
@@ -41,22 +41,10 @@ class TranslationStore {
                 it.lastModified == jsonFile.lastModified() && it.fileSize == jsonFile.length()
             }
         }
-        if (cached != null) {
-            val result = cached.result
-            return if (expectedMetadata != null &&
-                !isMetadataUsable(imageFile, result.metadata, expectedMetadata)
-            ) {
-                null
-            } else {
-                result
-            }
-        }
+        if (cached != null) return cached.result
         return try {
             val json = JSONObject(jsonFile.readText())
             val metadata = parseMetadata(json.optJSONObject("metadata"))
-            if (expectedMetadata != null && !isMetadataUsable(imageFile, metadata, expectedMetadata)) {
-                return null
-            }
             val bubblesJson = json.optJSONArray("bubbles") ?: JSONArray()
             val bubbles = ArrayList<BubbleTranslation>(bubblesJson.length())
             for (i in 0 until bubblesJson.length()) {
@@ -169,6 +157,7 @@ class TranslationStore {
                 put("mode", metadata.mode)
                 put("language", metadata.language)
                 put("promptAsset", metadata.promptAsset)
+                metadata.styleFingerprint?.let { put("styleFingerprint", it) }
                 put("apiFormat", metadata.apiFormat)
                 put("ocrCacheMode", metadata.ocrCacheMode)
                 put("version", metadata.version)
@@ -235,6 +224,7 @@ class TranslationStore {
             mode = json?.optString("mode").orEmpty(),
             language = json?.optString("language").orEmpty(),
             promptAsset = json?.optString("promptAsset").orEmpty(),
+            styleFingerprint = json?.optString("styleFingerprint")?.takeIf { it.isNotBlank() },
             apiFormat = json?.optString("apiFormat").orEmpty(),
             ocrCacheMode = json?.optString("ocrCacheMode").orEmpty(),
             version = json?.let { it.optInt("version", TranslationMetadata.CURRENT_VERSION) }
@@ -252,57 +242,4 @@ class TranslationStore {
         }
     }
 
-    private fun isMetadataUsable(
-        imageFile: File,
-        actual: TranslationMetadata,
-        expected: TranslationMetadata
-    ): Boolean = matchesTranslationRequest(imageFile, actual, expected)
-
-    private fun isLegacyTranslationMetadata(metadata: TranslationMetadata): Boolean {
-        return metadata.mode.isNotBlank() &&
-            (metadata.language.isBlank() ||
-                metadata.promptAsset.isBlank() ||
-                metadata.apiFormat.isBlank() ||
-                (metadata.mode != TranslationMetadata.MODE_VL_DIRECT && metadata.ocrCacheMode.isBlank()))
-    }
-
-    /**
-     * Checks if [actual] metadata matches [expected] translation request parameters.
-     *
-     * Used by both [isMetadataUsable] (full result reuse) and partial translation refill
-     * to ensure consistent validation across all cache/reuse paths. Tolerates legacy
-     * metadata (missing fields from older versions), but requires strict equality when
-     * both sides have values.
-     *
-     * This is the single source of truth for "does this cached result match the current
-     * request?" New translation-affecting dimensions MUST be added here to avoid silent
-     * mismatches across different code paths. `apiFormat` is deliberately excluded:
-     * it records which provider protocol produced the result but never makes an
-     * existing translation invalid, so switching providers keeps results usable.
-     */
-    internal fun matchesTranslationRequest(
-        imageFile: File,
-        actual: TranslationMetadata,
-        expected: TranslationMetadata
-    ): Boolean {
-        if (!actual.matchesSource(imageFile)) {
-            return false
-        }
-        if (actual.isManual()) {
-            return true
-        }
-        if (isLegacyTranslationMetadata(actual)) {
-            return true
-        }
-        // Strict equality on all translation-affecting dimensions.
-        // apiFormat is intentionally NOT compared: it only selects the wire protocol
-        // of the provider that produced the translation and never changes the
-        // meaning of a result already on disk. Switching providers must not
-        // invalidate existing translations; apiFormat is persisted for provenance.
-        return actual.version == expected.version &&
-            actual.language == expected.language &&
-            actual.mode == expected.mode &&
-            actual.promptAsset == expected.promptAsset &&
-            actual.ocrCacheMode == expected.ocrCacheMode
-    }
 }

@@ -1,8 +1,6 @@
 package com.manga.translate.translation
 
-import android.content.Context
 import android.graphics.Bitmap
-import com.manga.translate.R
 import com.manga.translate.model.BubbleTranslation
 import com.manga.translate.model.BubbleTranslationState
 import com.manga.translate.model.TranslationLanguage
@@ -11,26 +9,18 @@ import com.manga.translate.network.LlmGateway
 import com.manga.translate.network.LlmRequestException
 import com.manga.translate.network.LlmResponseException
 import com.manga.translate.platform.AppLogger
-import com.manga.translate.platform.ImageEncodingUtils
-import com.manga.translate.platform.cropBitmap
-import com.manga.translate.platform.recycleSafely
 import com.manga.translate.settings.ApiSettings
 import com.manga.translate.settings.SettingsStore
 import com.manga.translate.storage.FloatingCacheScope
 import com.manga.translate.storage.FloatingTranslationCacheStore
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 
 internal class FloatingBubbleTranslationCoordinator(
     private val llmClient: LlmGateway,
     private val floatingTranslationCacheStore: FloatingTranslationCacheStore,
-    private val settingsStore: SettingsStore
+    private val settingsStore: SettingsStore,
+    private val vlPageCoordinator: VlPageTranslationCoordinator = VlPageTranslationCoordinator(llmClient, floatingTranslationCacheStore)
 ) {
-    private val appContext = llmClient.resourceContext()
     private val textBubbleTranslationCoordinator = TextBubbleTranslationCoordinator(
         llmClient = llmClient
     )
@@ -136,6 +126,7 @@ internal class FloatingBubbleTranslationCoordinator(
         timeoutMs: Int,
         retryCount: Int,
         promptAsset: String,
+        glossary: Map<String, String> = emptyMap(),
         apiSettings: ApiSettings = settingsStore.loadResolvedFloatingTranslateApiSettings(),
         language: TranslationLanguage = TranslationLanguage.JA_TO_ZH,
         concurrency: Int,
@@ -143,101 +134,11 @@ internal class FloatingBubbleTranslationCoordinator(
         useCache: Boolean = true,
         logTag: String = "FloatingOCR"
     ): FloatingBubbleImageTranslateOutcome = coroutineScope {
-        val semaphore = Semaphore(concurrency.coerceIn(1, maxConcurrency))
-        val cacheScope = buildCacheScope(apiSettings, language, promptAsset)
-        val tasks = bubbles.map { bubble ->
-            async(Dispatchers.IO) {
-                semaphore.withPermit {
-                    val crop = cropBitmap(bitmap, bubble.rect)
-                    if (crop == null) {
-                        return@withPermit FloatingBubbleImageTranslateTaskResult(bubble = bubble)
-                    }
-                    val imageCacheKey = if (useCache) {
-                        compressBitmapToJpeg(crop, 80)?.let { jpegBytes ->
-                            floatingTranslationCacheStore.createImageKey(jpegBytes)
-                        }
-                    } else {
-                        null
-                    }
-                    val cachedTranslation = imageCacheKey?.let {
-                        floatingTranslationCacheStore.findImageTranslation(it, cacheScope)
-                    }
-                    if (useCache && !cachedTranslation.isNullOrBlank()) {
-                        AppLogger.log("FloatingCache", "VL cache hit bubble=${bubble.id}")
-                        crop.recycleSafely()
-                        return@withPermit FloatingBubbleImageTranslateTaskResult(
-                            bubble = bubble.withTranslationResult(cachedTranslation)
-                        )
-                    }
-                    val requestImageBase64 = ImageEncodingUtils.encodeBitmapToBase64(crop) ?: run {
-                        crop.recycleSafely()
-                        return@withPermit FloatingBubbleImageTranslateTaskResult(
-                            responseException = LlmResponseException(
-                                errorCode = LlmErrorCode.ImageEncodeFailed,
-                                responseContent = "Failed to encode bubble crop as JPEG"
-                            )
-                        )
-                    }
-                    val translatedText = try {
-                        llmClient.translateImageBubble(
-                            imageBase64 = requestImageBase64,
-                            promptAsset = promptAsset,
-                            requestTimeoutMs = timeoutMs,
-                            retryCount = retryCount,
-                            apiSettings = apiSettings
-                        ).orEmpty()
-                    } catch (e: LlmRequestException) {
-                        if (e.errorCode == LlmErrorCode.Timeout) {
-                            AppLogger.log(logTag, "VL direct translate timeout")
-                            return@withPermit FloatingBubbleImageTranslateTaskResult(timedOut = true)
-                        }
-                        AppLogger.log(logTag, "VL direct translate request failed", e)
-                        if (looksLikeVisionModelError(e)) {
-                            return@withPermit FloatingBubbleImageTranslateTaskResult(requiresVlModel = true)
-                        }
-                        ""
-                    } catch (e: Exception) {
-                        AppLogger.log(logTag, "VL direct translate failed", e)
-                        ""
-                    } finally {
-                        crop.recycleSafely()
-                    }
-                    if (useCache && translatedText.isNotBlank() && imageCacheKey != null) {
-                        floatingTranslationCacheStore.putImageTranslation(
-                            imageKey = imageCacheKey,
-                            translation = translatedText,
-                            scope = cacheScope
-                        )
-                    }
-                    if (translatedText.isBlank()) {
-                        return@withPermit FloatingBubbleImageTranslateTaskResult(
-                            responseException = LlmResponseException(
-                                errorCode = LlmErrorCode.EmptyTranslationSegment,
-                                responseContent = buildBlankModelResponseMessage(
-                                    context = appContext,
-                                    bubbleCount = 1,
-                                    mode = "image"
-                                )
-                            )
-                        )
-                    }
-                    FloatingBubbleImageTranslateTaskResult(
-                        bubble = bubble.withTranslationResult(translatedText)
-                    )
-                }
-            }
+        com.manga.translate.platform.PipelineBitmapDecoder.openCropSource(bitmap).use { source ->
+            vlPageCoordinator.translate(source,
+                VlPageLayout(bitmap.width, bitmap.height, bubbles), apiSettings, language,
+                timeoutMs, retryCount, glossary, useCache = useCache)
         }
-        val results = tasks.awaitAll()
-        if (results.any { it.requiresVlModel }) {
-            return@coroutineScope FloatingBubbleImageTranslateOutcome(requiresVlModel = true)
-        }
-        if (results.any { it.timedOut }) {
-            return@coroutineScope FloatingBubbleImageTranslateOutcome(timedOut = true)
-        }
-        results.firstNotNullOfOrNull { it.responseException }?.let { throw it }
-        val translated = results.mapNotNull { it.bubble }
-        AppLogger.log(logTag, "VL direct translate success segments=${translated.size}")
-        return@coroutineScope FloatingBubbleImageTranslateOutcome(bubbles = translated)
     }
 
     /**
@@ -257,43 +158,11 @@ internal class FloatingBubbleTranslationCoordinator(
         )
     }
 
-    fun looksLikeVisionModelError(error: LlmRequestException): Boolean {
-        val body = error.responseBody.orEmpty().lowercase()
-        val hints = listOf(
-            "image",
-            "vision",
-            "multimodal",
-            "multi-modal",
-            "image_url",
-            "input_image",
-            "does not support image",
-            "unsupported content type"
-        )
-        return error.errorCode is LlmErrorCode.Http && hints.any { it in body }
-    }
-}
-
-private fun buildBlankModelResponseMessage(
-    context: Context,
-    bubbleCount: Int,
-    mode: String
-): String {
-    return context.getString(R.string.model_response_blank_bubbles, mode, bubbleCount)
 }
 
 internal data class FloatingBubbleImageTranslateOutcome(
+    val glossaryUsed: Map<String, String> = emptyMap(),
     val bubbles: List<BubbleTranslation> = emptyList(),
     val timedOut: Boolean = false,
     val requiresVlModel: Boolean = false
 )
-
-private data class FloatingBubbleImageTranslateTaskResult(
-    val bubble: BubbleTranslation? = null,
-    val timedOut: Boolean = false,
-    val requiresVlModel: Boolean = false,
-    val responseException: LlmResponseException? = null
-)
-
-private fun compressBitmapToJpeg(bitmap: Bitmap, quality: Int): ByteArray? {
-    return ImageEncodingUtils.compressBitmapToJpeg(bitmap, quality)
-}

@@ -1,5 +1,6 @@
 package com.manga.translate
 
+import com.manga.translate.di.appContainer
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.RectF
@@ -43,6 +44,38 @@ class TranslationPageBatchTest {
         context.getSharedPreferences("manga_translate_settings", Context.MODE_PRIVATE).edit().clear().commit()
         settings.saveApiTimeoutSeconds(60)
         settings.saveApiRetryCount(5)
+    }
+
+    @Test
+    fun `different folder styles stay isolated and saved results survive setting changes`() = runBlocking {
+        val container = context.appContainer
+        val first = requireNotNull(container.libraryRepository.createFolder("style_first_${System.nanoTime()}"))
+        val second = requireNotNull(container.libraryRepository.createFolder("style_second_${System.nanoTime()}"))
+        try {
+            container.libraryPreferencesGateway.setTranslationStyle(first, "first style")
+            container.libraryPreferencesGateway.setTranslationStyle(second, "second style")
+            val pages = listOf(first, second).map { folder ->
+                page(java.io.File(folder, "page.jpg").path, listOf(bubble(1, "source")))
+            }
+            val results = requireNotNull(translate(pages))
+            assertEquals(listOf("first style", "second style"), gateway.styles)
+            assertEquals(2, gateway.calls)
+            pipeline.saveResult(pages[0].imageFile, results[0].result)
+            val json = container.translationStore.translationFileFor(pages[0].imageFile)
+            val saved = json.readText()
+            container.libraryPreferencesGateway.setTranslationStyle(first, "changed style")
+            val loaded = requireNotNull(pipeline.loadValidTranslation(
+                pages[0].imageFile, true, true, TranslationLanguage.EN_TO_ZH
+            ))
+            assertEquals("translated:source", loaded.bubbles.single().translatedText)
+            assertTrue(pipeline.hasValidTranslation(pages[0].imageFile, true, true, TranslationLanguage.EN_TO_ZH))
+            assertEquals(saved, json.readText())
+        } finally {
+            listOf(first, second).forEach {
+                container.libraryPreferencesGateway.clearFolderSettings(it)
+                it.deleteRecursively()
+            }
+        }
     }
 
     @Test
@@ -175,6 +208,7 @@ class TranslationPageBatchTest {
 }
 
 private class BatchGateway(private val context: Context) : LlmGateway {
+    val styles = mutableListOf<String?>()
     var calls = 0
     var items = emptyList<LlmBubbleTranslationRequestItem>()
     var timeout: Int? = null
@@ -197,6 +231,7 @@ private class BatchGateway(private val context: Context) : LlmGateway {
         retryCount: Int,
         apiSettings: ApiSettings?
     ): LlmBubbleTranslationResult {
+        styles += apiSettings?.translationStyle
         calls++
         this.items = items
         this.glossary = glossary
@@ -212,8 +247,10 @@ private class BatchGateway(private val context: Context) : LlmGateway {
     override suspend fun translateImageBubble(
         imageBase64: String,
         promptAsset: String,
+        glossary: Map<String, String>,
+        glossaryProcessingEnabled: Boolean,
         requestTimeoutMs: Int?,
         retryCount: Int,
         apiSettings: ApiSettings?
-    ): String? = null
+    ): com.manga.translate.network.LlmTranslationResult? = null
 }

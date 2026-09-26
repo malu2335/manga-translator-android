@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:clipToPadding="false">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/follow_global_style"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/folder_style_follow_global"
+            android:textColor="?attr/dialogTextColor" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/folder_style_note"
+            android:textAppearance="@style/Widget.MangaTranslator.BodyMuted" />
+        <androidx.appcompat.widget.AppCompatEditText
+            android:id="@+id/folder_style_input"
+            style="@style/Widget.MangaTranslator.DialogEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="top|start"
+            android:hint="@string/translation_style_hint"
+            android:inputType="textMultiLine|textCapSentences"
+            android:minLines="3"
+            android:maxLines="8" />
+    </LinearLayout>
+</ScrollView>

@@ -201,17 +201,48 @@ class LlmClient(
     override suspend fun translateImageBubble(
         imageBase64: String,
         promptAsset: String,
+        glossary: Map<String, String>,
+        glossaryProcessingEnabled: Boolean,
         requestTimeoutMs: Int?,
         retryCount: Int,
         apiSettings: ApiSettings?
-    ): String? = withContext(Dispatchers.IO) {
+    ): LlmTranslationResult? = withContext(Dispatchers.IO) {
         requestImageContent(
             imageBase64 = imageBase64,
             promptAsset = promptAsset,
+            glossary = glossary,
+            glossaryProcessingEnabled = glossaryProcessingEnabled,
             requestTimeoutMs = requestTimeoutMs,
             retryCount = retryCount,
             apiSettings = apiSettings
-        )?.let { responseParser.parseImageTranslationContent(it) }
+        )?.let { content ->
+            responseParser.parseImageTranslationContent(content)?.let { translation ->
+                LlmTranslationResult(
+                    translation,
+                    if (glossaryProcessingEnabled && content.trim().let { it.startsWith("{") || it.startsWith("```") }) {
+                        responseParser.parseGlossaryContent(content)
+                    } else emptyMap()
+                )
+            }
+        }
+    }
+
+    override suspend fun translateImageItems(
+        imageBase64: String,
+        requestedIds: List<Int>,
+        promptAsset: String,
+        glossary: Map<String, String>,
+        glossaryProcessingEnabled: Boolean,
+        requestTimeoutMs: Int,
+        retryCount: Int,
+        apiSettings: ApiSettings
+    ): LlmBubbleTranslationResult? = withContext(Dispatchers.IO) {
+        requestImageContent(imageBase64, promptAsset, glossary, glossaryProcessingEnabled,
+            requestTimeoutMs, retryCount, apiSettings, requestedIds)?.let {
+            responseParser.parseImageItemsContent(it, requestedIds).let { result ->
+                if (glossaryProcessingEnabled) result else result.copy(glossaryUsed = emptyMap())
+            }
+        }
     }
 
     private suspend fun requestContent(
@@ -254,9 +285,12 @@ class LlmClient(
     private suspend fun requestImageContent(
         imageBase64: String,
         promptAsset: String,
+        glossary: Map<String, String> = emptyMap(),
+        glossaryProcessingEnabled: Boolean = false,
         requestTimeoutMs: Int? = null,
         retryCount: Int = RetryHandler.RETRY_COUNT,
-        apiSettings: ApiSettings? = null
+        apiSettings: ApiSettings? = null,
+        requestedIds: List<Int>? = null
     ): String? {
         val settings = apiSettings ?: settingsStore.load()
         if (!settings.isValid()) return null
@@ -274,7 +308,10 @@ class LlmClient(
                     modelName = selectedModel,
                     imageBase64 = imageBase64,
                     promptAsset = promptAsset,
-                    apiFormat = settings.apiFormat
+                    glossary = glossary,
+                    glossaryProcessingEnabled = glossaryProcessingEnabled,
+                    apiFormat = settings.apiFormat,
+                    requestedIds = requestedIds
                 )
             },
             sanitizePayloadForLog = { payloadBuilder.sanitizeModelIoForLog(it) }

@@ -168,10 +168,12 @@ private class FakeLlmGateway(
     override suspend fun translateImageBubble(
         imageBase64: String,
         promptAsset: String,
+        glossary: Map<String, String>,
+        glossaryProcessingEnabled: Boolean,
         requestTimeoutMs: Int?,
         retryCount: Int,
         apiSettings: ApiSettings?
-    ): String? = null
+    ): com.manga.translate.network.LlmTranslationResult? = null
 
     override fun resourceContext(): Context = RuntimeEnvironment.getApplication()
 }
@@ -215,10 +217,12 @@ private class CapturingLlmGateway(
     override suspend fun translateImageBubble(
         imageBase64: String,
         promptAsset: String,
+        glossary: Map<String, String>,
+        glossaryProcessingEnabled: Boolean,
         requestTimeoutMs: Int?,
         retryCount: Int,
         apiSettings: ApiSettings?
-    ): String? = null
+    ): com.manga.translate.network.LlmTranslationResult? = null
 
     override fun resourceContext(): Context = RuntimeEnvironment.getApplication()
 }

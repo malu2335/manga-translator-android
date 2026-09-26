@@ -23,7 +23,8 @@ data class UnifiedRegionDetection(
     val balloons: List<BubbleDetection>,
     val freeTextRects: List<RectF>,
     val detectedTextLines: List<RectF>? = null,
-    val detectionComplete: Boolean = true
+    val detectionComplete: Boolean = true,
+    val textDetections: List<BubbleDetection> = emptyList()
 )
 
 private const val MASK_COEFFICIENT_COUNT = 32
@@ -57,18 +58,20 @@ class BubbleDetector(
         )
         val balloons = ArrayList<BubbleDetection>()
         val textRects = ArrayList<RectF>()
+        val textDetections = ArrayList<BubbleDetection>()
         for (raw in detections) {
             val rect = raw.toRect(preprocessed, bitmap.width, bitmap.height)
             if (rect.width() <= 1f || rect.height() <= 1f) continue
-            if (raw.classId == CLASS_TEXT) {
-                textRects.add(rect)
-                continue
-            }
             val contour = computeDualMaskContour(
                 raw, model.prototypes, model.protoHeight, model.protoWidth,
                 preprocessed, bitmap.width, bitmap.height, model.inputWidth, model.inputHeight
             )
-            balloons.add(BubbleDetection(rect, raw.confidence, CLASS_BALLOON, contour))
+            if (raw.classId == CLASS_TEXT) {
+                textRects.add(rect)
+                textDetections.add(BubbleDetection(rect, raw.confidence, CLASS_TEXT, contour))
+            } else {
+                balloons.add(BubbleDetection(rect, raw.confidence, CLASS_BALLOON, contour))
+            }
         }
         val keptBalloons = deduplicateBubbleDetections(balloons)
         if (settingsStore.loadModelIoLogging()) {
@@ -76,7 +79,7 @@ class BubbleDetector(
                 "TFLite dual: bubbles=${keptBalloons.size}, text=${textRects.size}, " +
                     "input=${model.inputWidth}x${model.inputHeight}")
         }
-        return UnifiedRegionDetection(keptBalloons, textRects)
+        return UnifiedRegionDetection(keptBalloons, textRects, textDetections = textDetections)
     }
 
     @Synchronized

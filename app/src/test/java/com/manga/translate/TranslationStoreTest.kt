@@ -9,7 +9,6 @@ import com.manga.translate.model.TranslationResult
 import com.manga.translate.storage.TranslationStore
 import java.io.File
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -17,7 +16,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class TranslationStoreTest {
     @Test
-    fun `complete metadata does not reuse translation across modes or OCR settings`() {
+    fun `saved translation remains readable after source and settings change`() {
         val image = File.createTempFile("translation-store", ".jpg")
         image.writeText("source")
         val store = TranslationStore()
@@ -48,31 +47,11 @@ class TranslationStoreTest {
         )
         try {
             store.save(image, result)
-            assertNotNull(store.load(image, expectedMetadata = metadata))
-            assertNull(
-                store.load(
-                    image,
-                    expectedMetadata = metadata.copy(mode = TranslationMetadata.MODE_FULL_PAGE)
-                )
-            )
-            assertNull(
-                store.load(
-                    image,
-                    expectedMetadata = metadata.copy(ocrCacheMode = "local|text")
-                )
-            )
-            assertNull(
-                store.load(
-                    image,
-                    expectedMetadata = metadata.copy(promptAsset = "prompts/llm_prompts_FullTrans.json")
-                )
-            )
-            assertNull(
-                store.load(
-                    image,
-                    expectedMetadata = metadata.copy(language = TranslationLanguage.EN_TO_ZH.name)
-                )
-            )
+            val originalJson = store.translationFileFor(image).readText()
+            image.writeText("changed source image")
+            assertNotNull(store.load(image))
+            assertNotNull(TranslationStore().load(image))
+            org.junit.Assert.assertEquals(originalJson, store.translationFileFor(image).readText())
         } finally {
             store.translationFileFor(image).delete()
             image.delete()
@@ -116,7 +95,7 @@ class TranslationStoreTest {
             for (apiFormat in listOf("openai_responses", "gemini", "")) {
                 assertNotNull(
                     "apiFormat=$apiFormat must reuse the saved translation",
-                    store.load(image, expectedMetadata = metadata.copy(apiFormat = apiFormat))
+                    store.load(image)
                 )
             }
             // Persisted provenance must still record the producing format.

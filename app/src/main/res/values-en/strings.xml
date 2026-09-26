@@ -195,9 +195,9 @@
     <string name="floating_api_url_hint">Floating window translation API address</string>
     <string name="floating_api_key_hint">Floating window translation API Key</string>
     <string name="floating_model_name_hint">Floating window translation model name</string>
-    <string name="floating_use_vl_direct_translate">Translate the entire bubble directly using the VL model</string>
-    <string name="floating_use_vl_direct_translate_note">When turned on, the detected bubble cuts will be sent directly to the visual model for translation, skipping the OCR recognition step. Please make sure the model you fill in supports image input.</string>
-    <string name="floating_use_vl_direct_translate_warning">VL direct translation is enabled. Please use the VL model that supports image input, otherwise the call will fail.</string>
+    <string name="floating_use_vl_direct_translate">VL full-page translation</string>
+    <string name="floating_use_vl_direct_translate_note">Keep bubbles and text blocks, label them with IDs, and send the annotated page to a vision model without OCR. Long images are sent in sections. Use a model that supports image input.</string>
+    <string name="floating_use_vl_direct_translate_warning">VL full-page translation is enabled. Use a model that supports image input.</string>
     <string name="floating_proofreading_mode">proofreading mode</string>
     <string name="floating_proofreading_mode_note">After being turned on, the floating window will automatically enter the existing editing mode after the translation is completed, which facilitates manual addition, deletion and adjustment of bubbles.</string>
     <string name="floating_auto_close_on_screen_change">Automatically clear bubbles</string>
@@ -280,8 +280,6 @@
     <string name="library_sort_order_asc">Ascending</string>
     <string name="library_sort_order_desc">Descending</string>
     <string name="library_action_panel_label">Operation panel</string>
-    <string name="library_translation_settings_hint">Configure the translation language and full-text quick translation strategy separately for the current folder.</string>
-    <string name="library_translation_settings_info_desc">About translation settings</string>
     <string name="library_pages_label">Page list</string>
     <string name="tutorial_button">Tutorial</string>
     <string name="tutorial_open_title">Open Tutorial</string>
@@ -314,7 +312,7 @@
     <string name="floating_progress_capturing">Floating translation in progress: Capturing the screen…</string>
     <string name="floating_progress_detecting">Floating Translation: Detecting text area…</string>
     <string name="floating_progress_recognizing">Floating translation in progress: Recognizing text (%1$d areas)…</string>
-    <string name="floating_progress_vl_translating">Suspension translation in progress: Using VL model translation bubbles (%1$d areas)…</string>
+    <string name="floating_progress_vl_translating">Translating the annotated page with VL (%1$d regions)…</string>
     <string name="floating_progress_translating">Floating translation in progress: Translating text…</string>
     <string name="floating_progress_done">Floating translation completed: %1$d text areas in total</string>
     <string name="floating_detected_count">%1$d text areas identified</string>
@@ -395,11 +393,11 @@
     <string name="translation_source_german">German</string>
     <string name="translation_source_italian">Italian</string>
     <string name="translation_source_russian">Russian</string>
-    <string name="folder_use_vl_direct_translate">Translate the entire bubble using the VL model</string>
-    <string name="folder_use_vl_direct_translate_info_title">About VL Direct Translation</string>
-    <string name="folder_use_vl_direct_translate_info_desc">About VL direct translation</string>
-    <string name="folder_use_vl_direct_translate_note">When turned on, the detected bubbles will be sent directly to the visual model for translation, skipping the text recognition step. Please make sure the model you fill in supports image input.</string>
-    <string name="folder_use_vl_direct_translate_warning">Folder VL has been opened for direct browsing. Please confirm that the current model supports image input.</string>
+    <string name="folder_use_vl_direct_translate">VL full-page translation</string>
+    <string name="folder_use_vl_direct_translate_info_title">About VL full-page translation</string>
+    <string name="folder_use_vl_direct_translate_info_desc">About VL full-page translation</string>
+    <string name="folder_use_vl_direct_translate_note">Send the whole page directly to a vision model for translation without local OCR. This is useful when you want the vision model to understand the artwork and text together. Use a model that supports image input.</string>
+    <string name="folder_use_vl_direct_translate_warning">VL full-page translation is enabled. Use a model that supports image input.</string>
     <string name="folder_vl_model_required">Currently direct translation requires the VL model. Please switch to a model that supports image input in the main settings, or turn off the switch.</string>
     <string name="folder_full_translate">Full Translation</string>
     <string name="folder_full_translate_info_title">About Full Translation</string>
@@ -408,7 +406,7 @@
     <string name="folder_glossary_processing">Glossary Processing</string>
     <string name="folder_glossary_processing_info_title">About Glossary Processing</string>
     <string name="folder_glossary_processing_info_desc">About glossary processing</string>
-    <string name="folder_glossary_processing_note">After turning off translation processing, concurrent translation can be performed faster.</string>
+    <string name="folder_glossary_processing_note">When enabled, names and other proper terms are extracted and kept consistent. Existing glossary terms remain available when disabled, but new terms are not extracted or saved. Full-text fast translation always enables glossary processing.</string>
     <string name="translation_preparing">Preparing</string>
     <string name="folder_preprocess_progress">%1$s（%2$d/%3$d）</string>
     <string name="folder_preprocess_stage_ocr">OCR Preprocessing</string>
@@ -595,4 +593,7 @@ Communication and feedback group: %2$s</string>
     <string name="floating_region_full_screen">Full screen</string>
     <string name="floating_region_margin_value">%1$s: %2$d</string>
     <string name="floating_region_configuration_note">Drag on the screen to select the translation region, then tap Confirm to apply it to the next translation. Drag again to redraw. Width and height must each cover at least 10% of the screen.</string>
+    <string name="folder_style_follow_global">Follow global style</string>
+    <string name="folder_style_note">Turn off to use a style specific to this folder or collection. Chapters share their collection’s setting. Leave blank for no additional style instructions.</string>
+    <string name="floating_capture_protected">The screen is blank or screen capture may be restricted. Recognition cannot continue. Switch to a page that allows screen capture and try again.</string>
 </resources>

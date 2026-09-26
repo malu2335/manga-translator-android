@@ -303,14 +303,6 @@
                 android:text="@string/settings_group_experience_title"
                 android:textAppearance="@style/Widget.MangaTranslator.CardTitle" />
 
-            <androidx.appcompat.widget.SwitchCompat
-                android:id="@+id/model_io_logging_switch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:textColor="?attr/dialogTextColor"
-                android:text="@string/model_io_logging" />
-
             <Button
                 android:id="@+id/theme_button"
                 android:layout_width="match_parent"
@@ -379,6 +371,14 @@
                 android:layout_marginTop="6dp"
                 android:text="@string/settings_group_support_title"
                 android:textAppearance="@style/Widget.MangaTranslator.CardTitle" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/model_io_logging_switch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:textColor="?attr/dialogTextColor"
+                android:text="@string/model_io_logging" />
 
             <Button
                 android:id="@+id/export_backup_button"

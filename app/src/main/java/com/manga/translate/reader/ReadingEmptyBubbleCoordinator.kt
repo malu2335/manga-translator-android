@@ -1,5 +1,6 @@
 package com.manga.translate.reader
 
+import com.manga.translate.di.appContainer
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Bitmap
@@ -46,6 +47,13 @@ internal class ReadingEmptyBubbleCoordinator(
     private val languageKeyPrefix: String = "translation_language_"
 ) {
     private val appContext = context.applicationContext
+
+    private fun translationSettings(imageFile: File) = settingsStore.load().copy(
+        translationStyle = appContext.appContainer.libraryPreferencesGateway.resolveTranslationStyle(
+            requireNotNull(imageFile.absoluteFile.parentFile), settingsStore.loadTranslationStyle()
+        )
+    )
+
     private val translationTargetKey: String
         get() = PromptAssetResolver.translationTargetKey(appContext)
 
@@ -62,6 +70,24 @@ internal class ReadingEmptyBubbleCoordinator(
                 LlmErrorCode.MissingTranslateApiSettings,
                 appContext.getString(R.string.missing_translate_api_settings)
             )
+        }
+
+        val preferences = appContext.appContainer.libraryPreferencesGateway
+        if (preferences.isVlDirectTranslateEnabled(folder) && !preferences.isFullTranslateEnabled(folder)) {
+            val settingsFolder = repository.resolveSettingsFolder(folder)
+            val glossary = glossaryStore.load(settingsFolder, translationTargetKey)
+            val processing = preferences.isGlossaryProcessingEnabled(folder)
+            val pipeline = appContext.appContainer.createTranslationPipeline()
+            val outcome = try {
+                pipeline.translateImageWithVl(imageFile, getTranslationLanguage(folder), glossary, processing, baseTranslation)
+            } finally { pipeline.releaseLoadedModels() }
+            val result = outcome.result ?: return@withContext null
+            if (processing && outcome.glossaryUsed.isNotEmpty()) {
+                glossary.putAll(outcome.glossaryUsed)
+                glossaryStore.save(settingsFolder, glossary, translationTargetKey)
+            }
+            translationStore.save(imageFile, result)
+            return@withContext EmptyBubbleProcessOutcome(result, true, result.bubbles.count { it.needsTranslationRetry() })
         }
 
         val ocrSettings = settingsStore.loadOcrApiSettings()
@@ -175,6 +201,7 @@ internal class ReadingEmptyBubbleCoordinator(
                 },
                 glossary = glossary,
                 promptAsset = promptAsset,
+                apiSettings = translationSettings(imageFile),
                 language = language,
                 logTag = "Reading",
                 translationMode = "reading_empty_bubble"

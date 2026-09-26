@@ -47,7 +47,8 @@ export PATH=$PATH:$ANDROID_HOME/platform-tools
 
 - 修复检测、OCR、渲染或缓存问题时，不得删除、覆盖、隐藏或主动使已有 `*.json` 翻译结果失效。
 - 不得仅为强制重新处理而修改 `TranslationStore` 的 metadata 可用性规则、结果版本或缓存兼容判定。
-- 翻译结果和 OCR 缓存的有效性必须包含所有会改变译文语义的维度。`TranslationStore.isMetadataUsable()` 校验源文件指纹、版本、`language`、`mode`、`promptAsset` 和 `ocrCacheMode`；`apiFormat` 仅记录产出译文的供应商协议，不参与可用性判定，切换 AI 供应商（含跨 API 格式）不得使已落盘译文失效。批量补填共用 `matchesPartialTranslationRequest()`。新增会影响译文的配置维度时必须同步接入，不得放宽比较。
+- 已落盘 `*.json` 翻译结果是用户数据，不做缓存有效性校验；文风、语言、模式、供应商、源文件指纹或版本变化不得隐藏、丢弃或自动重译已有结果。只有用户主动重译才替换已有译文；部分结果补填仅处理未译气泡，失败时保留已有内容。metadata（含可选 `styleFingerprint`）只记录产出信息，旧文件缺失新字段仍正常读取。
+- OCR 等可重建缓存继续按各自语义维度严格校验，不得将译文结果的直接读取规则扩展到 OCR 缓存。
 - 悬浮窗翻译缓存的键与相似度匹配范围统一由 `FloatingCacheScope`（语言 + `providerId` + `modelName` + `promptAsset`）决定。该缓存启用相似文本匹配，缺失任一维度会导致静默返回错误译文；新增影响译文的维度必须加入 scope 并提升缓存 schema 版本。
 - 跨页合并后的 `PageOcrResult` 只存在于内存中，不得落盘。若将来需要持久化，必须先在 `OcrMetadata` 中记录阅读模式，否则普通阅读会读到跨页坐标。
 - 必须变更持久化格式时，先说明影响并获得用户同意，同时提供向后兼容、迁移或恢复方案。`cacheDir` 下的可重建缓存（如 `floating_translate_cache.json`）可通过提升版本直接丢弃，不属于用户数据。
@@ -113,13 +114,14 @@ export PATH=$PATH:$ANDROID_HOME/platform-tools
 - 翻译固定使用主供应商，不得再引入附加供应商池或调度。
 - 自定义请求参数作用于主供应商，参数键不可重复。
 - 并发逐页翻译使用 glossary 快照，成功后串行合并。关闭译名处理时仍可读取已有 `glossary.json` 作为上下文，但不得提取、合并或写入新译名。
+- VL 整页直译由共享 `VlPageTranslationCoordinator` 处理：蒙板保留原图、白底着色并标注 ID，每页或长图检测分块发送一次结构化图片请求。文本块优先编号，无文本块气泡单独编号；响应 ID 必须与请求完全一致。回填时同一气泡内的非空文字块译文合并到父气泡的坐标与蒙版，游离文字保持文字块几何；误检与纯拟声词返回空译文并过滤。漫画库沿用译名处理开关，开启时使用 glossary 快照并在成功后串行合并，关闭时只读已有译名。悬浮窗暂不处理译名；携带译名上下文或启用译名提取的图片请求不得复用悬浮窗图片缓存。全文速译不接入 VL。
 - 多页气泡合并仅合并 AI 请求，不拼接图片或改写页内坐标；由 `TranslationPipeline.translatePagesWithGlossary()` 分配请求级唯一 ID 并拆回逐页结果。合并后的请求受 AI 并发数限制，超时按实际含文字页数扩展；已有部分译文仍走补填流程，已有缓存不因合并页数变化而失效。
 - 全文速译固定启用译名处理；`CrossPageBubbleMerger` 只用于 `WEBTOON_SCROLL`，普通横向阅读不得执行跨页气泡合并。
 
 ### 检测与 OCR
 
 - `PageRegionDetector` 是主翻译与悬浮窗共享的页面区域入口，固定使用双标签模型同时检测普通气泡和游离文字，不提供检测模式切换。
-- 普通气泡来自 `BubbleDetector`，标记为 `BubbleSource.BUBBLE_DETECTOR`；当前双标签分割模型类别 0 为气泡、类别 1 为文字，气泡提供 `maskContour`。文字类别覆盖气泡内外，页面层过滤归属于气泡的文字块后，其余文字块标记为 `BubbleSource.TEXT_DETECTOR`，不得作为 OCR 行框复用。页面检测统一使用 TFLite，Paddle 仅保留 OCR 阶段按需行检测；`TextBlockMerger` 保留为行框工具。
+- 普通气泡来自 `BubbleDetector`，标记为 `BubbleSource.BUBBLE_DETECTOR`；当前双标签分割模型类别 0 为气泡、类别 1 为文字，气泡提供 `maskContour`。文字类别覆盖气泡内外，VL 内存检测结果保留全部文本蒙板和实际检测分块；普通 OCR 页面层过滤归属于气泡的文字块后，其余文字块标记为 `BubbleSource.TEXT_DETECTOR`，不得作为 OCR 行框复用。页面检测统一使用 TFLite，Paddle 仅保留 OCR 阶段按需行检测；`TextBlockMerger` 保留为行框工具。
 - `BubbleDetector` 持有共享 LiteRT GPU / CPU 会话，推理与关闭必须串行；`PageRegionDetector.releaseLoadedDetectors()` 负责释放。模型 assets 使用不压缩的 `.tflite` 以支持映射加载。 GPU CompiledModel 的创建、推理和释放必须在同一专用线程执行；不支持 GPU 或 GPU 初始化、推理失败时回退 CPU，并重试当前图片。
 - 长图分块、坐标映射、去重阈值和模型输入细节属于检测模块，不得复制到 Pipeline 或悬浮窗 Service。
 - 本地 OCR 的语言路由、裁剪、行识别和 API fallback 统一在 `OcrSharedTools.kt` 调整。除韩语专用模型和俄语 API OCR 外，本地文字识别统一使用 PP-OCRv6 CPU 推理，不调用 PP-OCRv5 LiteRT。识别引擎由 `OcrEngineRegistry` 共享。日文行检测比较原方向与旋转方向，选中的行框必须映射回原裁剪坐标。
@@ -135,10 +137,12 @@ export PATH=$PATH:$ANDROID_HOME/platform-tools
 ### 后台任务
 
 - `LibraryFragment` 只提交任务描述；`TranslationKeepAliveService` 持有任务 `CoroutineScope` / `Job`，是文件夹、合集和批量翻译的实际执行宿主。
+- 翻译任务通过 `PendingTranslationTasks` 在同进程中一次性交接，启动 Service 的 Intent 只携带任务 ID，不得携带整批图片路径或任务 JSON，避免超过 Binder 事务大小限制。进程死亡后交接任务自然失效，不从持久化描述恢复。
 - `FolderTranslationCoordinator` 负责编排并返回任务，不得自行启动或停止保活 Service。
 - `TranslationTaskPersistence` 只记录活动任务描述，供同进程管理和异常清理；应用冷启动或 Service 被系统重建时必须清除，绝不自动续跑旧任务。
 - 进程重启后只能由用户重新发起任务；此时依靠已有 `*.ocr.json` / `*.json` 页级结果跳过已完成页面。
 - Service 状态通过 `LibraryUiBridge` 和 `ServiceLibraryUiCallbacks` 转发，不得让后台任务直接持有 Fragment/View 引用。
+- OCR 后台线程提交的文件夹状态由 `LibraryUiBridge` 切回主线程，并只保留最新的待显示状态；完成或清除状态不得被排队中的旧进度覆盖。
 
 ### 网络请求
 
@@ -153,6 +157,7 @@ export PATH=$PATH:$ANDROID_HOME/platform-tools
 
 - `SettingsStore` 是设置访问门面；新增设置应归入 `ApiSettingsStore`、`OcrSettingsStore`、`RenderSettingsStore`、`AppSettingsStore`、`LlmParameterStore` 或 `ProviderProfileStore`，不得继续膨胀 UI 层持久化逻辑。
 - 文件夹级设置、标签、排序和阅读方式统一经 `LibraryPreferencesGateway`。
+- 文件夹及集合文风由 `LibraryPreferencesGateway` 管理，默认跟随全局；集合内章节共用集合设置。专属空字符串表示不附加文风要求，不能当作跟随全局。实际文风随请求传递，禁止临时修改全局文风实现覆盖。
 - AI 供应商 profile 位于 `files/ai_provider_profiles.json`；附加供应商和其他偏好键以对应 Store 常量为准，不在本文复制完整键表。
 - 设置弹窗默认对齐 `dialog_ocr_settings.xml`：滚动容器关闭 padding 裁剪，内容边距和控件节奏复用现有布局资源；不要为单个弹窗另建一套视觉规则。
 
@@ -173,7 +178,7 @@ export PATH=$PATH:$ANDROID_HOME/platform-tools
 | 当前后台任务描述 | `TranslationTaskPersistence` |
 | 阅读进度 | `ReadingProgressStore` |
 
-Prompt 位于 `assets/prompts/`，基础文件包括 `llm_prompts.json`、`llm_prompts_abstract.json`、`llm_prompts_FullTrans.json`、`float_llm_prompts.json`、`vl_bubble_prompts.json` 和 `ocr_prompts.json`。加载时必须通过 `PromptAssetResolver` 处理语言变体。
+Prompt 位于 `assets/prompts/`，基础文件包括 `llm_prompts.json`、`llm_prompts_abstract.json`、`llm_prompts_FullTrans.json`、`float_llm_prompts.json`、`vl_bubble_prompts.json`、`vl_page_prompts.json` 和 `ocr_prompts.json`。加载时必须通过 `PromptAssetResolver` 处理语言变体。
 
 ## 验证要求
 
@@ -195,6 +200,7 @@ Prompt 位于 `assets/prompts/`，基础文件包括 `llm_prompts.json`、`llm_p
 - 日志入口为 `platform/AppLogger.kt`；日志优先写外部私有目录上级的 `log/`，回退到 `files/logs/`。
 - 性能基线通过 `PerformanceTrace`（分阶段耗时 + `attribute()` 页面上下文）和 `RequestPerfTrace`（每请求重试次数、各次尝试的 HTTP 状态、耗时）以日志形式输出，两者共用 `loadModelIoLogging()` 开关，默认关闭。关闭时不采样时钟、不产生日志行。
 - 新增性能埋点应复用这两个类，不要在业务代码里另写计时与日志拼接；耗时数值属于一次性测量结果，不得记录到本文。
+- 普通日志通过有界队列在后台串行格式化、聚合并写入文件和 logcat，不得在调用线程等待写盘或强制刷盘；队列溢出必须记录丢弃数量。重复错误保留首次堆栈并定时输出计数摘要，致命异常绕过队列和聚合，同步写入并强制刷盘。
 - Java/Kotlin 未捕获异常会写 `crash_latest.log`；ONNX 等 native 崩溃不会进入 Java handler，使用 `adb logcat` 或 tombstone 排查。
 - 翻译问题依次检查 `TranslationPipeline`、`TextBubbleTranslationCoordinator`、`LlmClient` 和对应 `*.json` / `*.ocr.json`。
 - 翻译供应商问题检查 `SettingsStore.load()`、`TranslationPipeline` 和 `FolderTranslationCoordinator`。

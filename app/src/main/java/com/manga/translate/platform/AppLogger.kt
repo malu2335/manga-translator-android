@@ -20,8 +20,12 @@ object AppLogger {
     private const val LEVEL_ERROR = "E"
     private val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
     private val fileNameFormatter = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.US)
-    private var logDir: File? = null
-    private var logFile: File? = null
+    @Volatile private var logDir: File? = null
+    @Volatile private var logFile: File? = null
+
+    private val writer = AsyncLogWriter(sink = { record ->
+        writeLog(record.level, record.tag, record.message, record.throwable, timestamp = record.timestamp)
+    })
 
     fun init(context: Context) {
         val externalFilesDir = context.getExternalFilesDir(null)
@@ -66,11 +70,11 @@ object AppLogger {
 
     fun log(tag: String, message: String, throwable: Throwable? = null) {
         val level = if (throwable != null) LEVEL_ERROR else LEVEL_INFO
-        writeLog(level, tag, message, throwable)
+        writer.offer(LogRecord(level, tag, message, throwable))
     }
 
     fun error(tag: String, message: String, throwable: Throwable? = null) {
-        writeLog(LEVEL_ERROR, tag, message, throwable)
+        writer.offer(LogRecord(LEVEL_ERROR, tag, message, throwable))
     }
 
     /**
@@ -85,7 +89,7 @@ object AppLogger {
 
     private fun writeCrashSnapshot(tag: String, message: String, throwable: Throwable?) {
         val dir = logDir ?: return
-        val time = formatter.format(Date())
+        val time = synchronized(formatter) { formatter.format(Date()) }
         val body = buildString {
             append('[')
             append(LEVEL_ERROR)
@@ -122,9 +126,10 @@ object AppLogger {
         tag: String,
         message: String,
         throwable: Throwable? = null,
-        forceSync: Boolean = false
+        forceSync: Boolean = false,
+        timestamp: Long = System.currentTimeMillis()
     ) {
-        val time = formatter.format(Date())
+        val time = synchronized(formatter) { formatter.format(Date(timestamp)) }
         val separator = "  "
         val line = buildString {
             append('[')
@@ -169,8 +174,8 @@ object AppLogger {
                 FileOutputStream(file, true).use { out ->
                     out.write(line.toByteArray(Charsets.UTF_8))
                     out.flush()
-                    if (forceSync || throwable != null) {
-                        // Best-effort durability: crash/error lines should survive process death.
+                    if (forceSync) {
+                        // Only fatal records force durable storage; ordinary errors run asynchronously.
                         out.fd.sync()
                     }
                 }
@@ -201,7 +206,7 @@ object AppLogger {
         val errorFiles = listErrorLogFiles()
         if (errorFiles.isEmpty()) return null
         val dir = logDir ?: File(context.filesDir, "logs").also { it.mkdirs() }
-        val archive = File(dir, "error_logs_${fileNameFormatter.format(Date())}.zip")
+        val archive = File(dir, "error_logs_${synchronized(fileNameFormatter) { fileNameFormatter.format(Date()) }}.zip")
         return try {
             ZipOutputStream(BufferedOutputStream(FileOutputStream(archive))).use { zip ->
                 for (file in errorFiles) {
@@ -235,7 +240,7 @@ object AppLogger {
     }
 
     private fun createNewLogFile(dir: File): File {
-        val base = "app_${fileNameFormatter.format(Date())}"
+        val base = "app_${synchronized(fileNameFormatter) { fileNameFormatter.format(Date()) }}"
         var candidate = File(dir, "$base.log")
         var index = 1
         while (candidate.exists()) {

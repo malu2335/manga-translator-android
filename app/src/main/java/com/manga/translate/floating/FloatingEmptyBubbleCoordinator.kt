@@ -19,19 +19,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 
-class FloatingEmptyBubbleCoordinator(
+internal class FloatingEmptyBubbleCoordinator(
     context: Context,
     private val llmClient: LlmGateway,
     private val floatingTranslationCacheStore: FloatingTranslationCacheStore,
     private val settingsStore: SettingsStore,
-    private val bubbleTextRecognizer: BubbleTextRecognizer
+    private val bubbleTextRecognizer: BubbleTextRecognizer,
+    private val floatingBubbleTranslationCoordinator: FloatingBubbleTranslationCoordinator
 ) {
-    private val floatingBubbleTranslationCoordinator = FloatingBubbleTranslationCoordinator(
-        llmClient = llmClient,
-        floatingTranslationCacheStore = floatingTranslationCacheStore,
-        settingsStore = settingsStore
-    )
-
     suspend fun process(
         bitmap: Bitmap,
         baseTranslation: TranslationResult,
@@ -72,9 +67,7 @@ class FloatingEmptyBubbleCoordinator(
                     requiresVlModel = outcome.requiresVlModel
                 )
             }
-            baseTranslation.bubbles.map { bubble ->
-                outcome.bubbles.firstOrNull { it.id == bubble.id }?.let { bubble.withContentFrom(it) } ?: bubble
-            }
+            com.manga.translate.translation.mergeVlTargetResults(baseTranslation.bubbles, targets, outcome.bubbles)
         } else {
             val recognized = recognizeEmptyBubbles(bitmap, targets, language)
             val translated = translateRecognizedBubbles(

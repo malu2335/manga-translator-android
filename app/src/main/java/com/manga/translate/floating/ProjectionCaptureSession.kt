@@ -158,7 +158,8 @@ internal class ProjectionCaptureSession(
 
     suspend fun captureCurrentScreen(
         timeoutMs: Long = DEFAULT_CAPTURE_TIMEOUT_MS,
-        requireFreshFrame: Boolean = false
+        requireFreshFrame: Boolean = false,
+        prepareFreshFrame: (suspend () -> Unit)? = null
     ): Bitmap? = captureMutex.withLock {
         val reader = imageReader ?: return@withLock null
         if (!requireFreshFrame) {
@@ -168,6 +169,12 @@ internal class ProjectionCaptureSession(
             }
         } else {
             discardPendingImages(reader)
+            // Drain before changing overlay visibility; keep the resulting frame even
+            // when a static screen produces no further updates.
+            if (prepareFreshFrame != null) {
+                prepareFreshFrame()
+                acquireLatestBitmap(reader)?.let { return@withLock it }
+            }
         }
         val bitmap = withTimeoutOrNull(timeoutMs) {
             suspendCancellableCoroutine<Bitmap?> { continuation ->

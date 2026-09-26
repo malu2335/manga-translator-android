@@ -1,5 +1,7 @@
 # API获取指南
 
+> 本指南面向软件最新版本；旧版本的设置界面可能有所不同。服务商的地址和模型列表可能变化，请以服务商控制台为准。
+
 本软件需要 **自备 API** 才能进行漫画翻译。
 
 如果你还不了解什么是 API，可以先在网上搜索相关资料，或者**询问 AI**，获取一个可用的 API 服务。如果有条件的话，建议使用 grok，其对 nsfw 的容忍度更高。
@@ -8,15 +10,17 @@
 
 在软件设置页里，你通常需要准备这几项内容：
 
-1. API 地址
-2. API Key
-3. 模型名称
+1. API 格式
+2. API 地址
+3. API Key
+4. 模型名称
 
 一般来说：
 
+* API 格式需与服务商接口一致，可选「OpenAI 兼容」「OpenAI Responses」或「Gemini」
 * API 地址通常是服务商提供的接口地址；兼容 OpenAI 的服务填写服务商给出的上级接口地址即可，例如 `https://api.deepseek.com/v1`、`https://open.bigmodel.cn/api/paas/v4`
-* 软件会自动补全 OpenAI 兼容接口的 `/chat/completions`，若地址已以 `/chat/completions` 结尾则原样使用
-* 点击「获取模型列表」时，软件会自动补全 OpenAI 兼容接口的 `/models`
+* 软件会为 OpenAI 兼容接口补全 `/chat/completions`，为 OpenAI Responses 补全 `/responses`；若地址已以对应端点结尾则原样使用
+* 点击「获取模型列表」时，两种 OpenAI 格式会使用 `/models` 端点；Gemini 使用其对应的模型列表接口
 * API Key 就是服务商后台生成的密钥
 * 模型名称就是你实际要调用的模型 ID
 
@@ -80,7 +84,7 @@ https://platform.deepseek.com/api_keys
 1. 打开 DeepSeek 官方平台并注册/登录账号
 2. 进入 API Key 页面创建新的 Key
 3. 复制生成好的 API Key
-4. 回到软件设置页，填写 API 地址、API Key 和模型名称
+4. 回到软件设置页，选择「OpenAI 兼容」，填写 API 地址、API Key 和模型名称
 5. 模型名称优先填写 `deepseek-v4-flash`
 
 填写建议：

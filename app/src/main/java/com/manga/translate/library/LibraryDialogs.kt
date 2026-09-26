@@ -374,14 +374,6 @@ internal class LibraryDialogs {
         )
     }
 
-    fun showTranslationSettingsInfo(context: Context) {
-        showMessageDialog(
-            context,
-            R.string.folder_translation_settings,
-            context.getString(R.string.library_translation_settings_hint)
-        )
-    }
-
     fun showGlossaryProcessingInfo(context: Context) {
         showMessageDialog(
             context,

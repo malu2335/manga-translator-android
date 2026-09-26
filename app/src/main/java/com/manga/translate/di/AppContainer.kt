@@ -54,8 +54,11 @@ internal class AppContainer(private val appContext: Context) {
     val extractStateStore = ExtractStateStore()
     val translationProgressStore = TranslationProgressStore()
     val floatingTranslationCacheStore = FloatingTranslationCacheStore(appContext)
+    val vlPageTranslationCoordinator = com.manga.translate.translation.VlPageTranslationCoordinator(llmClient, floatingTranslationCacheStore)
     val textBubbleTranslationCoordinator = TextBubbleTranslationCoordinator(llmClient = llmClient)
     val libraryPrefs = appContext.getSharedPreferences(LIBRARY_PREFS_NAME, Context.MODE_PRIVATE)
+
+    val libraryPreferencesGateway = LibraryPreferencesGateway(appContext, libraryPrefs, libraryRepository)
 
     fun createTranslationPipeline(): TranslationPipeline {
         return TranslationPipeline(
@@ -67,7 +70,7 @@ internal class AppContainer(private val appContext: Context) {
             ocrEngineRegistry = ocrEngineRegistry,
             bubbleTextRecognizer = bubbleTextRecognizer,
             textBubbleTranslationCoordinator = textBubbleTranslationCoordinator,
-            floatingBubbleTranslationCoordinator = createFloatingBubbleTranslationCoordinator()
+            vlPageTranslationCoordinator = vlPageTranslationCoordinator
         ).also { pipeline ->
             translationPipelines.add(WeakReference(pipeline))
         }
@@ -139,7 +142,8 @@ internal class AppContainer(private val appContext: Context) {
             llmClient = llmClient,
             floatingTranslationCacheStore = floatingTranslationCacheStore,
             settingsStore = settingsStore,
-            bubbleTextRecognizer = bubbleTextRecognizer
+            bubbleTextRecognizer = bubbleTextRecognizer,
+            floatingBubbleTranslationCoordinator = createFloatingBubbleTranslationCoordinator()
         )
     }
 
@@ -147,7 +151,8 @@ internal class AppContainer(private val appContext: Context) {
         return FloatingBubbleTranslationCoordinator(
             llmClient = llmClient,
             floatingTranslationCacheStore = floatingTranslationCacheStore,
-            settingsStore = settingsStore
+            settingsStore = settingsStore,
+            vlPageCoordinator = vlPageTranslationCoordinator
         )
     }
 

@@ -44,7 +44,8 @@ data class TranslationMetadata(
     val apiFormat: String = "",
     val ocrCacheMode: String = "",
     val version: Int = CURRENT_VERSION,
-    val status: PageTranslationStatus = PageTranslationStatus.UNKNOWN
+    val status: PageTranslationStatus = PageTranslationStatus.UNKNOWN,
+    val styleFingerprint: String? = null
 ) {
     fun isManual(): Boolean {
         return mode == MODE_MANUAL
@@ -63,6 +64,10 @@ data class TranslationMetadata(
     }
 
     companion object {
+        fun fingerprintStyle(style: String): String = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(style.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+
         const val CURRENT_VERSION = 2
         const val MODE_STANDARD = "standard"
         const val MODE_FULL_PAGE = "full_page"

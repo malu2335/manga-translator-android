@@ -64,7 +64,8 @@ private data class TiledBubbleDetection(
 private data class TiledDetectionRunResult(
     val succeeded: Boolean,
     val failedTileCount: Int,
-    val tileCount: Int
+    val tileCount: Int,
+    val tiles: List<DetectionTile> = emptyList()
 ) {
     val complete: Boolean
         get() = failedTileCount == 0
@@ -759,6 +760,7 @@ internal class PageRegionDetector(
             groups.filter { it.detection.classId == BubbleDetector.CLASS_BALLOON },
             pageWidth, pageHeight, logTag
         ).map { it.detection }
+        val allText = groups.filter { it.detection.classId == BubbleDetector.CLASS_TEXT }.map { it.detection }
         val textRects = groups
             .filter { it.detection.classId == BubbleDetector.CLASS_TEXT }
             .map { it.detection.rect }
@@ -769,7 +771,9 @@ internal class PageRegionDetector(
             textBlocks = dualTextBlocks(filterOverlapping(
                 textRects, balloons.map { it.rect }, TEXT_IOU_THRESHOLD
             ), pageWidth, pageHeight),
-            detectionMode = PageRegionDetectionMode.TILED_LONG
+            detectionMode = PageRegionDetectionMode.TILED_LONG,
+            allTextDetections = allText,
+            tiles = run.tiles
         )
     }
 
@@ -791,6 +795,7 @@ internal class PageRegionDetector(
             "Long-image dual detection: contiguous adaptive tiles, " +
                 "vertical scale=${(LONG_IMAGE_BUBBLE_VERTICAL_SCALE * 100).roundToInt()}%"
         )
+        val tiles = ArrayList<DetectionTile>()
         var tileTop = 0
         var tileIndex = 0
         var failedTileCount = 0
@@ -804,6 +809,7 @@ internal class PageRegionDetector(
                 tileTop = tileTop,
                 tileHeight = tileHeight
             )
+            tiles.add(tile)
             val tileTag = "$logTag[dual tile ${tileIndex + 1} y=${tile.top}..${tile.bottom}]"
             var nextTileTop = tile.bottom
             var decodeThrew = false
@@ -832,9 +838,7 @@ internal class PageRegionDetector(
                         val unified = detector.detectRegions(detectionBitmap)
                         val detections = filterTinyBubbleDetections(
                             unified.balloons, detectionBitmap, tileTag
-                        ) + unified.freeTextRects.map { rect ->
-                            BubbleDetection(rect, 1f, BubbleDetector.CLASS_TEXT)
-                        }
+                        ) + unified.textDetections
                         successfulTileCount++
                         val discardTopEdgeFragments = shouldDiscardReplayTileTopFragments(
                             overlapsPreviousTile = tile.top < previousTileBottom,
@@ -915,7 +919,8 @@ internal class PageRegionDetector(
         return TiledDetectionRunResult(
             succeeded = successfulTileCount > 0,
             failedTileCount = failedTileCount,
-            tileCount = tileIndex
+            tileCount = tileIndex,
+            tiles = tiles
         )
     }
 
@@ -945,6 +950,7 @@ internal class PageRegionDetector(
             textBlocks = dualTextBlocks(filterOverlapping(
                 raw.freeTextRects, buildTextSuppressionRects(balloons, bitmap), TEXT_IOU_THRESHOLD
             ), bitmap.width, bitmap.height),
+            allTextDetections = raw.textDetections,
             detectionComplete = raw.detectionComplete,
             detectionMode = PageRegionDetectionMode.FULL
         )
@@ -976,7 +982,9 @@ internal class PageRegionDetector(
         textBlocks: List<TextBlock>,
         detectedTextLines: List<RectF>? = null,
         detectionComplete: Boolean = true,
-        detectionMode: PageRegionDetectionMode
+        detectionMode: PageRegionDetectionMode,
+        allTextDetections: List<BubbleDetection> = emptyList(),
+        tiles: List<DetectionTile> = emptyList()
     ): PageRegionDetectionResult {
         val bubbleRects = detections.map { it.rect }
         val regions = buildRegions(detections, bubbleRects, textBlocks, detectedTextLines)
@@ -984,6 +992,8 @@ internal class PageRegionDetector(
             width = width,
             height = height,
             bubbleDetections = detections,
+            allTextDetections = allTextDetections,
+            tiles = tiles,
             textRects = textBlocks.map { it.rect },
             regions = regions,
             detectionComplete = detectionComplete,
@@ -1447,7 +1457,9 @@ internal data class PageRegionDetectionResult(
     val textRects: List<RectF>,
     val regions: List<PageRegion>,
     val detectionComplete: Boolean = true,
-    val detectionMode: PageRegionDetectionMode = PageRegionDetectionMode.FULL
+    val detectionMode: PageRegionDetectionMode = PageRegionDetectionMode.FULL,
+    val allTextDetections: List<BubbleDetection> = emptyList(),
+    val tiles: List<DetectionTile> = emptyList()
 )
 
 private fun normalizedRectContour(rect: RectF, width: Int, height: Int): FloatArray {

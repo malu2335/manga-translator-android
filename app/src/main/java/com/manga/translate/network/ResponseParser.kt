@@ -121,15 +121,48 @@ internal class ResponseParser {
         }
     }
 
+    fun parseImageItemsContent(content: String, requestedIds: List<Int>): LlmBubbleTranslationResult {
+        val root = try { JSONObject(stripCodeFence(content)) } catch (e: Exception) {
+            throw LlmResponseException(LlmErrorCode.InvalidFormat, content, e)
+        }
+        val array = root.optJSONArray("items")
+            ?: throw LlmResponseException(LlmErrorCode.MissingTranslationItems, content)
+        val items = (0 until array.length()).map { index ->
+            val item = array.optJSONObject(index)
+                ?: throw LlmResponseException(LlmErrorCode.InvalidFormat, content)
+            val id = item.opt("id")
+            val parsedId = parseBubbleTranslationItemId(id)
+            if (parsedId == null || (id is Number && id.toDouble() != parsedId.toDouble())) {
+                throw LlmResponseException(LlmErrorCode.InvalidFormat, content)
+            }
+            val translation = listOf("translation", "translated_text", "translatedText")
+                .firstNotNullOfOrNull { item.opt(it) as? String }
+                ?: throw LlmResponseException(LlmErrorCode.MissingTranslation, content)
+            LlmBubbleTranslationItem(parsedId, translation.trim())
+        }
+        val ids = items.map { it.id }
+        if (ids.size != ids.toSet().size || ids.toSet() != requestedIds.toSet()) {
+            throw LlmResponseException(LlmErrorCode.MissingTranslationItems, content)
+        }
+        return LlmBubbleTranslationResult(items, parseGlossaryUsed(root))
+    }
+
     fun parseImageTranslationContent(content: String): String? {
         val cleaned = stripCodeFence(content).trim()
         if (cleaned.isBlank()) return null
-        return try {
-            parseTranslationContent(cleaned).translation.trim().ifBlank { null }
-        } catch (_: Exception) {
-            // Some compatible providers may still return plain text for image translation.
-            cleaned.ifBlank { null }
+        // Compatible providers may return plain text, but structured responses must
+        // preserve an explicit empty translation instead of rendering the raw JSON.
+        if (!cleaned.startsWith("{") && !cleaned.startsWith("[")) return cleaned
+        val json = try {
+            JSONObject(cleaned)
+        } catch (e: Exception) {
+            throw LlmResponseException(LlmErrorCode.InvalidFormat, content, e)
         }
+        for (key in listOf("translation", "translated_text", "translatedText")) {
+            val value = json.opt(key)
+            if (value is String) return value.trim()
+        }
+        throw LlmResponseException(LlmErrorCode.MissingTranslation, content)
     }
 
     fun parseGlossaryContent(content: String): Map<String, String> {

@@ -25,7 +25,8 @@ data class ApiSettings(
     val apiKey: String,
     val modelName: String,
     val apiFormat: ApiFormat = ApiFormat.OPENAI_COMPATIBLE,
-    val providerId: String = PRIMARY_PROVIDER_ID
+    val providerId: String = PRIMARY_PROVIDER_ID,
+    val translationStyle: String? = null
 ) {
     fun isValid(): Boolean {
         return apiUrl.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()

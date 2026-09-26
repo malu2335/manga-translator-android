@@ -1,10 +1,23 @@
 package com.manga.translate.library
 
+import android.os.Handler
+import android.os.Looper
 import java.io.File
 import java.util.concurrent.CopyOnWriteArraySet
 
 internal object LibraryUiBridge {
     private val callbacks = CopyOnWriteArraySet<LibraryUiCallbacks>()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val statusLock = Any()
+    private var pendingStatus: Pair<String, String>? = null
+    private val deliverStatus = Runnable {
+        val status = synchronized(statusLock) {
+            pendingStatus.also { pendingStatus = null }
+        }
+        status?.let { (left, right) ->
+            callbacks.forEach { it.setFolderStatus(left, right) }
+        }
+    }
 
     fun register(callbacks: LibraryUiCallbacks) {
         this.callbacks.add(callbacks)
@@ -17,11 +30,26 @@ internal object LibraryUiBridge {
     fun hasAttachedUi(): Boolean = callbacks.any { it.isUiAttached() }
 
     fun setFolderStatus(left: String, right: String = "") {
-        callbacks.forEach { it.setFolderStatus(left, right) }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            // A completion/clear on main supersedes any queued OCR progress.
+            synchronized(statusLock) {
+                mainHandler.removeCallbacks(deliverStatus)
+                pendingStatus = null
+            }
+            callbacks.forEach { it.setFolderStatus(left, right) }
+        } else {
+            // OCR reports from Dispatchers.Default. Keep only the latest status
+            // and one main-thread message, even when cached pages finish rapidly.
+            synchronized(statusLock) {
+                val needsPost = pendingStatus == null
+                pendingStatus = left to right
+                if (needsPost) mainHandler.post(deliverStatus)
+            }
+        }
     }
 
     fun clearFolderStatus() {
-        callbacks.forEach { it.clearFolderStatus() }
+        setFolderStatus("")
     }
 
     fun setTranslationActionsEnabled(enabled: Boolean) {

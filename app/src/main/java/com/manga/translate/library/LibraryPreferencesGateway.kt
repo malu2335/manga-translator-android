@@ -18,6 +18,20 @@ internal class LibraryPreferencesGateway(
     private val prefs: SharedPreferences,
     private val repository: LibraryRepository
 ) {
+    /** Null follows the global setting; an empty string is an explicit local style. */
+    fun getTranslationStyle(folder: File): String? =
+        prefs.getString(translationStyleKeyPrefix + settingsFolder(folder).absolutePath, null)
+
+    fun setTranslationStyle(folder: File, style: String?) {
+        prefs.edit {
+            val key = translationStyleKeyPrefix + settingsFolder(folder).absolutePath
+            if (style == null) remove(key) else putString(key, style.trim())
+        }
+    }
+
+    fun resolveTranslationStyle(folder: File, globalStyle: String): String =
+        getTranslationStyle(folder) ?: globalStyle
+
     fun isFullTranslateEnabled(folder: File): Boolean {
         return prefs.getBoolean(
             fullTranslateKeyPrefix + settingsFolder(folder).absolutePath,
@@ -373,6 +387,7 @@ internal class LibraryPreferencesGateway(
         private const val librarySortAscendingKey = "library_sort_ascending"
         private const val fullTranslateKeyPrefix = "full_translate_enabled_"
         private const val glossaryProcessingKeyPrefix = "glossary_processing_enabled_"
+        private const val translationStyleKeyPrefix = "translation_style_"
         private const val languageKeyPrefix = "translation_language_"
         private const val vlDirectTranslateKeyPrefix = "vl_direct_translate_enabled_"
         private const val readingModeKeyPrefix = "reading_mode_"
@@ -384,6 +399,7 @@ internal class LibraryPreferencesGateway(
             fullTranslateKeyPrefix,
             glossaryProcessingKeyPrefix,
             languageKeyPrefix,
+            translationStyleKeyPrefix,
             vlDirectTranslateKeyPrefix,
             readingModeKeyPrefix,
             folderStatusKeyPrefix,

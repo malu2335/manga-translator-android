@@ -207,9 +207,9 @@
     <string name="floating_api_url_hint">懸浮窗翻譯 API 位址</string>
     <string name="floating_api_key_hint">懸浮窗翻譯 API Key</string>
     <string name="floating_model_name_hint">懸浮窗翻譯模型名稱</string>
-    <string name="floating_use_vl_direct_translate">使用 VL 模型直接翻譯整個氣泡</string>
-    <string name="floating_use_vl_direct_translate_note">開啟後會把檢測到的氣泡裁圖直接送給視覺模型翻譯，跳過 OCR 識別步驟。請確認所填模型支援影像輸入。</string>
-    <string name="floating_use_vl_direct_translate_warning">已開啟 VL 直翻。請使用支援影像輸入的 VL 模型，否則呼叫會失敗。</string>
+    <string name="floating_use_vl_direct_translate">VL 整頁直譯</string>
+    <string name="floating_use_vl_direct_translate_note">保留氣泡和文字區塊並標註 ID，將整頁標註圖傳送給視覺模型翻譯，略過 OCR。長圖按區塊傳送。請使用支援圖片輸入的模型。</string>
+    <string name="floating_use_vl_direct_translate_warning">已開啟 VL 整頁直譯，請使用支援圖片輸入的模型。</string>
     <string name="floating_proofreading_mode">校對模式</string>
     <string name="floating_proofreading_mode_note">開啟後，懸浮窗翻譯完成會自動進入現有編輯模式，方便手動增刪和調整氣泡。</string>
     <string name="floating_auto_close_on_screen_change">自動清除氣泡</string>
@@ -296,8 +296,6 @@
     <string name="library_sort_order_asc">升序</string>
     <string name="library_sort_order_desc">降序</string>
     <string name="library_action_panel_label">操作面板</string>
-    <string name="library_translation_settings_hint">為目前資料夾單獨配置翻譯語言與全文速譯策略。</string>
-    <string name="library_translation_settings_info_desc">翻譯設定說明</string>
     <string name="library_pages_label">頁面列表</string>
     <string name="tutorial_button">使用教學</string>
     <string name="tutorial_open_title">開啟教學</string>
@@ -330,7 +328,7 @@
     <string name="floating_progress_capturing">懸浮翻譯中：正在擷取螢幕…</string>
     <string name="floating_progress_detecting">懸浮翻譯中：正在檢測文字區域…</string>
     <string name="floating_progress_recognizing">懸浮翻譯中：正在識別文字（%1$d 個區域）…</string>
-    <string name="floating_progress_vl_translating">懸浮翻譯中：正在用 VL 模型翻譯氣泡（%1$d 個區域）…</string>
+    <string name="floating_progress_vl_translating">正在使用 VL 模型翻譯標註頁面（%1$d 個區域）…</string>
     <string name="floating_progress_translating">懸浮翻譯中：正在翻譯文字…</string>
     <string name="floating_progress_done">懸浮翻譯完成：共 %1$d 個文字區域</string>
     <string name="floating_detected_count">已識別 %1$d 個文字區域</string>
@@ -415,11 +413,11 @@
     <string name="translation_source_german">德文</string>
     <string name="translation_source_italian">義大利文</string>
     <string name="translation_source_russian">俄文</string>
-    <string name="folder_use_vl_direct_translate">使用 VL 模型翻譯整個氣泡</string>
-    <string name="folder_use_vl_direct_translate_info_title">VL 直翻說明</string>
-    <string name="folder_use_vl_direct_translate_info_desc">VL 直翻說明</string>
-    <string name="folder_use_vl_direct_translate_note">開啟後會把檢測到的氣泡裁圖直接送給視覺模型翻譯，跳過 OCR 識別步驟。普通翻譯使用主設定中的 API 與模型，請確認所填模型支援影像輸入。</string>
-    <string name="folder_use_vl_direct_translate_warning">已開啟資料夾 VL 直翻。普通翻譯會直接使用主設定中的模型處理氣泡圖片，請確認目前模型支援影像輸入。</string>
+    <string name="folder_use_vl_direct_translate">VL 整頁直譯</string>
+    <string name="folder_use_vl_direct_translate_info_title">VL 整頁直譯說明</string>
+    <string name="folder_use_vl_direct_translate_info_desc">VL 整頁直譯說明</string>
+    <string name="folder_use_vl_direct_translate_note">直接將整頁內容交給視覺模型翻譯，略過本地 OCR。適合希望由視覺模型同時理解畫面與文字的情境。請使用支援圖片輸入的模型。</string>
+    <string name="folder_use_vl_direct_translate_warning">已開啟 VL 整頁直譯，請使用支援圖片輸入的模型。</string>
     <string name="folder_vl_model_required">目前普通翻譯直翻需要 VL 模型。請在主設定中改用支援影像輸入的模型，或關閉該開關。</string>
     <string name="folder_full_translate">全文速譯</string>
     <string name="folder_full_translate_info_title">全文速譯說明</string>
@@ -428,7 +426,7 @@
     <string name="folder_glossary_processing">譯名處理</string>
     <string name="folder_glossary_processing_info_title">譯名處理說明</string>
     <string name="folder_glossary_processing_info_desc">譯名處理說明</string>
-    <string name="folder_glossary_processing_note">關閉譯名處理後可並發翻譯，速度更快。</string>
+    <string name="folder_glossary_processing_note">開啟後會擷取並統一人物、地名等專有名詞的譯名，減少前後不一致。關閉後仍可使用現有譯名表，但不會擷取或儲存新譯名；全文速譯固定啟用譯名處理。</string>
 
     <!-- Library / Progress -->
     <string name="translation_preparing">預處理中</string>
@@ -632,4 +630,7 @@
     <string name="floating_region_full_screen">全螢幕</string>
     <string name="floating_region_margin_value">%1$s：%2$d</string>
     <string name="floating_region_configuration_note">在螢幕上拖曳框選翻譯區域，放開後點選確認，下次翻譯生效。可重新拖曳框選；寬高至少為螢幕的 10%。</string>
+    <string name="folder_style_follow_global">跟隨全域文風</string>
+    <string name="folder_style_note">關閉後使用此資料夾或合集的專屬文風；合集內章節共用此設定。留空表示不附加文風要求。</string>
+    <string name="floating_capture_protected">螢幕畫面為空或可能受擷取限制，無法辨識。請切換至允許擷取螢幕的頁面後重試。</string>
 </resources>

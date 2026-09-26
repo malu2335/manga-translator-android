@@ -2,6 +2,7 @@ package com.manga.translate.translation
 
 
 import com.manga.translate.model.OcrBubble
+import com.manga.translate.di.appContainer
 import android.content.Context
 import com.manga.translate.R
 import com.manga.translate.model.BubbleTranslation
@@ -28,6 +29,13 @@ internal class PendingBubbleRetranslator(
     private val textBubbleTranslationCoordinator: TextBubbleTranslationCoordinator
 ) {
     private val appContext = context.applicationContext
+
+    private fun translationSettings(imageFile: File) = settingsStore.load().copy(
+        translationStyle = appContext.appContainer.libraryPreferencesGateway.resolveTranslationStyle(
+            requireNotNull(imageFile.absoluteFile.parentFile), settingsStore.loadTranslationStyle()
+        )
+    )
+
 
     suspend fun refill(
         imageFile: File,
@@ -114,6 +122,7 @@ internal class PendingBubbleRetranslator(
                     },
                     glossary = glossary,
                     promptAsset = promptAsset,
+                    apiSettings = translationSettings(imageFile),
                     language = language,
                     logTag = logTag,
                     translationMode = translationMode

@@ -31,7 +31,7 @@ open class SafeNestedScrollView @JvmOverloads constructor(
                 // First crash: disable scroll bars and request a fresh draw.
                 // Do NOT retry within the same frame — the scrollbar state hasn't
                 // been cleared yet, so a retry would crash again.
-                disableScrollBarsAfterCrash(e)
+                disableScrollBarsAfterCrash()
                 postInvalidate()
             }
             // Subsequent crashes (or the re-entrant retry): silently skip this frame.
@@ -50,12 +50,12 @@ open class SafeNestedScrollView @JvmOverloads constructor(
         }
     }
 
-    private fun disableScrollBarsAfterCrash(error: NullPointerException) {
+    private fun disableScrollBarsAfterCrash() {
         scrollBarCrashOccurred = true
-        AppLogger.error(
+        // This known framework failure is handled here; keep only a recovery breadcrumb.
+        AppLogger.log(
             "SafeNestedScrollView",
-            "Intercepted framework scrollbar crash; scrollbars disabled",
-            error
+            "Intercepted framework scrollbar crash; scrollbars disabled"
         )
         isVerticalScrollBarEnabled = false
         isHorizontalScrollBarEnabled = false

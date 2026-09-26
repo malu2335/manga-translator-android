@@ -41,6 +41,55 @@ class BubbleColorSamplerTest {
         assertEquals(Color.BLACK, BubbleColorSampler.sampleBackgroundColor(bitmap, 20f, 20f, 80f, 80f))
     }
 
+    private fun contaminatedBubble(fill: Int, ink: Int): Bitmap =
+        Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(fill)
+            // A thick left border and lettering touching the top sampling ring.
+            for (y in 20 until 80) for (x in 20..25) setPixel(x, y, ink)
+            for (y in 21..26) for (x in 40..55) setPixel(x, y, Color.rgb(128, 128, 128))
+        }
+
+    @Test fun `minority border and antialiased lettering do not gray a white bubble`() {
+        val bitmap = contaminatedBubble(Color.WHITE, Color.BLACK)
+        val contour = floatArrayOf(20f, 20f, 80f, 20f, 80f, 80f, 20f, 80f)
+        assertEquals(Color.WHITE, BubbleColorSampler.sampleBackgroundColor(bitmap, 20f, 20f, 80f, 80f))
+        assertEquals(Color.WHITE, BubbleColorSampler.sampleBackgroundColor(bitmap, 20f, 20f, 80f, 80f, contour = contour))
+    }
+
+    @Test fun `isolated black pixels do not tint white sampling ring`() {
+        val bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.WHITE)
+            setPixel(25, 23, Color.BLACK)
+            setPixel(76, 40, Color.BLACK)
+            setPixel(55, 76, Color.BLACK)
+        }
+        assertEquals(Color.WHITE, BubbleColorSampler.sampleBackgroundColor(bitmap, 20f, 20f, 80f, 80f))
+    }
+
+    @Test fun `rejecting minority ink preserves gray off white colored and black fills`() {
+        for (fill in listOf(Color.rgb(180, 180, 180), Color.rgb(248, 246, 240), background, Color.BLACK)) {
+            val bitmap = contaminatedBubble(fill, if (fill == Color.BLACK) Color.WHITE else Color.BLACK)
+            assertEquals(fill, BubbleColorSampler.sampleBackgroundColor(bitmap, 20f, 20f, 80f, 80f))
+        }
+    }
+
+    @Test fun `scaled bitmap rejects border contamination in source coordinates`() {
+        val bitmap = contaminatedBubble(Color.WHITE, Color.BLACK)
+        assertEquals(Color.WHITE, BubbleColorSampler.sampleBackgroundColor(
+            bitmap, null, 200, 200, 40f, 40f, 160f, 160f
+        ))
+    }
+
+    @Test fun `free text keeps averaging multicolor surroundings`() {
+        val bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.WHITE)
+            for (y in 0 until 100) for (x in 0 until 18) setPixel(x, y, Color.BLACK)
+        }
+        assertEquals(Color.rgb(191, 191, 191), BubbleColorSampler.sampleBackgroundColor(
+            bitmap, 20f, 20f, 80f, 80f, outside = true
+        ))
+    }
+
     @Test fun `outer ring skips portions beyond page edge`() {
         val bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888).apply {
             eraseColor(Color.BLUE)

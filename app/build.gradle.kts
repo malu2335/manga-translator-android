@@ -18,11 +18,11 @@ android {
         !keyPasswordProp.isNullOrBlank()
 
     defaultConfig {
-        applicationId = "com.manga.translate.v3"
+        applicationId = "com.manga.translate.v3beta"
         minSdk = 24
         targetSdk = 36
-        versionCode = 102
-        versionName = "3.5.5"
+        versionCode = 106
+        versionName = "3.5.9"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
